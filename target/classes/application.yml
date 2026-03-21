@@ -1,0 +1,74 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+    encoding:
+      charset: UTF-8
+
+spring:
+  application:
+    name: springai-deepseek-chatbot
+  
+  # 数据源配置
+    # 数据源配置 (MySQL)
+    datasource:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://localhost:3306/Chatbot?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false
+      username: root
+      password: yyx2005yyx
+  
+  # Thymeleaf配置
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    encoding: UTF-8
+    cache: false
+  
+  # Spring AI配置（使用OpenAI兼容API连接DeepSeek）
+  ai:
+    openai:
+     api-key: ${DEEPSEEK_API_KEY}
+     base-url: https://api.deepseek.com
+     chat:
+        options:
+          model: deepseek-chat
+          temperature: 0.7
+  
+  # 数据库初始化配置
+  sql:
+    init:
+      mode: never
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+
+# Debug配置
+debug: false
+
+# MyBatis配置
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.example.chatbot.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# 应用配置
+app:
+  chatbot:
+    system-prompt: |
+      你是一个专业的智能客服助手，名字叫小AI。请遵循以下规则：
+      1. 始终保持友好、耐心和专业的态度
+      2. 提供准确、有帮助的信息
+      3. 如果不确定答案，请诚实说明并建议联系人工客服
+      4. 回答要简洁明了，避免过于冗长
+      5. 使用中文回复
+    max-history: 5
+    timeout: 30000
+
+# 日志配置
+logging:
+  level:
+    com.example.chatbot: DEBUG
+    org.mybatis: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n" 
