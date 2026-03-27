@@ -497,7 +497,7 @@
                 });
         }
 
-        // 发送消息
+        // 发送消息 (流式改造版)
         function sendMessage() {
             const message = messageInput.value.trim();
             if (!message) return;
@@ -508,14 +508,15 @@
 
             // 显示用户消息
             addMessage(message, 'user');
-            
+
             // 显示正在输入指示器
             showTypingIndicator();
 
             const startTime = Date.now();
+            const messageId = 'msg_' + Date.now(); // 为当前机器人回复创建一个唯一ID
 
-            // 发送到后端
-            fetch('/api/chat/message', {
+            // 请求刚刚在 Controller 新建的 /stream 接口
+            fetch('/api/chat/stream', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -525,34 +526,102 @@
                     sessionId: sessionId
                 })
             })
-            .then(response => response.json())
-            .then(data => {
-                hideTypingIndicator();
-                const responseTime = Date.now() - startTime;
-                
-                if (data.success) {
-                    addMessage(data.message, 'bot', responseTime);
-                    updateSessionStats(responseTime);
-                } else {
-                    addMessage(data.error || '抱歉，服务暂时不可用，请稍后重试。', 'bot', responseTime);
-                }
-            })
-            .catch(error => {
-                hideTypingIndicator();
-                console.error('发送消息失败:', error);
-                addMessage('网络错误，请检查连接后重试。', 'bot');
-            });
-        }
+                .then(async response => {
+                    hideTypingIndicator();
 
+                    if (!response.ok) {
+                        addMessage('抱歉，服务暂时不可用，请稍后重试。', 'bot');
+                        return;
+                    }
+
+                    // 提前创建一个机器人的空消息框，准备接收流式数据
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message bot`;
+
+                    const avatarDiv = document.createElement('div');
+                    avatarDiv.className = 'message-avatar';
+                    avatarDiv.innerHTML = '<i class="bi bi-robot"></i>';
+
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'message-content';
+                    contentDiv.id = messageId;
+
+                    messageDiv.appendChild(avatarDiv);
+                    messageDiv.appendChild(contentDiv);
+                    messagesContainer.appendChild(messageDiv);
+                    scrollToBottom();
+
+                    // 开始读取流式数据
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder('utf-8');
+                    let done = false;
+                    let fullContent = '';
+                    let buffer = '';
+
+                    while (!done) {
+                        const { value, done: readerDone } = await reader.read();
+                        if (readerDone) {
+                            done = true;
+                            break;
+                        }
+
+                        if (value) {
+                            buffer += decoder.decode(value, { stream: true });
+                            const lines = buffer.split('\n');
+                            // 最后一行可能不完整，保留到缓冲区下次处理
+                            buffer = lines.pop();
+
+                            for (let line of lines) {
+                                if (line.startsWith('data:')) {
+                                    const dataStr = line.substring(5).trim();
+                                    if (!dataStr) continue;
+
+                                    try {
+                                        // 解析后端发来的 JSON { "content": "..." }
+                                        const dataObj = JSON.parse(dataStr);
+                                        if (dataObj.content === '[DONE]') {
+                                            done = true;
+                                            break;
+                                        }
+
+                                        fullContent += dataObj.content;
+
+                                        // 实时使用 marked 解析完整的 Markdown 内容
+                                        contentDiv.innerHTML = marked.parse(fullContent);
+                                        scrollToBottom();
+                                    } catch (e) {
+                                        console.error('解析流数据失败:', e, dataStr);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 流传输彻底完成后，记录响应时间和统计
+                    const responseTime = Date.now() - startTime;
+                    const timeDiv = document.createElement('div');
+                    timeDiv.className = 'response-time';
+                    timeDiv.textContent = `响应时间: ${responseTime}ms`;
+                    contentDiv.appendChild(timeDiv);
+
+                    updateSessionStats(responseTime);
+
+                })
+                .catch(error => {
+                    hideTypingIndicator();
+                    console.error('发送流式消息失败:', error);
+                    addMessage('网络错误，请检查连接后重试。', 'bot');
+                });
+        }
         // 添加消息到聊天区域
         function addMessage(content, type, responseTime = null) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type}`;
-            
+
             const avatarDiv = document.createElement('div');
             avatarDiv.className = 'message-avatar';
             avatarDiv.innerHTML = type === 'user' ? '<i class="bi bi-person"></i>' : '<i class="bi bi-robot"></i>';
-            
+
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
             // 判断如果是机器人发来的消息，就用 marked 解析一下；用户的消息保持原样
@@ -561,20 +630,20 @@
             } else {
                 contentDiv.innerHTML = `<p class="mb-0">${content}</p>`;
             }
-            
+
             if (responseTime && type === 'bot') {
                 const timeDiv = document.createElement('div');
                 timeDiv.className = 'response-time';
                 timeDiv.textContent = `响应时间: ${responseTime}ms`;
                 contentDiv.appendChild(timeDiv);
             }
-            
+
             messageDiv.appendChild(avatarDiv);
             messageDiv.appendChild(contentDiv);
             messagesContainer.appendChild(messageDiv);
-            
+
             scrollToBottom();
-            
+
             if (type === 'user') {
                 messageCount++;
                 document.getElementById('messageCount').textContent = messageCount;

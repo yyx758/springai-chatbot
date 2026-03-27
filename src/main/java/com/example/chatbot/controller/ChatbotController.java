@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+// ... 原有引入 ...
+import org.springframework.http.MediaType;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * 智能客服控制器
@@ -55,6 +58,24 @@ public class ChatbotController {
             ChatResponse errorResponse = ChatResponse.error("系统内部错误", request.getSessionId());
             return ResponseEntity.status(500).body(errorResponse);
         }
+    }
+
+    /**
+     * 处理流式聊天请求 (SSE)
+     */
+    @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamChat(@RequestBody ChatRequest request) {
+        if (request.getSessionId() == null || request.getSessionId().trim().isEmpty()) {
+            request.setSessionId(UUID.randomUUID().toString());
+        }
+
+        logger.info("收到流式聊天请求，会话ID: {}, 消息: {}", request.getSessionId(), request.getMessage());
+
+        // 设置较长的超时时间（例如2分钟），防止长文本生成时连接断开
+        SseEmitter emitter = new SseEmitter(120000L);
+        chatbotService.streamChat(request, emitter);
+
+        return emitter;
     }
 
     /**

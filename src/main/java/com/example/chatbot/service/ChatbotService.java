@@ -14,7 +14,9 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -84,6 +86,8 @@ public class ChatbotService {
             return ChatResponse.error("服务暂时不可用，请稍后重试", request.getSessionId());
         }
     }
+
+
 
     /**
      * 构建对话上下文，包含历史记录
@@ -195,5 +199,47 @@ public class ChatbotService {
      */
     public long getTotalCount() {
         return chatRecordMapper.count();
+    }
+
+    /**
+     * 流式处理聊天请求，通过 SseEmitter 逐块推送
+     */
+    public void streamChat(ChatRequest request, SseEmitter emitter) {
+        String userInput = request.getMessage().trim();
+        List<Message> messages = buildConversationContext(request.getSessionId(), userInput);
+        StringBuilder fullResponse = new StringBuilder();
+
+        // 如图二所示，使用 .stream().content()
+        chatClient.prompt()
+                .messages(messages)
+                .stream()
+                .content()
+                .subscribe(
+                        chunk -> {
+                            try {
+                                if (chunk != null) {
+                                    fullResponse.append(chunk);
+                                    // 【关键修改】将文本包装为 JSON 格式推送，防止 Markdown 的换行符被 SSE 协议截断
+                                    emitter.send(SseEmitter.event().data(Map.of("content", chunk)));
+                                }
+                            } catch (IOException e) {
+                                emitter.completeWithError(e);
+                            }
+                        },
+                        error -> {
+                            logger.error("流式AI调用失败，会话ID: {}", request.getSessionId(), error);
+                            emitter.completeWithError(error);
+                        },
+                        () -> {
+                            try {
+                                saveChatRecord(request.getSessionId(), userInput, fullResponse.toString());
+                                // 发送结束标识符
+                                emitter.send(SseEmitter.event().name("done").data(Map.of("content", "[DONE]")));
+                                emitter.complete();
+                            } catch (IOException e) {
+                                emitter.completeWithError(e);
+                            }
+                        }
+                );
     }
 } 
