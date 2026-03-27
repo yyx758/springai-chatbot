@@ -6,6 +6,14 @@
     <title>智能客服系统 - Spring AI + DeepSeek</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- 引入 Highlight.js 的样式（这里用的是 GitHub 主题，你也可以换成暗黑主题） -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" rel="stylesheet">
+    <!-- 引入 Highlight.js 脚本 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- 引入 Marked.js 用于解析 Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
     <style>
         .hero-section {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -173,6 +181,29 @@
             color: white;
             padding: 10px 0;
             z-index: 1000;
+        }
+        /* 优化 Markdown 解析后的样式 */
+        .message-content p:last-child {
+            margin-bottom: 0;
+        }
+        .message-content pre {
+            background-color: #f6f8fa; /* 浅灰色背景 */
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            overflow-x: auto;
+        }
+        .message-content code {
+            font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+        }
+        /* 给行内代码加个小背景 */
+        .message-content :not(pre) > code {
+            background-color: rgba(0,0,0,0.05);
+            padding: 2px 4px;
+            border-radius: 4px;
+            color: #d63384;
         }
     </style>
 </head>
@@ -415,7 +446,14 @@
         let sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         let messageCount = 0;
         let totalResponseTime = 0;
-
+        // 配置 Marked.js，让它配合 Highlight.js 使用
+        marked.setOptions({
+            highlight: function(code, lang) {
+                const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                return hljs.highlight(code, { language }).value;
+            },
+            breaks: true // 允许 Markdown 中的回车换行
+        });
         // DOM元素
         const messagesContainer = document.getElementById('chatMessages');
         const messageInput = document.getElementById('messageInput');
@@ -517,7 +555,12 @@
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-            contentDiv.innerHTML = `<p class="mb-0">${content}</p>`;
+            // 判断如果是机器人发来的消息，就用 marked 解析一下；用户的消息保持原样
+            if (type === 'bot') {
+                contentDiv.innerHTML = marked.parse(content);
+            } else {
+                contentDiv.innerHTML = `<p class="mb-0">${content}</p>`;
+            }
             
             if (responseTime && type === 'bot') {
                 const timeDiv = document.createElement('div');

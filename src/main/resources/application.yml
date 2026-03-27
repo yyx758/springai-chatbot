@@ -9,7 +9,7 @@ spring:
   application:
     name: springai-deepseek-chatbot
   
-  # 数据源配置
+
     # 数据源配置 (MySQL)
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
