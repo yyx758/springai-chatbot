@@ -47,13 +47,13 @@
             <version>${spring-ai.version}</version>
         </dependency>
         
-        <!-- H2数据库依赖 -->
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        
+<!--        &lt;!&ndash; H2数据库依赖 &ndash;&gt;-->
+<!--        <dependency>-->
+<!--            <groupId>com.h2database</groupId>-->
+<!--            <artifactId>h2</artifactId>-->
+<!--            <scope>runtime</scope>-->
+<!--        </dependency>-->
+<!--        -->
         <!-- MySQL驱动依赖 -->
         <dependency>
             <groupId>com.mysql</groupId>

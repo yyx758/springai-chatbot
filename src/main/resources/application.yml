@@ -11,11 +11,11 @@ spring:
   
   # 数据源配置
     # 数据源配置 (MySQL)
-    datasource:
-      driver-class-name: com.mysql.cj.jdbc.Driver
-      url: jdbc:mysql://localhost:3306/Chatbot?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false
-      username: root
-      password: yyx2005yyx
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/chatbot?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: root
+    password: yyx2005yyx
   
   # Thymeleaf配置
   thymeleaf:

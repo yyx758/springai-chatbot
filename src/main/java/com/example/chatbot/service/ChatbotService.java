@@ -56,8 +56,8 @@ public class ChatbotService {
         long startTime = System.currentTimeMillis();
         
         try {
-            // 参数验证
-            if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
+            // 使用 isBlank() 同时检查：是否长度为 0，或者是否只包含空白字符
+            if (request.getMessage() == null || request.getMessage().isBlank()) {
                 return ChatResponse.error("消息内容不能为空", request.getSessionId());
             }
 

@@ -349,6 +349,19 @@
                                 </small>
                             </div>
                         </div>
+
+                        <!-- 聊天记录 -->
+                        <div class="session-info">
+                            <h6 class="fw-bold mb-3">
+                                <i class="bi bi-clock-history me-2"></i>聊天记录
+                            </h6>
+                            <button class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="loadSessionHistory()">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>加载本次会话历史
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm w-100" onclick="openRecordsModal()">
+                                <i class="bi bi-table me-1"></i>查看所有聊天记录
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -365,6 +378,37 @@
             </div>
         </div>
     </footer>
+
+    <!-- 所有聊天记录模态框 -->
+    <div class="modal fade" id="recordsModal" tabindex="-1" aria-labelledby="recordsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="recordsModalLabel">
+                        <i class="bi bi-table me-2"></i>所有聊天记录
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="recordsContent">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 分页控件 -->
+                    <nav id="recordsPagination" aria-label="记录分页" style="display:none;">
+                        <ul class="pagination pagination-sm justify-content-center mb-0" id="paginationList"></ul>
+                    </nav>
+                </div>
+                <div class="modal-footer">
+                    <small class="text-muted me-auto" id="recordsTotalInfo"></small>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -526,6 +570,128 @@
 
         // 定期更新系统统计信息
         setInterval(loadSystemStats, 30000); // 每30秒更新一次
+
+        // 加载当前会话历史记录，并渲染到聊天区域
+        function loadSessionHistory() {
+            fetch('/api/chat/history/' + sessionId)
+                .then(response => response.json())
+                .then(records => {
+                    if (!records || records.length === 0) {
+                        addMessage('本次会话暂无历史记录。', 'bot');
+                        return;
+                    }
+                    // 清空当前消息区（保留欢迎语）
+                    messagesContainer.innerHTML = '';
+                    addMessage('以下是本次会话的历史记录：', 'bot');
+                    records.forEach(function(record) {
+                        addMessage(record.userMessage, 'user');
+                        addMessage(record.botResponse, 'bot');
+                    });
+                })
+                .catch(error => {
+                    console.error('加载会话历史失败:', error);
+                    addMessage('加载历史记录失败，请稍后重试。', 'bot');
+                });
+        }
+
+        // 所有记录模态框
+        let currentPage = 0;
+        const pageSize = 10;
+        let recordsModalInstance = null;
+
+        function openRecordsModal() {
+            currentPage = 0;
+            recordsModalInstance = new bootstrap.Modal(document.getElementById('recordsModal'));
+            recordsModalInstance.show();
+            fetchRecords(currentPage);
+        }
+
+        function fetchRecords(page) {
+            document.getElementById('recordsContent').innerHTML =
+                '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">加载中...</span></div></div>';
+            document.getElementById('recordsPagination').style.display = 'none';
+
+            fetch('/api/chat/records?page=' + page + '&size=' + pageSize)
+                .then(response => response.json())
+                .then(data => {
+                    renderRecordsTable(data);
+                })
+                .catch(error => {
+                    console.error('获取聊天记录失败:', error);
+                    document.getElementById('recordsContent').innerHTML =
+                        '<div class="alert alert-danger">加载失败，请稍后重试。</div>';
+                });
+        }
+
+        function renderRecordsTable(data) {
+            const records = data.records || [];
+            const total = data.total || 0;
+            const totalPages = data.totalPages || 0;
+
+            document.getElementById('recordsTotalInfo').textContent =
+                '共 ' + total + ' 条记录，第 ' + (data.page + 1) + ' / ' + (totalPages || 1) + ' 页';
+
+            if (records.length === 0) {
+                document.getElementById('recordsContent').innerHTML =
+                    '<div class="text-center text-muted py-4">暂无聊天记录</div>';
+                return;
+            }
+
+            let html = '<div class="list-group list-group-flush">';
+            records.forEach(function(r) {
+                const time = r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '';
+                html += '<div class="list-group-item px-0">';
+                html += '<div class="d-flex justify-content-between align-items-center mb-1">';
+                html += '<small class="text-muted"><i class="bi bi-hash me-1"></i>会话: ' + (r.sessionId || '') + '</small>';
+                html += '<small class="text-muted">' + time + '</small>';
+                html += '</div>';
+                html += '<div class="mb-1"><span class="badge bg-primary me-1">用户</span><span class="text-break">' + escapeHtml(r.userMessage) + '</span></div>';
+                html += '<div><span class="badge bg-success me-1">AI</span><span class="text-break">' + escapeHtml(r.botResponse) + '</span></div>';
+                html += '</div>';
+            });
+            html += '</div>';
+            document.getElementById('recordsContent').innerHTML = html;
+
+            // 渲染分页
+            if (totalPages > 1) {
+                renderPagination(data.page, totalPages);
+                document.getElementById('recordsPagination').style.display = 'block';
+            } else {
+                document.getElementById('recordsPagination').style.display = 'none';
+            }
+        }
+
+        function renderPagination(page, totalPages) {
+            const list = document.getElementById('paginationList');
+            list.innerHTML = '';
+
+            // 上一页
+            list.innerHTML += '<li class="page-item ' + (page === 0 ? 'disabled' : '') + '">' +
+                '<a class="page-link" href="#" onclick="goToPage(' + (page - 1) + ');return false;">«</a></li>';
+
+            // 页码（最多显示5页）
+            let start = Math.max(0, page - 2);
+            let end = Math.min(totalPages - 1, start + 4);
+            start = Math.max(0, end - 4);
+            for (let i = start; i <= end; i++) {
+                list.innerHTML += '<li class="page-item ' + (i === page ? 'active' : '') + '">' +
+                    '<a class="page-link" href="#" onclick="goToPage(' + i + ');return false;">' + (i + 1) + '</a></li>';
+            }
+
+            // 下一页
+            list.innerHTML += '<li class="page-item ' + (page >= totalPages - 1 ? 'disabled' : '') + '">' +
+                '<a class="page-link" href="#" onclick="goToPage(' + (page + 1) + ');return false;">»</a></li>';
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            fetchRecords(currentPage);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
     </script>
 </body>
 </html>
