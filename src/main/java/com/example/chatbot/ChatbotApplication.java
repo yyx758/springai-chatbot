@@ -3,13 +3,14 @@ package com.example.chatbot;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-
+import org.springframework.scheduling.annotation.EnableAsync; // 新增导入
 /**
  * 智能客服系统主应用类
  * 基于Spring Boot + Spring AI + MyBatis + DeepSeek
  * 
  * @author yyvb
  */
+@EnableAsync // 新增这行，开启异步任务支持
 @SpringBootApplication
 @MapperScan("com.example.chatbot.mapper")
 public class ChatbotApplication {

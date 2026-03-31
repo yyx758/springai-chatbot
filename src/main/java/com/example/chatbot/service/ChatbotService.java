@@ -4,6 +4,7 @@ import com.example.chatbot.dto.ChatRequest;
 import com.example.chatbot.dto.ChatResponse;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.mapper.ChatRecordMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -13,6 +14,8 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -35,6 +38,13 @@ public class ChatbotService {
 
     private final ChatClient chatClient;
     private final ChatRecordMapper chatRecordMapper;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate; // 注入 RedisTemplate
+
+    @Autowired
+    private ObjectMapper objectMapper; // 注入 ObjectMapper 用于类型转换
+//@Value是把外部配置文件（比如 application.yml 或 application.properties）里的值，“注入”到代码的变量中。后面是默认值
 
     @Value("${app.chatbot.system-prompt:你是一个专业的智能客服助手，请友好、专业地回答用户的问题。}")
     private String systemPrompt;
@@ -92,25 +102,60 @@ public class ChatbotService {
     /**
      * 构建对话上下文，包含历史记录
      */
+    /**
+     * 1. 改造组装上下文逻辑，优先从 Redis List 中读取
+     */
     private List<Message> buildConversationContext(String sessionId, String userInput) {
         List<Message> messages = new ArrayList<>();
-        
-        // 添加系统提示
         messages.add(new SystemMessage(systemPrompt));
-        
-        // 获取历史对话记录
-        List<ChatRecord> history = getRecentChatHistory(sessionId, maxHistory);
-        
-        // 添加历史对话到上下文（按时间顺序）
+
+        String redisKey = "chat:history:" + sessionId;
+
+        // 从 Redis 的 List 中获取所有记录 (0 到 -1 代表全部)
+        List<Object> cachedRecords = redisTemplate.opsForList().range(redisKey, 0, -1);
+
+        List<ChatRecord> history = new ArrayList<>();
+
+        if (cachedRecords != null && !cachedRecords.isEmpty()) {
+            // Redis 命中，进行类型转换
+            for (Object obj : cachedRecords) {
+                history.add(objectMapper.convertValue(obj, ChatRecord.class));
+            }
+        } else {
+            // Redis 未命中，从 MySQL 兜底查询，并可以考虑在此处回写 Redis（这里省略回写，等新消息来自然会写）
+            history = getRecentChatHistory(sessionId, maxHistory);
+        }
+
         for (ChatRecord record : history) {
             messages.add(new UserMessage(record.getUserMessage()));
             messages.add(new AssistantMessage(record.getBotResponse()));
         }
-        
-        // 添加当前用户输入
+
         messages.add(new UserMessage(userInput));
-        
         return messages;
+    }
+
+
+    @Async // 异步执行，不阻塞主流程
+    public void asyncSaveChatRecord(String sessionId, String userMessage, String botResponse) {
+        try {
+            ChatRecord record = new ChatRecord(userMessage, botResponse, sessionId);
+            String redisKey = "chat:history:" + sessionId;
+
+            // 1. 存入 Redis List (将新记录推入列表右侧)
+            redisTemplate.opsForList().rightPush(redisKey, record);
+
+            // 2. 裁剪 List，只保留最近的 maxHistory 条记录，旧记录会被抛弃
+            redisTemplate.opsForList().trim(redisKey, -maxHistory, -1);
+
+            // 3. 设置过期时间（例如 2 小时无对话自动清除 Redis 缓存，释放内存）
+            redisTemplate.expire(redisKey, 2, TimeUnit.HOURS);
+
+            // 4. 持久化到 MySQL
+            chatRecordMapper.insert(record);
+        } catch (Exception e) {
+            logger.error("异步保存聊天记录失败 ID: {}", sessionId, e);
+        }
     }
 
     /**
@@ -232,7 +277,7 @@ public class ChatbotService {
                         },
                         () -> {
                             try {
-                                saveChatRecord(request.getSessionId(), userInput, fullResponse.toString());
+                                asyncSaveChatRecord(request.getSessionId(), userInput, fullResponse.toString());
                                 // 发送结束标识符
                                 emitter.send(SseEmitter.event().name("done").data(Map.of("content", "[DONE]")));
                                 emitter.complete();

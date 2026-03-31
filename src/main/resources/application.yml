@@ -9,7 +9,17 @@ spring:
   application:
     name: springai-deepseek-chatbot
   
-
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: yyx2005yyx
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: -1ms
+          max-idle: 8
+          min-idle: 0
     # 数据源配置 (MySQL)
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
