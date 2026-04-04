@@ -84,7 +84,7 @@ public class ChatbotService {
             long responseTime = System.currentTimeMillis() - startTime;
             
             // 保存聊天记录
-            saveChatRecord(request.getSessionId(), userInput, aiResponse);
+            asyncSaveChatRecord(request.getSessionId(), userInput, aiResponse);
             
             logger.info("会话[{}]处理完成，耗时:{}ms", request.getSessionId(), responseTime);
             
@@ -99,11 +99,9 @@ public class ChatbotService {
 
 
 
+
     /**
-     * 构建对话上下文，包含历史记录
-     */
-    /**
-     * 1. 改造组装上下文逻辑，优先从 Redis List 中读取
+     *  改造组装上下文逻辑，优先从 Redis List 中读取
      */
     private List<Message> buildConversationContext(String sessionId, String userInput) {
         List<Message> messages = new ArrayList<>();
@@ -122,9 +120,18 @@ public class ChatbotService {
                 history.add(objectMapper.convertValue(obj, ChatRecord.class));
             }
         } else {
-            // Redis 未命中，从 MySQL 兜底查询，并可以考虑在此处回写 Redis（这里省略回写，等新消息来自然会写）
+            // Redis 未命中，从 MySQL 兜底查询，并可以考虑在此处回写 Redis
             history = getRecentChatHistory(sessionId, maxHistory);
+
+            // 【核心修改点：回写 Redis】
+            if (history != null && !history.isEmpty()) {
+                // 将从数据库查出的历史记录批量写入 Redis 列表
+                redisTemplate.opsForList().rightPushAll(redisKey, history.toArray());
+                // 务必设置过期时间，防止冷数据永久占用内存
+                redisTemplate.expire(redisKey, 2, TimeUnit.HOURS);
+            }
         }
+
 
         for (ChatRecord record : history) {
             messages.add(new UserMessage(record.getUserMessage()));
@@ -135,7 +142,9 @@ public class ChatbotService {
         return messages;
     }
 
-
+    /**
+     * 保存聊天记录到数据库
+     */
     @Async // 异步执行，不阻塞主流程
     public void asyncSaveChatRecord(String sessionId, String userMessage, String botResponse) {
         try {
@@ -177,17 +186,7 @@ public class ChatbotService {
         return future.get(timeout, TimeUnit.MILLISECONDS);
     }
 
-    /**
-     * 保存聊天记录到数据库
-     */
-    private void saveChatRecord(String sessionId, String userMessage, String botResponse) {
-        try {
-            ChatRecord record = new ChatRecord(userMessage, botResponse, sessionId);
-            chatRecordMapper.insert(record);
-        } catch (Exception e) {
-            logger.error("保存聊天记录失败，会话ID: {}", sessionId, e);
-        }
-    }
+
 
     /**
      * 获取最近的聊天历史记录
