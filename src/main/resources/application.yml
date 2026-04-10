@@ -6,6 +6,10 @@ server:
       charset: UTF-8
 
 spring:
+  mvc:
+    async:
+        # 设置为 600,000 毫秒（10分钟）
+      request-timeout: 600000
   application:
     name: springai-deepseek-chatbot
   
@@ -43,7 +47,13 @@ spring:
         options:
           model: deepseek-chat
           temperature: 0.7
-  
+    ollama:
+    # 内网穿透的 URL
+      base-url: https://ollama.yyyyx.top
+      chat:
+        options:
+          model: qwen2.5:0.5b # 确保你本地电脑已经 pull 了这个模型
+          temperature: 0.7
   # 数据库初始化配置
   sql:
     init:

@@ -48,7 +48,11 @@ public class ChatbotController {
                 request.setSessionId(UUID.randomUUID().toString());
             }
 
-            logger.info("收到聊天请求，会话ID: {}, 消息: {}", request.getSessionId(), request.getMessage());
+            // 【修改点】：在日志中补充打印前端传入的 model 参数
+            logger.info("收到聊天请求，会话ID: {}, 指定模型: {}, 消息: {}",
+                    request.getSessionId(),
+                    request.getModel() != null ? request.getModel() : "默认(DeepSeek)",
+                    request.getMessage());
 
             ChatResponse response = chatbotService.chat(request);
             return ResponseEntity.ok(response);
@@ -69,7 +73,11 @@ public class ChatbotController {
             request.setSessionId(UUID.randomUUID().toString());
         }
 
-        logger.info("收到流式聊天请求，会话ID: {}, 消息: {}", request.getSessionId(), request.getMessage());
+        // 【修改点】：在日志中补充打印前端传入的 model 参数
+        logger.info("收到流式聊天请求，会话ID: {}, 指定模型: {}, 消息: {}",
+                request.getSessionId(),
+                request.getModel() != null ? request.getModel() : "默认(DeepSeek)",
+                request.getMessage());
 
         // 设置较长的超时时间（例如2分钟），防止长文本生成时连接断开
         SseEmitter emitter = new SseEmitter(120000L);

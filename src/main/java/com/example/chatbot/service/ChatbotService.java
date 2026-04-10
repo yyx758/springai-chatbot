@@ -25,6 +25,11 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.ai.chat.prompt.Prompt;
+import reactor.core.publisher.Flux;
+
 /**
  * 智能客服核心服务类
  * 基于Spring AI + MyBatis实现智能对话
@@ -35,16 +40,16 @@ import java.util.concurrent.TimeUnit;
 public class ChatbotService {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatbotService.class);
-
-    private final ChatClient chatClient;
+    // 【修改点 2】不再使用单一的 ChatClient，改用两个具体的模型
+    private final OpenAiChatModel openAiChatModel;
+    private final OllamaChatModel ollamaChatModel;
     private final ChatRecordMapper chatRecordMapper;
 
     @Autowired
-    private RedisTemplate<String, Object> redisTemplate; // 注入 RedisTemplate
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
-    private ObjectMapper objectMapper; // 注入 ObjectMapper 用于类型转换
-//@Value是把外部配置文件（比如 application.yml 或 application.properties）里的值，“注入”到代码的变量中。后面是默认值
+    private ObjectMapper objectMapper;
 
     @Value("${app.chatbot.system-prompt:你是一个专业的智能客服助手，请友好、专业地回答用户的问题。}")
     private String systemPrompt;
@@ -55,45 +60,37 @@ public class ChatbotService {
     @Value("${app.chatbot.timeout:30000}")
     private long timeout;
 
+    // 【修改点 3】构造函数注入两个模型
     @Autowired
-    public ChatbotService(ChatClient.Builder chatClientBuilder, ChatRecordMapper chatRecordMapper) {
-        this.chatClient = chatClientBuilder.build();
+    public ChatbotService(OpenAiChatModel openAiChatModel, OllamaChatModel ollamaChatModel, ChatRecordMapper chatRecordMapper) {
+        this.openAiChatModel = openAiChatModel;
+        this.ollamaChatModel = ollamaChatModel;
         this.chatRecordMapper = chatRecordMapper;
     }
 
     /**
-     * 处理用户聊天请求
+     * 处理用户聊天请求（同步）
      */
     public ChatResponse chat(ChatRequest request) {
         long startTime = System.currentTimeMillis();
-        
         try {
-            // 使用 isBlank() 同时检查：是否长度为 0，或者是否只包含空白字符
             if (request.getMessage() == null || request.getMessage().isBlank()) {
                 return ChatResponse.error("消息内容不能为空", request.getSessionId());
             }
 
             String userInput = request.getMessage().trim();
-            
-            // 构建对话上下文
             List<Message> messages = buildConversationContext(request.getSessionId(), userInput);
-            
-            // 调用AI获取响应
-            String aiResponse = callAIWithTimeout(messages);
-            
+
+            // 【修改点 4】逻辑切换：传入前端想用的模型标识
+            String aiResponse = callAIWithFallback(messages, request.getModel());
+
             long responseTime = System.currentTimeMillis() - startTime;
-            
-            // 保存聊天记录
             asyncSaveChatRecord(request.getSessionId(), userInput, aiResponse);
-            
-            logger.info("会话[{}]处理完成，耗时:{}ms", request.getSessionId(), responseTime);
-            
+
             return new ChatResponse(aiResponse, request.getSessionId(), responseTime);
-            
         } catch (Exception e) {
-            long responseTime = System.currentTimeMillis() - startTime;
-            logger.error("处理聊天请求时发生错误，会话ID: {}, 耗时: {}ms", request.getSessionId(), responseTime, e);
-            return ChatResponse.error("服务暂时不可用，请稍后重试", request.getSessionId());
+            logger.error("聊天最终失败", e);
+            return ChatResponse.error("AI服务全线拥堵，请稍后再试", request.getSessionId());
         }
     }
 
@@ -168,24 +165,24 @@ public class ChatbotService {
     }
 
     /**
-     * 带超时的AI调用
+     * 【修改点 5】核心降级逻辑：同步调用
      */
-    private String callAIWithTimeout(List<Message> messages) throws Exception {
-        CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
-            try {
-                return chatClient.prompt()
-                    .messages(messages)
-                    .call()
-                    .content();
-            } catch (Exception e) {
-                logger.error("调用Spring AI服务失败", e);
-                throw new RuntimeException("AI服务调用失败", e);
-            }
-        });
+    private String callAIWithFallback(List<Message> messages, String preferredModel) throws Exception {
+        // 如果前端指名道姓要用 ollama
+        if ("ollama".equalsIgnoreCase(preferredModel)) {
+            return ollamaChatModel.call(new Prompt(messages)).getResult().getOutput().getContent();
+        }
 
-        return future.get(timeout, TimeUnit.MILLISECONDS);
+        try {
+            // 默认尝试官方 DeepSeek (OpenAI 协议)
+            logger.info("正在尝试调用 DeepSeek 官方接口...");
+            return openAiChatModel.call(new Prompt(messages)).getResult().getOutput().getContent();
+        } catch (Exception e) {
+            // 自动降级！
+            logger.warn("官方接口异常，正在自动切换至本地 Ollama 隧道...");
+            return ollamaChatModel.call(new Prompt(messages)).getResult().getOutput().getContent();
+        }
     }
-
 
 
     /**
@@ -248,42 +245,65 @@ public class ChatbotService {
     /**
      * 流式处理聊天请求，通过 SseEmitter 逐块推送
      */
+    /**
+     * 【修改点 6】流式处理降级逻辑
+     */
     public void streamChat(ChatRequest request, SseEmitter emitter) {
         String userInput = request.getMessage().trim();
         List<Message> messages = buildConversationContext(request.getSessionId(), userInput);
         StringBuilder fullResponse = new StringBuilder();
 
-        // 如图二所示，使用 .stream().content()
-        chatClient.prompt()
-                .messages(messages)
-                .stream()
-                .content()
-                .subscribe(
-                        chunk -> {
-                            try {
-                                if (chunk != null) {
-                                    fullResponse.append(chunk);
-                                    // 【关键修改】将文本包装为 JSON 格式推送，防止 Markdown 的换行符被 SSE 协议截断
-                                    emitter.send(SseEmitter.event().data(Map.of("content", chunk)));
-                                }
-                            } catch (IOException e) {
-                                emitter.completeWithError(e);
-                            }
-                        },
-                        error -> {
-                            logger.error("流式AI调用失败，会话ID: {}", request.getSessionId(), error);
-                            emitter.completeWithError(error);
-                        },
-                        () -> {
-                            try {
-                                asyncSaveChatRecord(request.getSessionId(), userInput, fullResponse.toString());
-                                // 发送结束标识符
-                                emitter.send(SseEmitter.event().name("done").data(Map.of("content", "[DONE]")));
-                                emitter.complete();
-                            } catch (IOException e) {
-                                emitter.completeWithError(e);
-                            }
+        try {
+            // 【核心改动】一进来先发一个空包，占住坑位，防止超时！
+            emitter.send(SseEmitter.event().data(Map.of("content", "")));
+        } catch (IOException e) {
+            logger.error("发送初始化包失败", e);
+        }
+
+        // 决定起手模型
+        boolean startWithOllama = "ollama".equalsIgnoreCase(request.getModel());
+
+        Flux<String> chatFlux;
+        if (startWithOllama) {
+            chatFlux = ollamaChatModel.stream(new Prompt(messages)).map(res -> res.getResult().getOutput().getContent());
+        } else {
+            // 官方优先，失败则 resume (接力) 到 Ollama
+            chatFlux = openAiChatModel.stream(new Prompt(messages))
+                    .map(res -> {
+                        String content = res.getResult().getOutput().getContent();
+                        return content != null ? content : "";
+                    })
+                    .onErrorResume(e -> {
+                        logger.warn("流式输出：官方接口故障，切换到本地 Ollama...");
+                        return ollamaChatModel.stream(new Prompt(messages))
+                                .map(res -> res.getResult().getOutput().getContent());
+                    });
+        }
+
+        chatFlux.subscribe(
+                chunk -> {
+                    try {
+                        if (chunk != null && !chunk.isEmpty()) {
+                            fullResponse.append(chunk);
+                            // 发送实际内容
+                            emitter.send(SseEmitter.event().data(Map.of("content", chunk)));
+                            // 【新增】每发一个字，紧跟一个空行或注释，强迫中间代理（Cloudflare）推送到前端
+                            emitter.send(SseEmitter.event().comment("keep-alive"));
                         }
-                );
+                    } catch (IOException e) {
+                        emitter.completeWithError(e);
+                    }
+                },
+                error -> emitter.completeWithError(error),
+                () -> {
+                    try {
+                        asyncSaveChatRecord(request.getSessionId(), userInput, fullResponse.toString());
+                        emitter.send(SseEmitter.event().name("done").data(Map.of("content", "[DONE]")));
+                        emitter.complete();
+                    } catch (IOException e) {
+                        emitter.completeWithError(e);
+                    }
+                }
+        );
     }
 } 

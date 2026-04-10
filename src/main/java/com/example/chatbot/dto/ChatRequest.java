@@ -9,12 +9,13 @@ public class ChatRequest {
     
     private String message;
     private String sessionId;
-    
+    private String model ;
     public ChatRequest() {}
     
-    public ChatRequest(String message, String sessionId) {
+    public ChatRequest(String message, String sessionId, String modle) {
         this.message = message;
         this.sessionId = sessionId;
+        this.model = model;
     }
     
     public String getMessage() {
@@ -31,5 +32,13 @@ public class ChatRequest {
     
     public void setSessionId(String sessionId) {
         this.sessionId = sessionId;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
     }
 } 

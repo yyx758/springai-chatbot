@@ -214,7 +214,7 @@
             <div class="row">
                 <div class="col-md-8">
                     <h1 class="display-5 fw-bold mb-3 text-start">智能客服系统</h1>
-                    <p class="lead mb-3 text-start">基于 Spring Boot + Spring AI + DeepSeek 构建的下一代智能客服解决方案</p>
+                    <p class="lead mb-3 text-start">基于 Spring Boot + Spring AI + 多模型构建的下一代智能客服解决方案</p>
                     <p class="mb-0 text-start">集成最新的人工智能技术，提供自然、流畅的对话体验，帮助企业提升客户服务质量和效率。</p>
                 </div>
             </div>
@@ -260,7 +260,7 @@
                                     <i class="bi bi-robot me-2" style="font-size: 24px;"></i>
                                     <div>
                                         <h5 class="mb-0">智能客服助手</h5>
-                                        <small class="opacity-75">基于DeepSeek AI，随时为您服务</small>
+                                        <small class="opacity-75">支持多模型切换，随时为您服务</small>
                                     </div>
                                     <div class="ms-auto">
                                         <span class="badge bg-success">在线</span>
@@ -281,6 +281,11 @@
 
                             <div class="chat-input-area">
                                 <div class="input-group">
+                                    <select class="form-select shadow-none" id="modelSelect" style="max-width: 140px; border-color: #dee2e6;">
+                                        <option value="deepseek" selected>DeepSeek</option>
+                                        <option value="ollama">Ollama (本地)</option>
+                                    </select>
+
                                     <input type="text" class="form-control" id="messageInput" placeholder="请输入您的问题..." maxlength="500">
                                     <button class="btn btn-custom" type="button" id="sendButton">
                                         <i class="bi bi-send"></i> 发送
@@ -404,7 +409,7 @@
         <div class="container">
             <div class="row">
                 <div class="col-md-6 text-md-end">
-                    <p class="mb-0">© 2025 智能客服系统. 保留所有权利. 技术支持: yyb</p>
+                    <p class="mb-0">© 2026 智能客服系统. 保留所有权利. 技术支持: yyx</p>
                 </div>
             </div>
         </div>
@@ -497,121 +502,93 @@
                 });
         }
 
-        // 发送消息 (流式改造版)
-        function sendMessage() {
+        async function sendMessage() {
             const message = messageInput.value.trim();
             if (!message) return;
 
-            // 清空输入框
             messageInput.value = '';
-            messageInput.focus();
-
-            // 显示用户消息
             addMessage(message, 'user');
-
-            // 显示正在输入指示器
             showTypingIndicator();
 
             const startTime = Date.now();
-            const messageId = 'msg_' + Date.now(); // 为当前机器人回复创建一个唯一ID
+            const messageId = 'msg_' + Date.now();
+            const selectedModel = document.getElementById('modelSelect').value;
 
-            // 请求刚刚在 Controller 新建的 /stream 接口
-            fetch('/api/chat/stream', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    message: message,
-                    sessionId: sessionId
-                })
-            })
-                .then(async response => {
-                    hideTypingIndicator();
+            try {
+                const response = await fetch('/api/chat/stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        sessionId: sessionId,
+                        model: selectedModel
+                    })
+                });
 
-                    if (!response.ok) {
-                        addMessage('抱歉，服务暂时不可用，请稍后重试。', 'bot');
-                        return;
-                    }
+                hideTypingIndicator();
 
-                    // 提前创建一个机器人的空消息框，准备接收流式数据
-                    const messageDiv = document.createElement('div');
-                    messageDiv.className = `message bot`;
+                // 创建机器人消息容器
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message bot`;
+                messageDiv.innerHTML = `
+            <div class="message-avatar"><i class="bi bi-robot"></i></div>
+            <div class="message-content" id="${messageId}"></div>
+        `;
+                messagesContainer.appendChild(messageDiv);
+                const contentDiv = document.getElementById(messageId);
 
-                    const avatarDiv = document.createElement('div');
-                    avatarDiv.className = 'message-avatar';
-                    avatarDiv.innerHTML = '<i class="bi bi-robot"></i>';
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullContent = '';
+                let buffer = '';
 
-                    const contentDiv = document.createElement('div');
-                    contentDiv.className = 'message-content';
-                    contentDiv.id = messageId;
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
 
-                    messageDiv.appendChild(avatarDiv);
-                    messageDiv.appendChild(contentDiv);
-                    messagesContainer.appendChild(messageDiv);
-                    scrollToBottom();
+                    buffer += decoder.decode(value, { stream: true });
+                    let lines = buffer.split('\n');
+                    buffer = lines.pop();
 
-                    // 开始读取流式数据
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder('utf-8');
-                    let done = false;
-                    let fullContent = '';
-                    let buffer = '';
+                    for (let line of lines) {
+                        line = line.trim();
+                        if (!line) continue;
 
-                    while (!done) {
-                        const { value, done: readerDone } = await reader.read();
-                        if (readerDone) {
-                            done = true;
-                            break;
-                        }
+                        // 核心适配：处理 event:done 这种标记（可选，因为 done 状态也能判断）
+                        if (line.startsWith('event:done')) continue;
 
-                        if (value) {
-                            buffer += decoder.decode(value, { stream: true });
-                            const lines = buffer.split('\n');
-                            // 最后一行可能不完整，保留到缓冲区下次处理
-                            buffer = lines.pop();
+                        if (line.startsWith('data:')) {
+                            const dataStr = line.substring(5).trim();
+                            try {
+                                const dataObj = JSON.parse(dataStr);
+                                const delta = dataObj.content;
 
-                            for (let line of lines) {
-                                if (line.startsWith('data:')) {
-                                    const dataStr = line.substring(5).trim();
-                                    if (!dataStr) continue;
+                                if (delta === "[DONE]") break;
 
-                                    try {
-                                        // 解析后端发来的 JSON { "content": "..." }
-                                        const dataObj = JSON.parse(dataStr);
-                                        if (dataObj.content === '[DONE]') {
-                                            done = true;
-                                            break;
-                                        }
-
-                                        fullContent += dataObj.content;
-
-                                        // 实时使用 marked 解析完整的 Markdown 内容
-                                        contentDiv.innerHTML = marked.parse(fullContent);
-                                        scrollToBottom();
-                                    } catch (e) {
-                                        console.error('解析流数据失败:', e, dataStr);
-                                    }
-                                }
+                                fullContent += delta;
+                                // 渲染 Markdown
+                                contentDiv.innerHTML = marked.parse(fullContent);
+                                // 代码高亮
+                                contentDiv.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+                                scrollToBottom();
+                            } catch (e) {
+                                console.error("解析 JSON 失败", e, dataStr);
                             }
                         }
                     }
+                }
 
-                    // 流传输彻底完成后，记录响应时间和统计
-                    const responseTime = Date.now() - startTime;
-                    const timeDiv = document.createElement('div');
-                    timeDiv.className = 'response-time';
-                    timeDiv.textContent = `响应时间: ${responseTime}ms`;
-                    contentDiv.appendChild(timeDiv);
+                const responseTime = Date.now() - startTime;
+                const timeDiv = document.createElement('div');
+                timeDiv.className = 'response-time';
+                timeDiv.style.cssText = 'font-size: 0.8rem; opacity: 0.5; margin-top: 5px;';
+                timeDiv.textContent = `响应时间: ${responseTime}ms`;
+                contentDiv.appendChild(timeDiv);
 
-                    updateSessionStats(responseTime);
-
-                })
-                .catch(error => {
-                    hideTypingIndicator();
-                    console.error('发送流式消息失败:', error);
-                    addMessage('网络错误，请检查连接后重试。', 'bot');
-                });
+            } catch (error) {
+                hideTypingIndicator();
+                console.error('Stream Error:', error);
+            }
         }
         // 添加消息到聊天区域
         function addMessage(content, type, responseTime = null) {
