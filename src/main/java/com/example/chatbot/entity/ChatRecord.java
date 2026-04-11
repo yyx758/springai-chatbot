@@ -1,69 +1,30 @@
 package com.example.chatbot.entity;
 
+import com.baomidou.mybatisplus.annotation.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
 /**
  * 聊天记录实体类
- * 
- * @author yyvb
  */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@TableName("chat_record") // 指定表名
 public class ChatRecord {
-    
+    @TableId(type = IdType.AUTO)
     private Long id;
     private String userMessage;
     private String botResponse;
+
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdTime;
+
     private String sessionId;
-    
-    // 构造函数
-    public ChatRecord() {
-    }
-    
-    public ChatRecord(String userMessage, String botResponse, String sessionId) {
-        this.userMessage = userMessage;
-        this.botResponse = botResponse;
-        this.sessionId = sessionId;
-        this.createdTime = LocalDateTime.now();
-    }
-    
-    // Getter和Setter方法
-    public Long getId() {
-        return id;
-    }
-    
-    public void setId(Long id) {
-        this.id = id;
-    }
-    
-    public String getUserMessage() {
-        return userMessage;
-    }
-    
-    public void setUserMessage(String userMessage) {
-        this.userMessage = userMessage;
-    }
-    
-    public String getBotResponse() {
-        return botResponse;
-    }
-    
-    public void setBotResponse(String botResponse) {
-        this.botResponse = botResponse;
-    }
-    
-    public LocalDateTime getCreatedTime() {
-        return createdTime;
-    }
-    
-    public void setCreatedTime(LocalDateTime createdTime) {
-        this.createdTime = createdTime;
-    }
-    
-    public String getSessionId() {
-        return sessionId;
-    }
-    
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
-    }
+
 } 

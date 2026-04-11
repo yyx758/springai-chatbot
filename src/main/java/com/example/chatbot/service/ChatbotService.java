@@ -1,252 +1,183 @@
 package com.example.chatbot.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.chatbot.dto.ChatRequest;
 import com.example.chatbot.dto.ChatResponse;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.mapper.ChatRecordMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.client.ChatClient;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.publisher.Flux;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-
-import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.ollama.OllamaChatModel;
-import org.springframework.ai.chat.prompt.Prompt;
-import reactor.core.publisher.Flux;
+import java.util.stream.Collectors;
 
 /**
- * 智能客服核心服务类
- * 基于Spring AI + MyBatis实现智能对话
- * 
- * @author yyvb
+ * 智能客服核心服务类 (优化版)
+ * 集成 Spring AI + MyBatis-Plus + Redis
  */
 @Service
+@Slf4j
 public class ChatbotService {
 
-    private static final Logger logger = LoggerFactory.getLogger(ChatbotService.class);
-    // 【修改点 2】不再使用单一的 ChatClient，改用两个具体的模型
     private final OpenAiChatModel openAiChatModel;
     private final OllamaChatModel ollamaChatModel;
     private final ChatRecordMapper chatRecordMapper;
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final ObjectMapper objectMapper;
 
-    @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Value("${app.chatbot.system-prompt:你是一个专业的智能客服助手，请友好、专业地回答用户的问题。}")
+    @Value("${app.chatbot.system-prompt}")
     private String systemPrompt;
 
     @Value("${app.chatbot.max-history:5}")
     private int maxHistory;
 
-    @Value("${app.chatbot.timeout:30000}")
-    private long timeout;
-
-    // 【修改点 3】构造函数注入两个模型
     @Autowired
-    public ChatbotService(OpenAiChatModel openAiChatModel, OllamaChatModel ollamaChatModel, ChatRecordMapper chatRecordMapper) {
+    public ChatbotService(OpenAiChatModel openAiChatModel, OllamaChatModel ollamaChatModel,
+                          ChatRecordMapper chatRecordMapper, RedisTemplate<String, Object> redisTemplate,
+                          ObjectMapper objectMapper) {
         this.openAiChatModel = openAiChatModel;
         this.ollamaChatModel = ollamaChatModel;
         this.chatRecordMapper = chatRecordMapper;
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     /**
-     * 处理用户聊天请求（同步）
+     * 解决识别问题：将 ChatRequest 中的 model 字符串转换为具体的 ChatModel Bean
+     */
+    private ChatModel getChatModel(String preferredModel) {
+        if ("ollama".equalsIgnoreCase(preferredModel)) {
+            return ollamaChatModel;
+        }
+        // 默认返回官方模型 (DeepSeek/OpenAI)
+        return openAiChatModel;
+    }
+
+    /**
+     * 处理同步聊天请求
      */
     public ChatResponse chat(ChatRequest request) {
+        String sessionId = request.getSessionId();
+        String userInput = request.getMessage();
         long startTime = System.currentTimeMillis();
+
         try {
-            if (request.getMessage() == null || request.getMessage().isBlank()) {
-                return ChatResponse.error("消息内容不能为空", request.getSessionId());
+            if (userInput == null || userInput.isBlank()) {
+                return ChatResponse.builder().success(false).error("消息不能为空").sessionId(sessionId).build();
             }
 
-            String userInput = request.getMessage().trim();
-            List<Message> messages = buildConversationContext(request.getSessionId(), userInput);
+            List<Message> messages = buildConversationContext(sessionId, userInput);
 
-            // 【修改点 4】逻辑切换：传入前端想用的模型标识
-            String aiResponse = callAIWithFallback(messages, request.getModel());
+            // 获取用户指定的模型
+            ChatModel targetModel = getChatModel(request.getModel());
 
-            long responseTime = System.currentTimeMillis() - startTime;
-            asyncSaveChatRecord(request.getSessionId(), userInput, aiResponse);
+            // 执行带降级的 AI 调用
+            String aiResponse;
+            try {
+                aiResponse = targetModel.call(new Prompt(messages)).getResult().getOutput().getContent();
+            } catch (Exception e) {
+                log.warn("首选模型异常，自动切换到 Ollama 兜底: {}", e.getMessage());
+                aiResponse = ollamaChatModel.call(new Prompt(messages)).getResult().getOutput().getContent();
+            }
 
-            return new ChatResponse(aiResponse, request.getSessionId(), responseTime);
+            asyncSaveChatRecord(sessionId, userInput, aiResponse);
+
+            return ChatResponse.builder()
+                    .message(aiResponse)
+                    .sessionId(sessionId)
+                    .responseTime(System.currentTimeMillis() - startTime)
+                    .success(true).build();
+
         } catch (Exception e) {
-            logger.error("聊天最终失败", e);
-            return ChatResponse.error("AI服务全线拥堵，请稍后再试", request.getSessionId());
+            log.error("会话 {} 聊天失败", sessionId, e);
+            return ChatResponse.builder().success(false).error("AI服务拥堵").sessionId(sessionId).build();
         }
     }
 
-
-
-
     /**
-     *  改造组装上下文逻辑，优先从 Redis List 中读取
+     * 构建上下文：优先 Redis，无则 MP 查询 MySQL
      */
     private List<Message> buildConversationContext(String sessionId, String userInput) {
         List<Message> messages = new ArrayList<>();
         messages.add(new SystemMessage(systemPrompt));
 
         String redisKey = "chat:history:" + sessionId;
+        List<Object> cached = redisTemplate.opsForList().range(redisKey, 0, -1);
 
-        // 从 Redis 的 List 中获取所有记录 (0 到 -1 代表全部)
-        List<Object> cachedRecords = redisTemplate.opsForList().range(redisKey, 0, -1);
-
-        List<ChatRecord> history = new ArrayList<>();
-
-        if (cachedRecords != null && !cachedRecords.isEmpty()) {
-            // Redis 命中，进行类型转换
-            for (Object obj : cachedRecords) {
-                history.add(objectMapper.convertValue(obj, ChatRecord.class));
-            }
+        List<ChatRecord> history;
+        if (cached != null && !cached.isEmpty()) {
+            history = cached.stream()
+                    .map(obj -> objectMapper.convertValue(obj, ChatRecord.class))
+                    .collect(Collectors.toList());
         } else {
-            // Redis 未命中，从 MySQL 兜底查询，并可以考虑在此处回写 Redis
-            history = getRecentChatHistory(sessionId, maxHistory);
+            // 使用 MyBatis-Plus Lambda 查询，代替原有的手写 SQL
+            history = chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
+                    .eq(ChatRecord::getSessionId, sessionId)
+                    .orderByAsc(ChatRecord::getCreatedTime)
+                    .last("LIMIT " + maxHistory));
 
-            // 【核心修改点：回写 Redis】
-            if (history != null && !history.isEmpty()) {
-                // 将从数据库查出的历史记录批量写入 Redis 列表
+            if (!history.isEmpty()) {
                 redisTemplate.opsForList().rightPushAll(redisKey, history.toArray());
-                // 务必设置过期时间，防止冷数据永久占用内存
                 redisTemplate.expire(redisKey, 2, TimeUnit.HOURS);
             }
         }
-
 
         for (ChatRecord record : history) {
             messages.add(new UserMessage(record.getUserMessage()));
             messages.add(new AssistantMessage(record.getBotResponse()));
         }
-
         messages.add(new UserMessage(userInput));
         return messages;
     }
 
     /**
-     * 保存聊天记录到数据库
+     * 异步保存记录 (MyBatis-Plus 自动 insert)
      */
-    @Async // 异步执行，不阻塞主流程
+    @Async
     public void asyncSaveChatRecord(String sessionId, String userMessage, String botResponse) {
         try {
-            ChatRecord record = new ChatRecord(userMessage, botResponse, sessionId);
-            String redisKey = "chat:history:" + sessionId;
+            ChatRecord record = ChatRecord.builder()
+                    .sessionId(sessionId)
+                    .userMessage(userMessage)
+                    .botResponse(botResponse)
+                    .createdTime(LocalDateTime.now())
+                    .build();
 
-            // 1. 存入 Redis List (将新记录推入列表右侧)
-            redisTemplate.opsForList().rightPush(redisKey, record);
-
-            // 2. 裁剪 List，只保留最近的 maxHistory 条记录，旧记录会被抛弃
-            redisTemplate.opsForList().trim(redisKey, -maxHistory, -1);
-
-            // 3. 设置过期时间（例如 2 小时无对话自动清除 Redis 缓存，释放内存）
-            redisTemplate.expire(redisKey, 2, TimeUnit.HOURS);
-
-            // 4. 持久化到 MySQL
+            // 1. MP 自动持久化
             chatRecordMapper.insert(record);
+
+            // 2. 更新 Redis 缓存
+            String redisKey = "chat:history:" + sessionId;
+            redisTemplate.opsForList().rightPush(redisKey, record);
+            redisTemplate.opsForList().trim(redisKey, -maxHistory, -1);
+            redisTemplate.expire(redisKey, 2, TimeUnit.HOURS);
         } catch (Exception e) {
-            logger.error("异步保存聊天记录失败 ID: {}", sessionId, e);
+            log.error("保存聊天记录失败: {}", sessionId, e);
         }
     }
 
     /**
-     * 【修改点 5】核心降级逻辑：同步调用
-     */
-    private String callAIWithFallback(List<Message> messages, String preferredModel) throws Exception {
-        // 如果前端指名道姓要用 ollama
-        if ("ollama".equalsIgnoreCase(preferredModel)) {
-            return ollamaChatModel.call(new Prompt(messages)).getResult().getOutput().getContent();
-        }
-
-        try {
-            // 默认尝试官方 DeepSeek (OpenAI 协议)
-            logger.info("正在尝试调用 DeepSeek 官方接口...");
-            return openAiChatModel.call(new Prompt(messages)).getResult().getOutput().getContent();
-        } catch (Exception e) {
-            // 自动降级！
-            logger.warn("官方接口异常，正在自动切换至本地 Ollama 隧道...");
-            return ollamaChatModel.call(new Prompt(messages)).getResult().getOutput().getContent();
-        }
-    }
-
-
-    /**
-     * 获取最近的聊天历史记录
-     */
-    private List<ChatRecord> getRecentChatHistory(String sessionId, int limit) {
-        try {
-            return chatRecordMapper.selectBySessionId(sessionId);
-        } catch (Exception e) {
-            logger.error("获取聊天历史失败，会话ID: {}", sessionId, e);
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * 获取会话历史记录
-     */
-    public List<ChatRecord> getChatHistory(String sessionId) {
-        return chatRecordMapper.selectBySessionId(sessionId);
-    }
-
-    /**
-     * 获取系统统计信息
-     */
-    public Map<String, Object> getSystemStats() {
-        try {
-            long totalChats = chatRecordMapper.count();
-            
-            Map<String, Object> stats = new HashMap<>();
-            stats.put("totalChats", totalChats);
-            stats.put("status", "运行正常");
-            stats.put("timestamp", LocalDateTime.now());
-            
-            return stats;
-        } catch (Exception e) {
-            logger.error("获取系统统计信息失败", e);
-            Map<String, Object> errorStats = new HashMap<>();
-            errorStats.put("status", "获取统计信息失败");
-            errorStats.put("error", e.getMessage());
-            errorStats.put("timestamp", LocalDateTime.now());
-            return errorStats;
-        }
-    }
-
-    /**
-     * 分页获取聊天记录
-     */
-    public List<ChatRecord> getChatRecords(int page, int size) {
-        int offset = page * size;
-        return chatRecordMapper.selectByPage(offset, size);
-    }
-
-    /**
-     * 获取总记录数
-     */
-    public long getTotalCount() {
-        return chatRecordMapper.count();
-    }
-
-    /**
-     * 流式处理聊天请求，通过 SseEmitter 逐块推送
-     */
-    /**
-     * 【修改点 6】流式处理降级逻辑
+     * 流式聊天请求 (SSE)
      */
     public void streamChat(ChatRequest request, SseEmitter emitter) {
         String userInput = request.getMessage().trim();
@@ -254,44 +185,31 @@ public class ChatbotService {
         StringBuilder fullResponse = new StringBuilder();
 
         try {
-            // 【核心改动】一进来先发一个空包，占住坑位，防止超时！
-            emitter.send(SseEmitter.event().data(Map.of("content", "")));
+            emitter.send(SseEmitter.event().data(Map.of("content", ""))); // 占位发包防止超时
         } catch (IOException e) {
-            logger.error("发送初始化包失败", e);
+            log.error("初始化发包失败", e);
         }
 
-        // 决定起手模型
-        boolean startWithOllama = "ollama".equalsIgnoreCase(request.getModel());
+        ChatModel targetModel = getChatModel(request.getModel());
 
-        Flux<String> chatFlux;
-        if (startWithOllama) {
-            chatFlux = ollamaChatModel.stream(new Prompt(messages)).map(res -> res.getResult().getOutput().getContent());
-        } else {
-            // 官方优先，失败则 resume (接力) 到 Ollama
-            chatFlux = openAiChatModel.stream(new Prompt(messages))
-                    .map(res -> {
-                        String content = res.getResult().getOutput().getContent();
-                        return content != null ? content : "";
-                    })
-                    .onErrorResume(e -> {
-                        logger.warn("流式输出：官方接口故障，切换到本地 Ollama...");
-                        return ollamaChatModel.stream(new Prompt(messages))
-                                .map(res -> res.getResult().getOutput().getContent());
-                    });
-        }
+        // 统一流式模型处理逻辑与降级
+        Flux<String> chatFlux = targetModel.stream(new Prompt(messages))
+                .map(res -> res.getResult().getOutput().getContent())
+                .onErrorResume(e -> {
+                    log.warn("流式主接口故障，切换到 Ollama: {}", e.getMessage());
+                    return ollamaChatModel.stream(new Prompt(messages))
+                            .map(res -> res.getResult().getOutput().getContent());
+                });
 
         chatFlux.subscribe(
                 chunk -> {
                     try {
-                        if (chunk != null && !chunk.isEmpty()) {
+                        if (chunk != null) {
                             fullResponse.append(chunk);
-                            // 发送实际内容
                             emitter.send(SseEmitter.event().data(Map.of("content", chunk)));
-                            // 【新增】每发一个字，紧跟一个空行或注释，强迫中间代理（Cloudflare）推送到前端
-                            emitter.send(SseEmitter.event().comment("keep-alive"));
                         }
                     } catch (IOException e) {
-                        emitter.completeWithError(e);
+                        log.error("SSE发送内容失败", e);
                     }
                 },
                 error -> emitter.completeWithError(error),
@@ -306,4 +224,38 @@ public class ChatbotService {
                 }
         );
     }
-} 
+
+    /**
+     * 获取历史记录 (MP 简化)
+     */
+    public List<ChatRecord> getChatHistory(String sessionId) {
+        return chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
+                .eq(ChatRecord::getSessionId, sessionId)
+                .orderByAsc(ChatRecord::getCreatedTime));
+    }
+
+    /**
+     * 系统统计 (使用 MP selectCount)
+     */
+    public Map<String, Object> getSystemStats() {
+        Map<String, Object> stats = new HashMap<>();
+        try {
+            stats.put("totalChats", chatRecordMapper.selectCount(null));
+            stats.put("status", "运行正常");
+        } catch (Exception e) {
+            stats.put("status", "异常");
+            stats.put("error", e.getMessage());
+        }
+        stats.put("timestamp", LocalDateTime.now());
+        return stats;
+    }
+
+    /**
+     * 分页查询 (使用 MP 内置分页)
+     */
+    public IPage<ChatRecord> getChatRecordsPage(int page, int size) {
+        Page<ChatRecord> pageConfig = new Page<>(page, size);
+        return chatRecordMapper.selectPage(pageConfig, new LambdaQueryWrapper<ChatRecord>()
+                .orderByDesc(ChatRecord::getCreatedTime));
+    }
+}

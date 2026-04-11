@@ -1,5 +1,6 @@
 package com.example.chatbot.controller;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.example.chatbot.dto.ChatRequest;
 import com.example.chatbot.dto.ChatResponse;
 import com.example.chatbot.entity.ChatRecord;
@@ -59,7 +60,12 @@ public class ChatbotController {
 
         } catch (Exception e) {
             logger.error("处理聊天请求时发生异常", e);
-            ChatResponse errorResponse = ChatResponse.error("系统内部错误", request.getSessionId());
+            // 使用 Builder 绕过 private 访问限制，统一构建响应
+            ChatResponse errorResponse = ChatResponse.builder()
+                    .success(false)
+                    .error("系统内部错误：" + e.getMessage())
+                    .sessionId(request.getSessionId())
+                    .build();
             return ResponseEntity.status(500).body(errorResponse);
         }
     }
@@ -126,24 +132,15 @@ public class ChatbotController {
     }
 
     /**
-     * 分页查询聊天记录
+     * 分页查询聊天记录 (适配 MyBatis-Plus)
      */
     @GetMapping("/records")
-    public ResponseEntity<Map<String, Object>> getChatRecords(
-            @RequestParam(defaultValue = "0") int page,
+    public ResponseEntity<IPage<ChatRecord>> getChatRecords(
+            @RequestParam(defaultValue = "1") int page, // MyBatis-Plus 分页默认从 1 开始
             @RequestParam(defaultValue = "10") int size) {
         try {
-            List<ChatRecord> records = chatbotService.getChatRecords(page, size);
-            long total = chatbotService.getTotalCount();
-            
-            Map<String, Object> result = Map.of(
-                "records", records,
-                "total", total,
-                "page", page,
-                "size", size,
-                "totalPages", (total + size - 1) / size
-            );
-            
+            // 直接调用 Service 的 getChatRecordsPage 方法
+            IPage<ChatRecord> result = chatbotService.getChatRecordsPage(page, size);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             logger.error("分页查询聊天记录失败", e);
