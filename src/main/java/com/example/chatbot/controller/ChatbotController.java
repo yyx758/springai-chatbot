@@ -89,4 +89,16 @@ public class ChatbotController {
     public ResponseEntity<List<ChatRecord>> getChatHistory(@PathVariable String sessionId) {
         return ResponseEntity.ok(chatbotService.getChatHistory(sessionId));
     }
+    /**
+     * 删除指定会话
+     */
+    @DeleteMapping("/{sessionId}")
+    public ResponseEntity<Map<String, Object>> deleteSession(@PathVariable String sessionId) {
+        boolean success = chatbotService.deleteSession(sessionId);
+        if (success) {
+            return ResponseEntity.ok(Map.of("success", true, "message", "会话已删除"));
+        } else {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "删除失败"));
+        }
+    }
 }

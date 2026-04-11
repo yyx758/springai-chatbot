@@ -179,4 +179,25 @@ public class ChatbotService {
                         }
                 );
     }
+
+    /**
+     * 删除特定会话的所有记录及缓存
+     */
+    public boolean deleteSession(String sessionId) {
+        try {
+            // 1. 删除数据库记录
+            LambdaQueryWrapper<ChatRecord> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(ChatRecord::getSessionId, sessionId);
+            chatRecordMapper.delete(wrapper);
+
+            // 2. 清理 Redis 中的对话上下文缓存
+            redisTemplate.delete(sessionId);
+
+            log.info("会话已成功删除: {}", sessionId);
+            return true;
+        } catch (Exception e) {
+            log.error("删除会话失败: {}", sessionId, e);
+            return false;
+        }
+    }
 }
