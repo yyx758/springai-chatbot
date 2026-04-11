@@ -9,7 +9,7 @@
         <relativePath/>
     </parent>
     <groupId>com.example</groupId>
-    <artifactId>springai-deepseek-chatbot</artifactId>
+    <artifactId>springai-chatbot</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>springai-deepseek-chatbot</name>
     <description>智能客服系统基于Spring Boot + Spring AI + MyBatis + DeepSeek</description>

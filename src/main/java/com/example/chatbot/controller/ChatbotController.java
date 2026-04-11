@@ -5,31 +5,23 @@ import com.example.chatbot.dto.ChatRequest;
 import com.example.chatbot.dto.ChatResponse;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.service.ChatbotService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
-// ... 原有引入 ...
-import org.springframework.http.MediaType;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-/**
- * 智能客服控制器
- * 提供聊天接口和管理功能
- * 
- * @author yyvb
- */
 @RestController
 @RequestMapping("/api/chat")
 @CrossOrigin(origins = "*")
+@Slf4j
 public class ChatbotController {
-
-    private static final Logger logger = LoggerFactory.getLogger(ChatbotController.class);
 
     private final ChatbotService chatbotService;
 
@@ -39,112 +31,62 @@ public class ChatbotController {
     }
 
     /**
-     * 处理聊天请求
+     * 同步对话接口
      */
     @PostMapping("/message")
     public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request) {
-        try {
-            // 如果没有会话ID，生成一个新的
-            if (request.getSessionId() == null || request.getSessionId().trim().isEmpty()) {
-                request.setSessionId(UUID.randomUUID().toString());
-            }
-
-            // 【修改点】：在日志中补充打印前端传入的 model 参数
-            logger.info("收到聊天请求，会话ID: {}, 指定模型: {}, 消息: {}",
-                    request.getSessionId(),
-                    request.getModel() != null ? request.getModel() : "默认(DeepSeek)",
-                    request.getMessage());
-
-            ChatResponse response = chatbotService.chat(request);
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            logger.error("处理聊天请求时发生异常", e);
-            // 使用 Builder 绕过 private 访问限制，统一构建响应
-            ChatResponse errorResponse = ChatResponse.builder()
-                    .success(false)
-                    .error("系统内部错误：" + e.getMessage())
-                    .sessionId(request.getSessionId())
-                    .build();
-            return ResponseEntity.status(500).body(errorResponse);
-        }
+        request.setSessionId(Optional.ofNullable(request.getSessionId())
+                .filter(s -> !s.isBlank())
+                .orElse(UUID.randomUUID().toString()));
+        return ResponseEntity.ok(chatbotService.chat(request));
     }
 
     /**
-     * 处理流式聊天请求 (SSE)
+     * 流式对话接口
      */
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamChat(@RequestBody ChatRequest request) {
-        if (request.getSessionId() == null || request.getSessionId().trim().isEmpty()) {
-            request.setSessionId(UUID.randomUUID().toString());
-        }
+        request.setSessionId(Optional.ofNullable(request.getSessionId())
+                .filter(s -> !s.isBlank())
+                .orElse(UUID.randomUUID().toString()));
 
-        // 【修改点】：在日志中补充打印前端传入的 model 参数
-        logger.info("收到流式聊天请求，会话ID: {}, 指定模型: {}, 消息: {}",
-                request.getSessionId(),
-                request.getModel() != null ? request.getModel() : "默认(DeepSeek)",
-                request.getMessage());
-
-        // 设置较长的超时时间（例如2分钟），防止长文本生成时连接断开
-        SseEmitter emitter = new SseEmitter(120000L);
+        SseEmitter emitter = new SseEmitter(180_000L);
         chatbotService.streamChat(request, emitter);
-
         return emitter;
     }
 
     /**
-     * 获取会话历史记录
-     */
-    @GetMapping("/history/{sessionId}")
-    public ResponseEntity<List<ChatRecord>> getChatHistory(@PathVariable String sessionId) {
-        try {
-            List<ChatRecord> history = chatbotService.getChatHistory(sessionId);
-            return ResponseEntity.ok(history);
-        } catch (Exception e) {
-            logger.error("获取聊天历史失败，会话ID: {}", sessionId, e);
-            return ResponseEntity.status(500).build();
-        }
-    }
-
-    /**
-     * 获取系统统计信息
-     */
-    @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getSystemStats() {
-        try {
-            Map<String, Object> stats = chatbotService.getSystemStats();
-            return ResponseEntity.ok(stats);
-        } catch (Exception e) {
-            logger.error("获取系统统计信息失败", e);
-            return ResponseEntity.status(500).build();
-        }
-    }
-
-    /**
-     * 健康检查接口
-     */
-    @GetMapping("/health")
-    public ResponseEntity<Map<String, Object>> healthCheck() {
-        return ResponseEntity.ok(Map.of(
-            "status", "运行正常",
-            "timestamp", System.currentTimeMillis()
-        ));
-    }
-
-    /**
-     * 分页查询聊天记录 (适配 MyBatis-Plus)
+     * 分页查询：按 userId 过滤所有属于该用户的会话
      */
     @GetMapping("/records")
     public ResponseEntity<IPage<ChatRecord>> getChatRecords(
-            @RequestParam(defaultValue = "1") int page, // MyBatis-Plus 分页默认从 1 开始
-            @RequestParam(defaultValue = "10") int size) {
-        try {
-            // 直接调用 Service 的 getChatRecordsPage 方法
-            IPage<ChatRecord> result = chatbotService.getChatRecordsPage(page, size);
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            logger.error("分页查询聊天记录失败", e);
-            return ResponseEntity.status(500).build();
-        }
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String userId) {
+        return ResponseEntity.ok(chatbotService.getChatRecordsPage(page, size, userId));
     }
-} 
+
+    /**
+     * 个人统计：按 userId 过滤
+     */
+    @GetMapping("/stats")
+    public ResponseEntity<Map<String, Object>> getSystemStats(@RequestParam(required = false) String userId) {
+        return ResponseEntity.ok(chatbotService.getSystemStats(userId));
+    }
+
+    /**
+     * 健康检查
+     */
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> healthCheck() {
+        return ResponseEntity.ok(Map.of("status", "UP", "timestamp", System.currentTimeMillis()));
+    }
+
+    /**
+     * 加载特定会话历史
+     */
+    @GetMapping("/history/{sessionId}")
+    public ResponseEntity<List<ChatRecord>> getChatHistory(@PathVariable String sessionId) {
+        return ResponseEntity.ok(chatbotService.getChatHistory(sessionId));
+    }
+}

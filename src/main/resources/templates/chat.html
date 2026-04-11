@@ -1,786 +1,396 @@
 <!DOCTYPE html>
-<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能客服系统 - Spring AI + DeepSeek</title>
+    <title>AI Studio | 极简智能助手</title>
+    <link href="https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" rel="stylesheet">
 
-    <!-- 引入 Highlight.js 的样式（这里用的是 GitHub 主题，你也可以换成暗黑主题） -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" rel="stylesheet">
-    <!-- 引入 Highlight.js 脚本 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <!-- 引入 Marked.js 用于解析 Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
-        .hero-section {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px 0;
+        :root {
+            --primary-black: #111827;
+            --primary-white: #ffffff;
+            --bg-color: #f8f9fa;
+            --border-light: rgba(0, 0, 0, 0.06);
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+            --transition-smooth: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        
-        .stats-card {
-            background: white;
-            border-radius: 8px;
-            padding: 15px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+        body {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            background-color: var(--bg-color);
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            color: #333;
         }
-        
-        .main-content {
-            min-height: calc(100vh - 200px);
-            padding-bottom: 60px;
+
+        .animated-bg {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;
+            background: linear-gradient(120deg, #ffffff, #f1f5f9, #ffffff, #e2e8f0);
+            background-size: 300% 300%;
+            animation: gradientMove 15s ease infinite;
         }
-        
+        @keyframes gradientMove { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+        .main-app { display: flex; height: 100vh; max-width: 1600px; margin: 0 auto; background: transparent; }
+
+        /* 侧边栏保持不变 */
+        .sidebar {
+            width: 280px; background: var(--glass-bg); backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border-light); display: flex; flex-direction: column; padding: 2.5rem 1.5rem; z-index: 10;
+        }
+
+        .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 3rem; padding: 0 0.5rem; }
+        .brand i { background: var(--primary-black); color: var(--primary-white); padding: 10px; border-radius: 12px; font-size: 1.2rem; }
+
+        .nav-card {
+            background: transparent; border: 1px solid transparent; border-radius: 16px; padding: 1rem 1.2rem; margin-bottom: 0.8rem;
+            cursor: pointer; transition: var(--transition-smooth); display: flex; align-items: center; gap: 14px; color: #475569;
+        }
+        .nav-card:hover { background: var(--primary-white); border-color: var(--border-light); transform: translateX(5px); box-shadow: var(--glass-shadow); color: var(--primary-black); }
+
+        /* 修改：聊天容器使用 Flex 布局控制显示区域 */
         .chat-container {
-            height: calc(100vh - 410px);
-            min-height: 400px;
-            border: 1px solid #dee2e6;
-            border-radius: 10px;
+            flex: 1;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: relative;
+            height: 100vh;
         }
+
         .chat-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px 20px;
-            border-top-left-radius: 10px;
-            border-top-right-radius: 10px;
+            padding: 1rem 3rem;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-light);
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 20;
         }
+
+        .custom-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 16px 12px;
+            padding-right: 2.5rem !important;
+            border-radius: 20px;
+            border: 1px solid var(--border-light);
+            font-size: 0.85rem;
+            background-color: var(--primary-white);
+            min-width: 140px;
+        }
+
+        /* 修改：聊天内容区域，通过 flex-grow 自动填满空间并处理滚动 */
         .chat-messages {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
-            background-color: #f8f9fa;
+            padding: 2rem 15% 10rem; /* 底部预留足够空间给输入框 */
+            scroll-behavior: smooth;
         }
-        .chat-input-area {
-            padding: 20px;
-            background-color: white;
-            border-bottom-left-radius: 10px;
-            border-bottom-right-radius: 10px;
-        }
-        .message {
-            margin-bottom: 15px;
-            display: flex;
-            align-items: flex-start;
-        }
-        .message.user {
-            justify-content: flex-end;
-        }
-        .message-content {
-            max-width: 70%;
-            padding: 12px 16px;
-            border-radius: 18px;
-            word-wrap: break-word;
-        }
-        .message.user .message-content {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            margin-left: 10px;
-        }
-        .message.bot .message-content {
-            background-color: white;
-            border: 1px solid #dee2e6;
-            margin-right: 10px;
-        }
-        .message-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            flex-shrink: 0;
-        }
-        .message.user .message-avatar {
-            background: #007bff;
-            color: white;
-            order: 2;
-        }
-        .message.bot .message-avatar {
-            background: #28a745;
-            color: white;
-        }
-        .typing-indicator {
-            display: none;
-        }
-        .typing-indicator .dot {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #999;
-            margin: 0 2px;
-            animation: typing 1.4s infinite ease-in-out;
-        }
-        .typing-indicator .dot:nth-child(1) { animation-delay: -0.32s; }
-        .typing-indicator .dot:nth-child(2) { animation-delay: -0.16s; }
-        @keyframes typing {
-            0%, 80%, 100% { opacity: 0.3; }
-            40% { opacity: 1; }
-        }
-        .response-time {
-            font-size: 12px;
-            color: #6c757d;
-            margin-top: 5px;
-        }
-        .session-info {
-            background-color: white;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .quick-chat {
-            background-color: white;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .quick-chat-btn {
-            display: block;
-            width: 100%;
-            text-align: left;
-            margin-bottom: 8px;
-            padding: 8px 12px;
-            border: 1px solid #dee2e6;
-            border-radius: 6px;
-            background: white;
-            color: #495057;
-            text-decoration: none;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-        .quick-chat-btn:hover {
-            background: #f8f9fa;
-            border-color: #667eea;
-            color: #667eea;
-            text-decoration: none;
-        }
-        .btn-custom {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            color: white;
-        }
-        .btn-custom:hover {
-            background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
-            color: white;
-        }
-        .footer {
-            position: fixed;
+
+        .message { margin-bottom: 2rem; display: flex; animation: springUp 0.4s forwards; opacity: 0; }
+        @keyframes springUp { to { opacity: 1; transform: translateY(0); } from { transform: translateY(15px); } }
+
+        .bubble { max-width: 85%; padding: 1rem 1.4rem; border-radius: 20px; font-size: 0.95rem; line-height: 1.6; word-wrap: break-word; }
+        .message.bot .bubble { background: var(--primary-white); border: 1px solid var(--border-light); box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
+        .message.user { flex-direction: row-reverse; }
+        .message.user .bubble { background: var(--primary-black); color: var(--primary-white); }
+
+        /* 修改：输入区域固定在底部，并增加遮罩感 */
+        .input-area {
+            position: absolute;
             bottom: 0;
             left: 0;
             right: 0;
-            background-color: #2c3e50;
-            color: white;
-            padding: 10px 0;
-            z-index: 1000;
+            padding: 2rem 15% 2.5rem;
+            background: linear-gradient(to top, var(--bg-color) 80%, transparent);
+            z-index: 15;
         }
-        /* 优化 Markdown 解析后的样式 */
-        .message-content p:last-child {
-            margin-bottom: 0;
+        .input-box {
+            background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--border-light);
+            border-radius: 24px; padding: 10px 14px 10px 24px; display: flex; align-items: center; box-shadow: var(--glass-shadow);
         }
-        .message-content pre {
-            background-color: #f6f8fa; /* 浅灰色背景 */
-            border-radius: 6px;
-            padding: 12px;
-            margin-top: 10px;
-            margin-bottom: 10px;
-            overflow-x: auto;
-        }
-        .message-content code {
-            font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
-            font-size: 14px;
-        }
-        /* 给行内代码加个小背景 */
-        .message-content :not(pre) > code {
-            background-color: rgba(0,0,0,0.05);
-            padding: 2px 4px;
-            border-radius: 4px;
-            color: #d63384;
-        }
+        #messageInput { flex: 1; border: none; background: transparent; outline: none; font-size: 0.95rem; }
+        .send-btn { background: var(--primary-black); color: var(--primary-white); border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: 0.2s; }
+        .send-btn:hover { transform: scale(1.05); background: #000; }
+
+        .thinking-wave { display: flex; align-items: center; gap: 4px; height: 16px; }
+        .thinking-wave .line { width: 3px; height: 100%; background: var(--primary-black); border-radius: 4px; animation: thinkWave 1s infinite alternate; }
+        .thinking-wave .line:nth-child(2) { animation-delay: 0.2s; }
+        .thinking-wave .line:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes thinkWave { from { height: 20%; opacity: 0.3; } to { height: 100%; opacity: 1; } }
+
+        /* 代码块样式优化 */
+        pre { background: #282c34; padding: 1rem; border-radius: 12px; margin: 1rem 0; overflow-x: auto; }
+        code { font-family: 'Fira Code', monospace; }
     </style>
 </head>
 <body>
-    <!-- 区域 -->
-    <section class="hero-section">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-8">
-                    <h1 class="display-5 fw-bold mb-3 text-start">智能客服系统</h1>
-                    <p class="lead mb-3 text-start">基于 Spring Boot + Spring AI + 多模型构建的下一代智能客服解决方案</p>
-                    <p class="mb-0 text-start">集成最新的人工智能技术，提供自然、流畅的对话体验，帮助企业提升客户服务质量和效率。</p>
-                </div>
+
+<div class="animated-bg"></div>
+
+<div class="main-app">
+    <aside class="sidebar">
+        <div class="brand">
+            <i class="bi bi-robot"></i>
+            <h5 class="mb-0 fw-bold">AI Studio</h5>
+        </div>
+        <div class="nav-card" onclick="startNewChat()">
+            <i class="bi bi-plus-circle"></i>
+            <div>
+                <div class="fw-bold small">开启新对话</div>
+                <div class="text-muted" style="font-size: 0.7rem;">创建全新聊天窗口</div>
             </div>
         </div>
-    </section>
-
-    <!-- 系统状态 -->
-    <section class="py-3 bg-light">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="stats-card">
-                        <h5 class="text-success mb-1" id="systemStatus">检查中...</h5>
-                        <p class="mb-0 small">系统状态</p>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="stats-card">
-                        <h5 class="text-primary mb-1" id="totalChats">-</h5>
-                        <p class="mb-0 small">总对话数</p>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="stats-card">
-                        <h5 class="text-info mb-1" id="avgResponseTime">-</h5>
-                        <p class="mb-0 small">平均响应时间</p>
-                    </div>
-                </div>
+        <div class="nav-card" onclick="openRecordsModal()">
+            <i class="bi bi-archive"></i>
+            <div>
+                <div class="fw-bold small">所有记录</div>
+                <div class="text-muted" style="font-size: 0.7rem;">管理云端归档</div>
             </div>
         </div>
-    </section>
+        <div class="mt-auto p-3 rounded-4" style="background: rgba(255,255,255,0.4); border: 1px solid rgba(0,0,0,0.03);">
+            <div class="d-flex justify-content-between small text-muted">
+                <span>总对话</span>
+                <span id="totalChats" class="fw-bold text-dark">-</span>
+            </div>
+        </div>
+    </aside>
 
-    <!-- 聊天区域 -->
-    <div class="main-content">
-        <section class="py-4">
-            <div class="container">
-                <div class="row">
-                    <!-- 聊天主区域 -->
-                    <div class="col-lg-8">
-                        <div class="chat-container">
-                            <div class="chat-header">
-                                <div class="d-flex align-items-center">
-                                    <i class="bi bi-robot me-2" style="font-size: 24px;"></i>
-                                    <div>
-                                        <h5 class="mb-0">智能客服助手</h5>
-                                        <small class="opacity-75">支持多模型切换，随时为您服务</small>
-                                    </div>
-                                    <div class="ms-auto">
-                                        <span class="badge bg-success">在线</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="chat-messages" id="chatMessages">
-                                <div class="message bot">
-                                    <div class="message-avatar">
-                                        <i class="bi bi-robot"></i>
-                                    </div>
-                                    <div class="message-content">
-                                        <p class="mb-0">您好！我是智能客服助手，很高兴为您服务。请问有什么可以帮助您的吗？</p>
-                                    </div>
-                                </div>
-                            </div>
+    <main class="chat-container">
+        <header class="chat-header">
+            <div class="d-flex align-items-center">
+                <span class="small fw-medium text-muted"><i class="bi bi-circle-fill text-success me-2" style="font-size: 8px;"></i>服务已连接</span>
+            </div>
+            <select class="form-select custom-select w-auto" id="modelSelect">
+                <option value="deepseek">DeepSeek v3</option>
+                <option value="ollama">Ollama Local</option>
+            </select>
+        </header>
 
-                            <div class="chat-input-area">
-                                <div class="input-group">
-                                    <select class="form-select shadow-none" id="modelSelect" style="max-width: 140px; border-color: #dee2e6;">
-                                        <option value="deepseek" selected>DeepSeek</option>
-                                        <option value="ollama">Ollama (本地)</option>
-                                    </select>
-
-                                    <input type="text" class="form-control" id="messageInput" placeholder="请输入您的问题..." maxlength="500">
-                                    <button class="btn btn-custom" type="button" id="sendButton">
-                                        <i class="bi bi-send"></i> 发送
-                                    </button>
-                                </div>
-                                <div class="typing-indicator mt-2" id="typingIndicator">
-                                    <small class="text-muted">
-                                        AI正在思考中
-                                        <span class="dot"></span>
-                                        <span class="dot"></span>
-                                        <span class="dot"></span>
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 侧边栏 -->
-                    <div class="col-lg-4">
-                        <!-- 会话信息 -->
-                        <div class="session-info">
-                            <h6 class="fw-bold mb-3">
-                                <i class="bi bi-info-circle me-2"></i>会话信息
-                            </h6>
-                            <div class="row text-center">
-                                <div class="col-6">
-                                    <div class="border-end">
-                                        <h5 class="text-primary mb-0" id="messageCount">0</h5>
-                                        <small class="text-muted">消息数</small>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <h5 class="text-success mb-0" id="sessionResponseTime">-</h5>
-                                    <small class="text-muted">平均响应时间</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 快捷聊天语 -->
-                        <div class="quick-chat">
-                            <h6 class="fw-bold mb-3">
-                                <i class="bi bi-lightning me-2"></i>快捷聊天语
-                            </h6>
-                            <button class="quick-chat-btn" onclick="sendQuickMessage('你好，我想了解你们的产品功能')">
-                                <i class="bi bi-chat-dots me-2"></i>产品功能咨询
-                            </button>
-                            <button class="quick-chat-btn" onclick="sendQuickMessage('请问如何联系人工客服？')">
-                                <i class="bi bi-person me-2"></i>联系人工客服
-                            </button>
-                            <button class="quick-chat-btn" onclick="sendQuickMessage('我遇到了技术问题，需要帮助')">
-                                <i class="bi bi-tools me-2"></i>技术支持
-                            </button>
-                            <button class="quick-chat-btn" onclick="sendQuickMessage('请介绍一下你们的服务流程')">
-                                <i class="bi bi-info-circle me-2"></i>服务流程
-                            </button>
-                            <button class="quick-chat-btn" onclick="sendQuickMessage('我想了解价格和优惠信息')">
-                                <i class="bi bi-tag me-2"></i>价格咨询
-                            </button>
-                        </div>
-
-                        <!-- 功能介绍 -->
-                        <div class="session-info">
-                            <h6 class="fw-bold mb-3">
-                                <i class="bi bi-lightbulb me-2"></i>功能介绍
-                            </h6>
-                            <ul class="list-unstyled">
-                                <li class="mb-2">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    <small>智能对话与问答</small>
-                                </li>
-                                <li class="mb-2">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    <small>上下文记忆功能</small>
-                                </li>
-                                <li class="mb-2">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    <small>实时响应监控</small>
-                                </li>
-                                <li class="mb-2">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    <small>对话历史记录</small>
-                                </li>
-                            </ul>
-                        </div>
-
-                        <!-- 使用提示 -->
-                        <div class="session-info">
-                            <h6 class="fw-bold mb-3">
-                                <i class="bi bi-question-circle me-2"></i>使用提示
-                            </h6>
-                            <div class="alert alert-info py-2 px-3">
-                                <small>
-                                    • 输入您的问题并按回车发送<br>
-                                    • 支持多轮对话，AI会记住上下文<br>
-                                    • 最长支持500字符的消息<br>
-                                    • 点击快捷聊天语快速开始对话
-                                </small>
-                            </div>
-                        </div>
-
-                        <!-- 聊天记录 -->
-                        <div class="session-info">
-                            <h6 class="fw-bold mb-3">
-                                <i class="bi bi-clock-history me-2"></i>聊天记录
-                            </h6>
-                            <button class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="loadSessionHistory()">
-                                <i class="bi bi-arrow-counterclockwise me-1"></i>加载本次会话历史
-                            </button>
-                            <button class="btn btn-outline-secondary btn-sm w-100" onclick="openRecordsModal()">
-                                <i class="bi bi-table me-1"></i>查看所有聊天记录
-                            </button>
-                        </div>
-                    </div>
-                </div>
+        <section class="chat-messages" id="chatMessages">
+            <div class="empty-view text-center mt-5" id="emptyState">
+                <h4 class="fw-bold">您好</h4>
+                <p class="text-muted">输入任何问题，让我们开始探索。</p>
             </div>
         </section>
-    </div>
 
-    <!-- 页脚 -->
-    <footer class="footer">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-6 text-md-end">
-                    <p class="mb-0">© 2026 智能客服系统. 保留所有权利. 技术支持: yyx</p>
-                </div>
+        <footer class="input-area">
+            <div class="input-box">
+                <input type="text" id="messageInput" placeholder="输入消息并发射..." autocomplete="off">
+                <button class="send-btn" id="sendButton"><i class="bi bi-arrow-up"></i></button>
+            </div>
+        </footer>
+    </main>
+</div>
+
+<div class="modal fade" id="recordsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 rounded-5 shadow-lg">
+            <div class="modal-header border-0 px-5 pt-5 pb-3">
+                <h4 class="fw-bold mb-0">云端归档</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-5 py-4">
+                <div id="recordsContent" class="row"></div>
+            </div>
+            <div class="modal-footer border-0 p-4 justify-content-center">
+                <nav><ul class="pagination pagination-sm mb-0" id="paginationList"></ul></nav>
             </div>
         </div>
-    </footer>
+    </div>
+</div>
 
-    <!-- 所有聊天记录模态框 -->
-    <div class="modal fade" id="recordsModal" tabindex="-1" aria-labelledby="recordsModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="recordsModalLabel">
-                        <i class="bi bi-table me-2"></i>所有聊天记录
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="recordsContent">
-                        <div class="text-center py-4">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">加载中...</span>
+<script>
+    let userId = localStorage.getItem('ai_studio_user_id') || ('u' + Date.now().toString(36));
+    localStorage.setItem('ai_studio_user_id', userId);
+
+    let chatId = localStorage.getItem('ai_studio_chat_id') || ('c' + Date.now().toString(36));
+    localStorage.setItem('ai_studio_chat_id', chatId);
+
+    let activeSessionId = userId + '_' + chatId;
+
+    const messagesContainer = document.getElementById('chatMessages');
+    const messageInput = document.getElementById('messageInput');
+    const emptyState = document.getElementById('emptyState');
+
+    // 配置 Marked 渲染
+    marked.setOptions({
+        highlight: function(code, lang) {
+            const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+            return hljs.highlight(code, { language }).value;
+        },
+        breaks: true
+    });
+
+    async function sendMessage() {
+        const msg = messageInput.value.trim();
+        if (!msg) return;
+        if (document.getElementById('emptyState')) document.getElementById('emptyState').remove();
+
+        messageInput.value = '';
+        addMessage(msg, 'user');
+
+        const messageId = 'ai_' + Date.now();
+        const loadingHtml = `<div class="d-flex align-items-center gap-3"><div class="thinking-wave"><div class="line"></div><div class="line"></div><div class="line"></div></div><span class="text-muted small">AI 正在思考中...</span></div>`;
+        addMessage(loadingHtml, 'bot', messageId);
+
+        const targetBubble = document.getElementById(messageId);
+
+        try {
+            const response = await fetch('/api/chat/stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg, sessionId: activeSessionId, model: document.getElementById('modelSelect').value })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullText = '';
+            let buffer = '';
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                let lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    const trimmedLine = line.trim();
+                    if (!trimmedLine.startsWith('data:')) continue;
+                    const data = trimmedLine.substring(5).trim();
+
+                    if (data === "[DONE]") break;
+
+                    try {
+                        const json = JSON.parse(data);
+                        if (json.content) {
+                            fullText += json.content;
+                            targetBubble.innerHTML = marked.parse(fullText);
+                            targetBubble.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+                            scrollToBottom();
+                        }
+                    } catch (e) { }
+                }
+            }
+            loadStats();
+        } catch (e) {
+            targetBubble.innerHTML = "<span class='text-danger'>连接中断，请检查网络或服务器状态。</span>";
+        }
+    }
+
+    // 修改 addMessage：统一处理渲染逻辑
+    function addMessage(content, type, id = '') {
+        const div = document.createElement('div');
+        div.className = `message ${type}`;
+
+        // 如果是机器人，且没有传入 ID（说明是历史回显），则需要解析 Markdown
+        const displayContent = (type === 'bot' && !id.startsWith('ai_')) ? marked.parse(content) : content;
+
+        div.innerHTML = `<div class="bubble" ${id ? `id="${id}"` : ''}>${displayContent}</div>`;
+        messagesContainer.appendChild(div);
+
+        // 渲染完后，如果是机器人回复，立即高亮代码块
+        if(type === 'bot') {
+            div.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+        }
+
+        scrollToBottom();
+    }
+
+    function scrollToBottom() {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // 历史回显修复
+    function loadSessionHistory() {
+        fetch(`/api/chat/history/${encodeURIComponent(activeSessionId)}`)
+            .then(r => r.json())
+            .then(records => {
+                if (records && records.length > 0) {
+                    if (document.getElementById('emptyState')) document.getElementById('emptyState').remove();
+                    messagesContainer.innerHTML = '';
+                    records.forEach(r => {
+                        addMessage(r.userMessage, 'user');
+                        addMessage(r.botResponse, 'bot'); // 这里触发的是修复后的解析逻辑
+                    });
+                }
+            });
+    }
+
+    // 其他辅助函数保持不变
+    function startNewChat() {
+        localStorage.setItem('ai_studio_chat_id', 'c' + Date.now().toString(36));
+        location.reload();
+    }
+
+    function loadStats() {
+        fetch(`/api/chat/stats?userId=${userId}`).then(r => r.json()).then(d => {
+            document.getElementById('totalChats').innerText = d.totalChats || 0;
+        });
+    }
+
+    function fetchRecords(page) {
+        fetch(`/api/chat/records?page=${page}&size=6&userId=${userId}`)
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('recordsContent');
+                container.innerHTML = data.records.map(r => `
+                    <div class="col-md-6 mb-4">
+                        <div class="p-4 rounded-4 h-100 border history-item bg-white" onclick="switchToSession('${r.sessionId}')">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="badge bg-light text-dark border">会话: ${r.sessionId.split('_')[1] || '默认'}</span>
+                                <small class="text-muted" style="font-size:0.7rem;">${r.createdTime}</small>
                             </div>
+                            <div class="small text-truncate"><b>问：</b>${r.userMessage}</div>
+                            <div class="small text-muted text-truncate mt-1"><b>答：</b>${r.botResponse}</div>
                         </div>
                     </div>
-                    <!-- 分页控件 -->
-                    <nav id="recordsPagination" aria-label="记录分页" style="display:none;">
-                        <ul class="pagination pagination-sm justify-content-center mb-0" id="paginationList"></ul>
-                    </nav>
-                </div>
-                <div class="modal-footer">
-                    <small class="text-muted me-auto" id="recordsTotalInfo"></small>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        let sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        let messageCount = 0;
-        let totalResponseTime = 0;
-        // 配置 Marked.js，让它配合 Highlight.js 使用
-        marked.setOptions({
-            highlight: function(code, lang) {
-                const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-                return hljs.highlight(code, { language }).value;
-            },
-            breaks: true // 允许 Markdown 中的回车换行
-        });
-        // DOM元素
-        const messagesContainer = document.getElementById('chatMessages');
-        const messageInput = document.getElementById('messageInput');
-        const sendButton = document.getElementById('sendButton');
-        const typingIndicator = document.getElementById('typingIndicator');
-
-        // 初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            loadSystemStats();
-            messageInput.focus();
-            
-            // 自动滚动到底部
-            scrollToBottom();
-        });
-
-        // 快捷消息发送函数
-        function sendQuickMessage(message) {
-            messageInput.value = message;
-            sendMessage();
-        }
-
-        // 加载系统统计信息
-        function loadSystemStats() {
-            fetch('/api/chat/stats')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('systemStatus').textContent = data.status || '运行正常';
-                    document.getElementById('totalChats').textContent = data.totalChats || '0';
-                    
-                    // 如果有平均响应时间数据
-                    if (data.avgResponseTime) {
-                        document.getElementById('avgResponseTime').textContent = data.avgResponseTime + 'ms';
-                    } else {
-                        document.getElementById('avgResponseTime').textContent = '-';
-                    }
-                })
-                .catch(error => {
-                    console.error('获取统计信息失败:', error);
-                    document.getElementById('systemStatus').textContent = '获取状态失败';
-                    document.getElementById('systemStatus').className = 'text-warning';
-                });
-        }
-
-        async function sendMessage() {
-            const message = messageInput.value.trim();
-            if (!message) return;
-
-            messageInput.value = '';
-            addMessage(message, 'user');
-            showTypingIndicator();
-
-            const startTime = Date.now();
-            const messageId = 'msg_' + Date.now();
-            const selectedModel = document.getElementById('modelSelect').value;
-
-            try {
-                const response = await fetch('/api/chat/stream', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message: message,
-                        sessionId: sessionId,
-                        model: selectedModel
-                    })
-                });
-
-                hideTypingIndicator();
-
-                // 创建机器人消息容器
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `message bot`;
-                messageDiv.innerHTML = `
-            <div class="message-avatar"><i class="bi bi-robot"></i></div>
-            <div class="message-content" id="${messageId}"></div>
-        `;
-                messagesContainer.appendChild(messageDiv);
-                const contentDiv = document.getElementById(messageId);
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let fullContent = '';
-                let buffer = '';
-
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-
-                    buffer += decoder.decode(value, { stream: true });
-                    let lines = buffer.split('\n');
-                    buffer = lines.pop();
-
-                    for (let line of lines) {
-                        line = line.trim();
-                        if (!line) continue;
-
-                        // 核心适配：处理 event:done 这种标记（可选，因为 done 状态也能判断）
-                        if (line.startsWith('event:done')) continue;
-
-                        if (line.startsWith('data:')) {
-                            const dataStr = line.substring(5).trim();
-                            try {
-                                const dataObj = JSON.parse(dataStr);
-                                const delta = dataObj.content;
-
-                                if (delta === "[DONE]") break;
-
-                                fullContent += delta;
-                                // 渲染 Markdown
-                                contentDiv.innerHTML = marked.parse(fullContent);
-                                // 代码高亮
-                                contentDiv.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
-                                scrollToBottom();
-                            } catch (e) {
-                                console.error("解析 JSON 失败", e, dataStr);
-                            }
-                        }
-                    }
-                }
-
-                const responseTime = Date.now() - startTime;
-                const timeDiv = document.createElement('div');
-                timeDiv.className = 'response-time';
-                timeDiv.style.cssText = 'font-size: 0.8rem; opacity: 0.5; margin-top: 5px;';
-                timeDiv.textContent = `响应时间: ${responseTime}ms`;
-                contentDiv.appendChild(timeDiv);
-
-            } catch (error) {
-                hideTypingIndicator();
-                console.error('Stream Error:', error);
-            }
-        }
-        // 添加消息到聊天区域
-        function addMessage(content, type, responseTime = null) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${type}`;
-
-            const avatarDiv = document.createElement('div');
-            avatarDiv.className = 'message-avatar';
-            avatarDiv.innerHTML = type === 'user' ? '<i class="bi bi-person"></i>' : '<i class="bi bi-robot"></i>';
-
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'message-content';
-            // 判断如果是机器人发来的消息，就用 marked 解析一下；用户的消息保持原样
-            if (type === 'bot') {
-                contentDiv.innerHTML = marked.parse(content);
-            } else {
-                contentDiv.innerHTML = `<p class="mb-0">${content}</p>`;
-            }
-
-            if (responseTime && type === 'bot') {
-                const timeDiv = document.createElement('div');
-                timeDiv.className = 'response-time';
-                timeDiv.textContent = `响应时间: ${responseTime}ms`;
-                contentDiv.appendChild(timeDiv);
-            }
-
-            messageDiv.appendChild(avatarDiv);
-            messageDiv.appendChild(contentDiv);
-            messagesContainer.appendChild(messageDiv);
-
-            scrollToBottom();
-
-            if (type === 'user') {
-                messageCount++;
-                document.getElementById('messageCount').textContent = messageCount;
-            }
-        }
-
-        // 显示正在输入指示器
-        function showTypingIndicator() {
-            typingIndicator.style.display = 'block';
-        }
-
-        // 隐藏正在输入指示器
-        function hideTypingIndicator() {
-            typingIndicator.style.display = 'none';
-        }
-
-        // 滚动到底部
-        function scrollToBottom() {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-
-        // 更新会话统计
-        function updateSessionStats(responseTime) {
-            totalResponseTime += responseTime;
-            const avgTime = Math.round(totalResponseTime / messageCount);
-            document.getElementById('sessionResponseTime').textContent = avgTime + 'ms';
-        }
-
-        // 事件监听器
-        sendButton.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-
-        // 定期更新系统统计信息
-        setInterval(loadSystemStats, 30000); // 每30秒更新一次
-
-        // 加载当前会话历史记录，并渲染到聊天区域
-        function loadSessionHistory() {
-            fetch('/api/chat/history/' + sessionId)
-                .then(response => response.json())
-                .then(records => {
-                    if (!records || records.length === 0) {
-                        addMessage('本次会话暂无历史记录。', 'bot');
-                        return;
-                    }
-                    // 清空当前消息区（保留欢迎语）
-                    messagesContainer.innerHTML = '';
-                    addMessage('以下是本次会话的历史记录：', 'bot');
-                    records.forEach(function(record) {
-                        addMessage(record.userMessage, 'user');
-                        addMessage(record.botResponse, 'bot');
-                    });
-                })
-                .catch(error => {
-                    console.error('加载会话历史失败:', error);
-                    addMessage('加载历史记录失败，请稍后重试。', 'bot');
-                });
-        }
-
-        // 所有记录模态框
-        let currentPage = 0;
-        const pageSize = 10;
-        let recordsModalInstance = null;
-
-        function openRecordsModal() {
-            currentPage = 0;
-            recordsModalInstance = new bootstrap.Modal(document.getElementById('recordsModal'));
-            recordsModalInstance.show();
-            fetchRecords(currentPage);
-        }
-
-        function fetchRecords(page) {
-            document.getElementById('recordsContent').innerHTML =
-                '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">加载中...</span></div></div>';
-            document.getElementById('recordsPagination').style.display = 'none';
-
-            fetch('/api/chat/records?page=' + page + '&size=' + pageSize)
-                .then(response => response.json())
-                .then(data => {
-                    renderRecordsTable(data);
-                })
-                .catch(error => {
-                    console.error('获取聊天记录失败:', error);
-                    document.getElementById('recordsContent').innerHTML =
-                        '<div class="alert alert-danger">加载失败，请稍后重试。</div>';
-                });
-        }
-
-        function renderRecordsTable(data) {
-            const records = data.records || [];
-            const total = data.total || 0;
-            const totalPages = data.totalPages || 0;
-
-            document.getElementById('recordsTotalInfo').textContent =
-                '共 ' + total + ' 条记录，第 ' + (data.page + 1) + ' / ' + (totalPages || 1) + ' 页';
-
-            if (records.length === 0) {
-                document.getElementById('recordsContent').innerHTML =
-                    '<div class="text-center text-muted py-4">暂无聊天记录</div>';
-                return;
-            }
-
-            let html = '<div class="list-group list-group-flush">';
-            records.forEach(function(r) {
-                const time = r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '';
-                html += '<div class="list-group-item px-0">';
-                html += '<div class="d-flex justify-content-between align-items-center mb-1">';
-                html += '<small class="text-muted"><i class="bi bi-hash me-1"></i>会话: ' + (r.sessionId || '') + '</small>';
-                html += '<small class="text-muted">' + time + '</small>';
-                html += '</div>';
-                html += '<div class="mb-1"><span class="badge bg-primary me-1">用户</span><span class="text-break">' + escapeHtml(r.userMessage) + '</span></div>';
-                html += '<div><span class="badge bg-success me-1">AI</span><span class="text-break">' + escapeHtml(r.botResponse) + '</span></div>';
-                html += '</div>';
+                `).join('');
+                renderPagination(data.current, data.pages);
             });
-            html += '</div>';
-            document.getElementById('recordsContent').innerHTML = html;
+    }
 
-            // 渲染分页
-            if (totalPages > 1) {
-                renderPagination(data.page, totalPages);
-                document.getElementById('recordsPagination').style.display = 'block';
-            } else {
-                document.getElementById('recordsPagination').style.display = 'none';
-            }
+    function renderPagination(curr, total) {
+        const list = document.getElementById('paginationList');
+        list.innerHTML = '';
+        for(let i=1; i<=total; i++) {
+            list.innerHTML += `<li class="page-item ${i===curr?'active':''}"><a class="page-link text-dark ${i===curr?'bg-light':''}" href="javascript:fetchRecords(${i})">${i}</a></li>`;
         }
+    }
 
-        function renderPagination(page, totalPages) {
-            const list = document.getElementById('paginationList');
-            list.innerHTML = '';
+    function switchToSession(fullId) {
+        const parts = fullId.split('_');
+        if(parts.length < 2) return;
+        localStorage.setItem('ai_studio_user_id', parts[0]);
+        localStorage.setItem('ai_studio_chat_id', parts[1]);
+        location.reload();
+    }
 
-            // 上一页
-            list.innerHTML += '<li class="page-item ' + (page === 0 ? 'disabled' : '') + '">' +
-                '<a class="page-link" href="#" onclick="goToPage(' + (page - 1) + ');return false;">«</a></li>';
+    function openRecordsModal() {
+        if (!recordsModal) recordsModal = new bootstrap.Modal(document.getElementById('recordsModal'));
+        recordsModal.show();
+        fetchRecords(1);
+    }
 
-            // 页码（最多显示5页）
-            let start = Math.max(0, page - 2);
-            let end = Math.min(totalPages - 1, start + 4);
-            start = Math.max(0, end - 4);
-            for (let i = start; i <= end; i++) {
-                list.innerHTML += '<li class="page-item ' + (i === page ? 'active' : '') + '">' +
-                    '<a class="page-link" href="#" onclick="goToPage(' + i + ');return false;">' + (i + 1) + '</a></li>';
-            }
+    let recordsModal;
+    document.getElementById('sendButton').onclick = sendMessage;
+    messageInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') sendMessage(); });
 
-            // 下一页
-            list.innerHTML += '<li class="page-item ' + (page >= totalPages - 1 ? 'disabled' : '') + '">' +
-                '<a class="page-link" href="#" onclick="goToPage(' + (page + 1) + ');return false;">»</a></li>';
-        }
-
-        function goToPage(page) {
-            currentPage = page;
-            fetchRecords(currentPage);
-        }
-
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        }
-    </script>
+    loadStats();
+    loadSessionHistory();
+</script>
 </body>
 </html>

@@ -58,8 +58,8 @@ spring:
   sql:
     init:
       mode: never
-      schema-locations: classpath:schema.sql
-      data-locations: classpath:data.sql
+
+
 
 # Debug配置
 debug: false
