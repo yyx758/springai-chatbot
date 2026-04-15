@@ -23,6 +23,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -83,27 +84,69 @@ public class ChatbotService {
     /**
      * 核心逻辑：构建对话上下文
      */
+    /**
+     * 核心逻辑：构建对话上下文（带 Redis/MySQL 性能对比统计）
+     */
     private List<Message> buildConversationContext(String sessionId, String userInput) {
         List<Message> messages = new ArrayList<>();
         messages.add(new SystemMessage(systemPrompt));
 
-        // 优先加载该 sessionId 的历史记录
-        List<ChatRecord> history = chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
-                .eq(ChatRecord::getSessionId, sessionId)
-                .orderByAsc(ChatRecord::getCreatedTime)
-                .last("LIMIT " + maxHistory));
+        String key = "chat:history:" + sessionId;
+        List<ChatRecord> history;
 
+        // --- 1. 尝试从 Redis 读取并计时 ---
+        long redisStart = System.nanoTime();
+        List<Object> rawHistory = redisTemplate.opsForList().range(key, 0, -1);
+        long redisEnd = System.nanoTime();
+        long redisTimeUs = (redisEnd - redisStart) / 1000; // 转换为微秒
+
+        if (rawHistory != null && !rawHistory.isEmpty()) {
+            // 【场景 A：缓存命中】
+            history = rawHistory.stream()
+                    .map(obj -> objectMapper.convertValue(obj, ChatRecord.class))
+                    .collect(Collectors.toList());
+
+            log.info("【性能监控】Redis 命中！读取 {} 条记录，耗时: {} 微秒 (μs)",
+                    history.size(), redisTimeUs);
+        } else {
+            // 【场景 B：缓存失效，切换数据库】
+            log.warn("【性能监控】Redis 未命中，正在查询 MySQL...");
+
+            long dbStart = System.nanoTime();
+            history = chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
+                    .eq(ChatRecord::getSessionId, sessionId)
+                    .orderByAsc(ChatRecord::getCreatedTime)
+                    .last("LIMIT " + maxHistory));
+            long dbEnd = System.nanoTime();
+
+            long dbTimeUs = (dbEnd - dbStart) / 1000; // 转换为微秒
+
+            log.info("【性能监控】MySQL 查询完成，获取 {} 条记录，耗时: {} 微秒 (μs)",
+                    history.size(), dbTimeUs);
+
+            // 异步补偿：既然库里有，顺手写回 Redis，下次就快了
+            if (!history.isEmpty()) {
+                final List<ChatRecord> finalHistory = history;
+                CompletableFuture.runAsync(() -> {
+                    redisTemplate.opsForList().rightPushAll(key, finalHistory.toArray());
+                    redisTemplate.expire(key, 2, java.util.concurrent.TimeUnit.HOURS);
+                });
+            }
+        }
+
+        // 3. 构建消息对象
         history.forEach(r -> {
             messages.add(new UserMessage(r.getUserMessage()));
             messages.add(new AssistantMessage(r.getBotResponse()));
         });
+
         messages.add(new UserMessage(userInput));
         return messages;
     }
 
     @Async
     public void asyncSaveChatRecord(String sessionId, String userMsg, String botRes) {
-        // 【新增核心过滤】：如果 botRes 包含 SSE 协议特征，强行清洗，只保留内容
+        // 【核心过滤】：如果 botRes 包含 SSE 协议特征，强行清洗，只保留内容
         String cleanBotRes = botRes;
         if (botRes.contains("data:{\"content\":")) {
             // 这里的逻辑是兜底方案，防止脏数据入库

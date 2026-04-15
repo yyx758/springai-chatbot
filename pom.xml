@@ -45,11 +45,6 @@
             <artifactId>mybatis-plus-jsqlparser</artifactId>
             <version>3.5.15</version> </dependency>
 
-        <dependency>
-            <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-extension</artifactId>
-            <version>3.5.15</version>
-        </dependency>
         <!-- Spring AI OpenAI依赖（支持OpenAI兼容API如DeepSeek） -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
