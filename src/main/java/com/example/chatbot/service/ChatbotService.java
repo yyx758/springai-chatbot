@@ -217,7 +217,6 @@ public class ChatbotService {
                         () -> {
                             // 只有在这里保存到数据库，确保内容是干净的
                             asyncSaveChatRecord(request.getSessionId(), request.getMessage(), fullRes.toString());
-                            try { emitter.send(Map.of("content", "[DONE]")); } catch (Exception ignored) {}
                             emitter.complete();
                         }
                 );

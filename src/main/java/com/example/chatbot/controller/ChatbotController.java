@@ -51,7 +51,17 @@ public class ChatbotController {
                 .orElse(UUID.randomUUID().toString()));
 
         SseEmitter emitter = new SseEmitter(180_000L);
-        chatbotService.streamChat(request, emitter);
+        try {
+            chatbotService.streamChat(request, emitter);
+        } catch (Exception e) {
+            log.error("初始化流式对话失败", e);
+            try {
+                emitter.send(SseEmitter.event().name("error").data(Map.of("error", "流式对话初始化失败: " + e.getMessage())));
+            } catch (Exception ignored) {
+                // Ignore send failures when connection is already closed.
+            }
+            emitter.complete();
+        }
         return emitter;
     }
 

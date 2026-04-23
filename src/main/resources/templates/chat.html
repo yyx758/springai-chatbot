@@ -206,6 +206,18 @@
     const messagesContainer = document.getElementById('chatMessages');
     const messageInput = document.getElementById('messageInput');
     const emptyState = document.getElementById('emptyState');
+    const sendButton = document.getElementById('sendButton');
+    let isStreaming = false;
+    let currentAbortController = null;
+    let hasStreamContent = false;
+    let currentTargetBubble = null;
+
+    function setSendButtonMode(streaming) {
+        sendButton.innerHTML = streaming
+            ? '<i class="bi bi-stop-fill"></i>'
+            : '<i class="bi bi-arrow-up"></i>';
+        sendButton.title = streaming ? '停止输出' : '发送消息';
+    }
 
     marked.setOptions({
         highlight: function(code, lang) {
@@ -216,6 +228,11 @@
     });
 
     async function sendMessage() {
+        if (isStreaming) {
+            if (currentAbortController) currentAbortController.abort();
+            return;
+        }
+
         const msg = messageInput.value.trim();
         if (!msg) return;
         if (document.getElementById('emptyState')) document.getElementById('emptyState').remove();
@@ -228,13 +245,28 @@
         addMessage(loadingHtml, 'bot', messageId);
 
         const targetBubble = document.getElementById(messageId);
+        currentTargetBubble = targetBubble;
+        currentAbortController = new AbortController();
+        hasStreamContent = false;
+        isStreaming = true;
+        setSendButtonMode(true);
 
         try {
             const response = await fetch('/api/chat/stream', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'text/event-stream'
+                },
+                signal: currentAbortController.signal,
                 body: JSON.stringify({ message: msg, sessionId: activeSessionId, model: document.getElementById('modelSelect').value })
             });
+
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('text/event-stream')) {
+                const fallback = await response.text();
+                throw new Error(`后端未返回SSE流，content-type=${contentType || 'unknown'}，body=${fallback}`);
+            }
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -253,11 +285,12 @@
                     const trimmedLine = line.trim();
                     if (!trimmedLine.startsWith('data:')) continue;
                     const data = trimmedLine.substring(5).trim();
-                    if (data === "[DONE]") break;
+                    if (data === "[DONE]") continue;
 
                     try {
                         const json = JSON.parse(data);
-                        if (json.content) {
+                        if (json.content && json.content !== "[DONE]") {
+                            hasStreamContent = true;
                             fullText += json.content;
                             targetBubble.innerHTML = marked.parse(fullText);
                             targetBubble.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
@@ -268,7 +301,22 @@
             }
             loadStats();
         } catch (e) {
-            targetBubble.innerHTML = "<span class='text-danger'>连接中断，请检查状态。</span>";
+            if (e && e.name === 'AbortError') {
+                if (!hasStreamContent && currentTargetBubble) {
+                    // User stopped before the first chunk arrived (thinking state).
+                    currentTargetBubble.innerHTML = "<span class='text-muted'>已停止输出。</span>";
+                } else if (!targetBubble.innerText.trim()) {
+                    targetBubble.innerHTML = "<span class='text-muted'>已停止输出。</span>";
+                }
+            } else {
+                targetBubble.innerHTML = `<span class='text-danger'>${e && e.message ? e.message : '连接中断，请检查状态。'}</span>`;
+            }
+        } finally {
+            isStreaming = false;
+            currentAbortController = null;
+            hasStreamContent = false;
+            currentTargetBubble = null;
+            setSendButtonMode(false);
         }
     }
 
@@ -378,7 +426,8 @@
         fetchRecords(1);
     }
 
-    document.getElementById('sendButton').onclick = sendMessage;
+    setSendButtonMode(false);
+    sendButton.onclick = sendMessage;
     messageInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') sendMessage(); });
 
     loadStats();
