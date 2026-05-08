@@ -18,6 +18,8 @@ spring:
       host: localhost
       port: 6379
       password: yyx2005yyx
+      timeout: 3s
+      connect-timeout: 3s
       lettuce:
         pool:
           max-active: 8
@@ -41,12 +43,24 @@ spring:
   # Spring AI配置（使用OpenAI兼容API连接DeepSeek）
   ai:
     openai:
-     api-key: ${DEEPSEEK_API_KEY}
-     base-url: https://api.deepseek.com
-     chat:
+      api-key: ${DEEPSEEK_API_KEY:}
+      base-url: https://api.deepseek.com
+      chat:
+        enabled: ${SPRING_AI_OPENAI_ENABLED:false}
         options:
           model: deepseek-chat
           temperature: 0.7
+      embedding:
+        enabled: false
+      image:
+        enabled: false
+      audio:
+        speech:
+          enabled: false
+        transcription:
+          enabled: false
+      moderation:
+        api-key: ${DEEPSEEK_API_KEY:local-disabled}
     ollama:
     # 内网穿透的 URL
       base-url: https://ollama.yyyyx.top
@@ -91,4 +105,4 @@ logging:
     com.example.chatbot: DEBUG
     org.mybatis: DEBUG
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n" 
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
