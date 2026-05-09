@@ -11,4 +11,6 @@ public class AuthResponse {
     private String username;
     private String displayName;
     private String token;
+    private String refreshToken;
+    private Long expiresIn;
 }

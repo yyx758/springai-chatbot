@@ -12,19 +12,23 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class PageController {
 
-    /**
-     * 主页面 - 智能客服聊天界面
-     */
     @GetMapping("/")
     public String index() {
-        return "chat";
+        return "login";
     }
 
-    /**
-     * 聊天页面 - 与根路径相同
-     */
+    @GetMapping("/login")
+    public String login() {
+        return "login";
+    }
+
     @GetMapping("/chat")
     public String chat() {
         return "chat";
+    }
+
+    @GetMapping("/admin")
+    public String admin() {
+        return "admin";
     }
 } 

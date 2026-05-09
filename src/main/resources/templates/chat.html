@@ -237,34 +237,6 @@
     </div>
 </div>
 
-<div class="modal fade" id="authModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 rounded-4">
-            <div class="modal-header border-0">
-                <h5 class="modal-title fw-bold">登录 AI Studio</h5>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label small text-muted">用户名</label>
-                    <input class="form-control" id="authUsername" autocomplete="username" placeholder="请输入用户名">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small text-muted">密码</label>
-                    <input type="password" class="form-control" id="authPassword" autocomplete="current-password" placeholder="请输入密码">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small text-muted">昵称（仅注册）</label>
-                    <input class="form-control" id="authDisplayName" placeholder="可选">
-                </div>
-                <div class="text-danger small" id="authError"></div>
-            </div>
-            <div class="modal-footer border-0">
-                <button class="btn btn-outline-secondary" onclick="register()">注册</button>
-                <button class="btn btn-dark" onclick="login()">登录</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <div class="modal fade" id="knowledgeModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -325,7 +297,6 @@
     const ragSwitch = document.getElementById('ragSwitch');
     const ragTopKSelect = document.getElementById('ragTopKSelect');
     const ragReferenceBar = document.getElementById('ragReferenceBar');
-    let authModal;
     let knowledgeModal;
     let isStreaming = false;
     let currentAbortController = null;
@@ -358,9 +329,15 @@
     async function authFetch(url, options = {}) {
         const mergedOptions = Object.assign({}, options);
         mergedOptions.headers = getAuthHeaders(options.headers || {});
-        const response = await fetch(url, mergedOptions);
+        let response = await fetch(url, mergedOptions);
         if (response.status === 401) {
-            showAuthModal('登录状态已过期，请重新登录');
+            const refreshed = await tryRefreshToken();
+            if (refreshed) {
+                mergedOptions.headers = getAuthHeaders(options.headers || {});
+                response = await fetch(url, mergedOptions);
+                if (response.status !== 401) return response;
+            }
+            window.location.href = '/login';
             throw new Error('未登录或登录已过期');
         }
         return response;
@@ -376,87 +353,63 @@
         if (authData.token) {
             localStorage.setItem('ai_studio_token', authData.token);
         }
+        if (authData.refreshToken) {
+            localStorage.setItem('ai_studio_refresh_token', authData.refreshToken);
+        }
         localStorage.setItem('ai_studio_user', JSON.stringify(currentUser));
         currentUserDisplay.innerText = currentUser.displayName || currentUser.username;
     }
 
-    function showAuthModal(errorText = '') {
-        if (!authModal) authModal = new bootstrap.Modal(document.getElementById('authModal'));
-        document.getElementById('authError').innerText = errorText;
-        authModal.show();
-    }
+    let refreshPromise = null;
 
-    async function login() {
-        const username = document.getElementById('authUsername').value.trim();
-        const password = document.getElementById('authPassword').value;
-        const errorNode = document.getElementById('authError');
-        if (!username || !password) {
-            errorNode.innerText = '请输入用户名和密码';
-            return;
+    async function tryRefreshToken() {
+        const refreshToken = localStorage.getItem('ai_studio_refresh_token');
+        if (!refreshToken) return false;
+        if (refreshPromise) {
+            await refreshPromise;
+            return true;
         }
         try {
-            const response = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            const data = await response.json();
-            if (!response.ok || !data.token) {
-                throw new Error(data.error || '登录失败');
-            }
-            persistAuth(data);
-            authModal.hide();
-            afterAuthReady();
-        } catch (e) {
-            errorNode.innerText = e.message || '登录失败，请稍后重试';
-        }
-    }
-
-    async function register() {
-        const username = document.getElementById('authUsername').value.trim();
-        const password = document.getElementById('authPassword').value;
-        const displayName = document.getElementById('authDisplayName').value.trim();
-        const errorNode = document.getElementById('authError');
-        if (!username || !password) {
-            errorNode.innerText = '请输入用户名和密码';
-            return;
-        }
-        try {
-            const response = await fetch('/api/auth/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, displayName })
-            });
-            const data = await response.json();
-            if (!response.ok || !data.token) {
-                throw new Error(data.error || '注册失败');
-            }
-            persistAuth(data);
-            authModal.hide();
-            afterAuthReady();
-        } catch (e) {
-            errorNode.innerText = e.message || '注册失败，请稍后重试';
+            refreshPromise = (async () => {
+                const resp = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refreshToken })
+                });
+                if (!resp.ok) {
+                    logout();
+                    throw new Error('refresh failed');
+                }
+                const data = await resp.json();
+                persistAuth(data);
+            })();
+            await refreshPromise;
+            return true;
+        } catch {
+            return false;
+        } finally {
+            refreshPromise = null;
         }
     }
 
     function logout() {
         localStorage.removeItem('ai_studio_token');
+        localStorage.removeItem('ai_studio_refresh_token');
         localStorage.removeItem('ai_studio_user');
         authToken = '';
         currentUser = null;
-        currentUserDisplay.innerText = '未登录';
-        showAuthModal('已退出登录');
+        window.location.href = '/login';
     }
 
     async function initAuth() {
         if (!authToken) {
-            showAuthModal();
+            window.location.href = '/login';
             return false;
         }
         try {
             const response = await authFetch('/api/auth/me');
             if (!response.ok) {
-                showAuthModal('请重新登录');
+                window.location.href = '/login';
                 return false;
             }
             const me = await response.json();
@@ -506,7 +459,7 @@
 
     async function sendMessage() {
         if (!currentUser) {
-            showAuthModal();
+            window.location.href = '/login';
             return;
         }
         if (isStreaming) {

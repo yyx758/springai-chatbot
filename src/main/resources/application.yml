@@ -17,6 +17,18 @@ spring:
   application:
     name: springai-deepseek-chatbot
   
+  mail:
+    host: ${SMTP_HOST:smtp.qq.com}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
   data:
     redis:
       host: localhost
@@ -94,7 +106,8 @@ mybatis-plus:
 app:
   auth:
     jwt-secret: ${APP_JWT_SECRET:change-this-dev-secret-key-at-least-32-chars}
-    token-expire-ms: ${APP_TOKEN_EXPIRE_MS:86400000}
+    token-expire-ms: ${APP_TOKEN_EXPIRE_MS:1800000}
+    refresh-token-expire-ms: ${APP_REFRESH_TOKEN_EXPIRE_MS:604800000}
   chatbot:
     rag-enabled: true
     rag-top-k: 3

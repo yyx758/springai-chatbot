@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
+import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 @Component
@@ -12,6 +13,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 public class AuthInterceptor implements HandlerInterceptor {
 
     public static final String AUTH_USER_ID_ATTR = "authUserId";
+    public static final String AUTH_USER_ROLE_ATTR = "authUserRole";
 
     private final JwtTokenProvider jwtTokenProvider;
 
@@ -32,7 +34,19 @@ public class AuthInterceptor implements HandlerInterceptor {
         String token = authorization.substring(7).trim();
         try {
             Long userId = jwtTokenProvider.parseUserId(token);
+            String role = jwtTokenProvider.parseRole(token);
             request.setAttribute(AUTH_USER_ID_ATTR, userId);
+            request.setAttribute(AUTH_USER_ROLE_ATTR, role);
+
+            if (handler instanceof HandlerMethod hm) {
+                RequireRole annotation = findRoleAnnotation(hm);
+                if (annotation != null && !annotation.value().equals(role)) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"success\":false,\"error\":\"权限不足，需要 " + annotation.value() + " 角色\"}");
+                    return false;
+                }
+            }
             return true;
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -40,5 +54,13 @@ public class AuthInterceptor implements HandlerInterceptor {
             response.getWriter().write("{\"success\":false,\"error\":\"登录状态无效，请重新登录\"}");
             return false;
         }
+    }
+
+    private RequireRole findRoleAnnotation(HandlerMethod hm) {
+        RequireRole methodAnnotation = hm.getMethodAnnotation(RequireRole.class);
+        if (methodAnnotation != null) {
+            return methodAnnotation;
+        }
+        return hm.getBeanType().getAnnotation(RequireRole.class);
     }
 }

@@ -23,11 +23,19 @@ public class UserAccount {
 
     private String username;
 
+    private String email;
+
     @TableField("password_hash")
     private String passwordHash;
 
     @TableField("display_name")
     private String displayName;
+
+    @TableField("role")
+    private String role;
+
+    @TableField("enabled")
+    private Boolean enabled;
 
     @TableField("created_time")
     private LocalDateTime createdTime;

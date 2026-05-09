@@ -7,6 +7,7 @@ import com.example.chatbot.dto.RegisterRequest;
 import com.example.chatbot.entity.UserAccount;
 import com.example.chatbot.mapper.UserAccountMapper;
 import com.example.chatbot.security.JwtTokenProvider;
+import com.example.chatbot.security.RefreshTokenStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -19,15 +20,30 @@ public class AuthService {
     private final UserAccountMapper userAccountMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenStore refreshTokenStore;
+
+    private final EmailService emailService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         String username = request.getUsername().trim();
+        String email = request.getEmail().trim().toLowerCase();
         String password = request.getPassword();
+
         UserAccount existed = userAccountMapper.selectOne(new LambdaQueryWrapper<UserAccount>()
                 .eq(UserAccount::getUsername, username));
         if (existed != null) {
             throw new IllegalArgumentException("用户名已存在");
+        }
+
+        UserAccount emailExisted = userAccountMapper.selectOne(new LambdaQueryWrapper<UserAccount>()
+                .eq(UserAccount::getEmail, email));
+        if (emailExisted != null) {
+            throw new IllegalArgumentException("该邮箱已被注册");
+        }
+
+        if (!emailService.verifyCode(email, request.getCode())) {
+            throw new IllegalArgumentException("验证码错误或已过期");
         }
 
         String displayName = request.getDisplayName();
@@ -37,12 +53,15 @@ public class AuthService {
 
         UserAccount user = UserAccount.builder()
                 .username(username)
+                .email(email)
                 .passwordHash(passwordEncoder.encode(password))
                 .displayName(displayName.trim())
+                .role("USER")
+                .enabled(true)
                 .build();
         userAccountMapper.insert(user);
 
-        return buildAuthResponse(user, jwtTokenProvider.createToken(user.getId(), user.getUsername()));
+        return buildAuthResponse(user, createTokenPair(user));
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -53,7 +72,10 @@ public class AuthService {
         if (user == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
             throw new IllegalArgumentException("用户名或密码错误");
         }
-        return buildAuthResponse(user, jwtTokenProvider.createToken(user.getId(), user.getUsername()));
+        if (!Boolean.TRUE.equals(user.getEnabled())) {
+            throw new IllegalStateException("账号已被禁用，请联系管理员");
+        }
+        return buildAuthResponse(user, createTokenPair(user));
     }
 
     public AuthResponse getProfile(Long userId) {
@@ -64,12 +86,41 @@ public class AuthService {
         return buildAuthResponse(user, null);
     }
 
-    private AuthResponse buildAuthResponse(UserAccount user, String token) {
-        return AuthResponse.builder()
+    public AuthResponse refreshAccessToken(String refreshTokenValue) {
+        if (refreshTokenValue == null || refreshTokenValue.isBlank()) {
+            throw new IllegalArgumentException("刷新令牌不能为空");
+        }
+        Long userId = refreshTokenStore.getUserIdAndInvalidate(refreshTokenValue);
+        if (userId == null) {
+            throw new IllegalStateException("刷新令牌无效或已过期");
+        }
+        UserAccount user = userAccountMapper.selectById(userId);
+        if (user == null || !Boolean.TRUE.equals(user.getEnabled())) {
+            throw new IllegalStateException("用户不存在或已禁用");
+        }
+        return buildAuthResponse(user, createTokenPair(user));
+    }
+
+    private TokenPair createTokenPair(UserAccount user) {
+        String accessToken = jwtTokenProvider.createAccessToken(
+                user.getId(), user.getUsername(), user.getRole());
+        String refreshToken = jwtTokenProvider.createRefreshToken();
+        refreshTokenStore.store(refreshToken, user.getId());
+        return new TokenPair(accessToken, refreshToken, jwtTokenProvider.getTokenExpireMs() / 1000);
+    }
+
+    private record TokenPair(String accessToken, String refreshToken, long expiresIn) {}
+
+    private AuthResponse buildAuthResponse(UserAccount user, TokenPair tokenPair) {
+        AuthResponse.AuthResponseBuilder builder = AuthResponse.builder()
                 .userId(user.getId())
                 .username(user.getUsername())
-                .displayName(user.getDisplayName())
-                .token(token)
-                .build();
+                .displayName(user.getDisplayName());
+        if (tokenPair != null) {
+            builder.token(tokenPair.accessToken())
+                    .refreshToken(tokenPair.refreshToken())
+                    .expiresIn(tokenPair.expiresIn());
+        }
+        return builder.build();
     }
 }

@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Studio | 登录</title>
+    <link href="https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+
+    <style>
+        :root {
+            --primary-black: #111827;
+            --primary-white: #ffffff;
+            --bg-color: #f8f9fa;
+            --border-light: rgba(0, 0, 0, 0.08);
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            background-color: var(--bg-color);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+
+        .animated-bg {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;
+            background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 25%, #e2e8f0 50%, #f8fafc 75%, #ffffff 100%);
+            background-size: 400% 400%;
+            animation: gradientMove 12s ease infinite;
+        }
+        @keyframes gradientMove {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .auth-wrapper {
+            width: 440px;
+            max-width: 94vw;
+            position: relative;
+            z-index: 1;
+        }
+
+        .auth-card {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(24px);
+            border: 1px solid var(--border-light);
+            border-radius: 28px;
+            padding: 3rem 2.5rem;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .brand-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .brand-icon {
+            width: 56px; height: 56px;
+            background: var(--primary-black);
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-view {
+            display: none;
+            animation: fadeSlideIn 0.35s ease;
+        }
+        .form-view.active { display: block; }
+
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .form-control-custom {
+            border: 1.5px solid var(--border-light);
+            border-radius: 14px;
+            padding: 0.75rem 1rem;
+            font-size: 0.92rem;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.6);
+        }
+        .form-control-custom:focus {
+            border-color: var(--primary-black);
+            box-shadow: 0 0 0 3px rgba(17,24,39,0.08);
+            background: #fff;
+            outline: none;
+        }
+
+        .btn-primary-custom {
+            width: 100%;
+            padding: 0.85rem;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            letter-spacing: 0.3px;
+            border: none;
+            transition: all 0.25s;
+            cursor: pointer;
+        }
+        .btn-login {
+            background: var(--primary-black);
+            color: #fff;
+        }
+        .btn-login:hover {
+            background: #1f2937;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+        .btn-register {
+            background: #fff;
+            color: var(--primary-black);
+            border: 2px solid var(--primary-black);
+        }
+        .btn-register:hover {
+            background: var(--primary-black);
+            color: #fff;
+        }
+
+        .send-code-btn {
+            position: absolute;
+            right: 4px; top: 50%;
+            transform: translateY(-50%);
+            background: var(--primary-black);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 0.4rem 0.9rem;
+            font-size: 0.78rem;
+            font-weight: 500;
+            cursor: pointer;
+            z-index: 2;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .send-code-btn:hover { background: #1f2937; }
+        .send-code-btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        .email-input { padding-right: 5.5rem !important; }
+
+        .switch-link {
+            color: #64748b;
+            font-size: 0.88rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .switch-link:hover { color: var(--primary-black); }
+        .switch-link span { font-weight: 600; color: var(--primary-black); text-decoration: underline; }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #64748b;
+            font-size: 0.85rem;
+            cursor: pointer;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--primary-black); }
+
+        .role-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+        }
+        .role-option {
+            flex: 1;
+            padding: 0.7rem 0.5rem;
+            border-radius: 14px;
+            border: 2px solid var(--border-light);
+            text-align: center;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.5);
+        }
+        .role-option:hover { border-color: #94a3b8; }
+        .role-option.active {
+            border-color: var(--primary-black);
+            background: var(--primary-black);
+            color: #fff;
+        }
+        .role-option i { display: block; font-size: 1.2rem; margin-bottom: 4px; }
+
+        .error-msg {
+            font-size: 0.82rem;
+            min-height: 1.2rem;
+            margin-top: 0.5rem;
+        }
+
+        .field-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            z-index: 2;
+        }
+        .input-with-icon { padding-left: 2.5rem !important; }
+
+        .toast-custom {
+            position: fixed; bottom: 2rem; right: 2rem; z-index: 9999;
+            background: var(--primary-black); color: #fff;
+            padding: 0.8rem 1.5rem; border-radius: 14px; font-size: 0.9rem;
+            opacity: 0; transform: translateY(20px);
+            transition: all 0.3s ease;
+        }
+        .toast-custom.show { opacity: 1; transform: translateY(0); }
+        .toast-custom.error { background: #dc3545; }
+    </style>
+</head>
+<body>
+
+<div class="animated-bg"></div>
+
+<div class="auth-wrapper">
+    <div class="auth-card">
+
+        <div class="brand-header">
+            <div class="brand-icon"><i class="bi bi-robot"></i></div>
+            <h4 class="fw-bold mb-1" id="viewTitle">欢迎回来</h4>
+            <p class="text-muted small mb-0" id="viewSubtitle">登录您的账号以继续</p>
+        </div>
+
+        <!-- ========== 登录视图 ========== -->
+        <div class="form-view active" id="loginView">
+            <div class="role-selector">
+                <div class="role-option active" data-role="user" onclick="switchRole('user')">
+                    <i class="bi bi-person"></i>普通用户
+                </div>
+                <div class="role-option" data-role="admin" onclick="switchRole('admin')">
+                    <i class="bi bi-shield-lock"></i>管理员
+                </div>
+            </div>
+
+            <div class="mb-3 position-relative">
+                <i class="bi bi-person field-icon"></i>
+                <input class="form-control form-control-custom input-with-icon"
+                       id="loginUsername" autocomplete="username" placeholder="用户名">
+            </div>
+            <div class="mb-3 position-relative">
+                <i class="bi bi-lock field-icon"></i>
+                <input type="password" class="form-control form-control-custom input-with-icon"
+                       id="loginPassword" autocomplete="current-password" placeholder="密码">
+            </div>
+            <div class="error-msg text-danger" id="loginError"></div>
+            <button class="btn btn-primary-custom btn-login mt-2" onclick="doLogin()">
+                <i class="bi bi-box-arrow-in-right me-2"></i>登录
+            </button>
+
+            <p class="text-center mt-3 mb-0">
+                <span class="switch-link">
+                    没有账号？<span onclick="showRegister()">立即注册</span>
+                </span>
+            </p>
+        </div>
+
+        <!-- ========== 注册视图 ========== -->
+        <div class="form-view" id="registerView">
+            <div class="back-link" onclick="showLogin()">
+                <i class="bi bi-arrow-left"></i> 返回登录
+            </div>
+
+            <div class="text-center mb-3">
+                <span class="badge rounded-pill py-2 px-4" style="background: #f1f5f9; color: #475569; font-weight: 500; font-size: 0.85rem;">
+                    <i class="bi bi-person me-1"></i>普通用户注册
+                </span>
+            </div>
+
+            <div class="mb-3 position-relative">
+                <i class="bi bi-person field-icon"></i>
+                <input class="form-control form-control-custom input-with-icon"
+                       id="regUsername" autocomplete="off" placeholder="用户名">
+            </div>
+            <div class="mb-3 position-relative">
+                <i class="bi bi-envelope field-icon"></i>
+                <input type="email" class="form-control form-control-custom input-with-icon email-input"
+                       id="regEmail" autocomplete="off" placeholder="邮箱（必填）">
+                <button class="send-code-btn" id="sendCodeBtn" onclick="sendCode()">发送验证码</button>
+            </div>
+            <div class="mb-3 position-relative">
+                <i class="bi bi-shield-check field-icon"></i>
+                <input class="form-control form-control-custom input-with-icon"
+                       id="regCode" autocomplete="off" placeholder="邮箱验证码">
+            </div>
+            <div class="mb-3 position-relative">
+                <i class="bi bi-lock field-icon"></i>
+                <input type="password" class="form-control form-control-custom input-with-icon"
+                       id="regPassword" autocomplete="off" placeholder="密码（至少6位）">
+            </div>
+            <div class="mb-3 position-relative">
+                <i class="bi bi-pencil field-icon"></i>
+                <input class="form-control form-control-custom input-with-icon"
+                       id="regDisplayName" autocomplete="off" placeholder="昵称（选填）">
+            </div>
+            <div class="error-msg text-danger" id="regError"></div>
+            <button class="btn btn-primary-custom btn-register" onclick="doRegister()">
+                <i class="bi bi-person-plus me-2"></i>注册新账号
+            </button>
+
+            <p class="text-center mt-3 mb-0">
+                <span class="switch-link">
+                    已有账号？<span onclick="showLogin()">立即登录</span>
+                </span>
+            </p>
+        </div>
+
+    </div>
+</div>
+
+<div class="toast-custom" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let selectedRole = 'user';
+
+    function switchRole(role) {
+        selectedRole = role;
+        document.querySelectorAll('.role-option').forEach(el => {
+            el.classList.toggle('active', el.dataset.role === role);
+        });
+    }
+
+    function showRegister() {
+        selectedRole = 'user';
+        document.getElementById('loginView').classList.remove('active');
+        document.getElementById('registerView').classList.add('active');
+        document.getElementById('viewTitle').textContent = '创建账号';
+        document.getElementById('viewSubtitle').textContent = '注册后即可使用 AI Studio';
+        document.getElementById('loginError').textContent = '';
+        document.getElementById('regUsername').focus();
+    }
+
+    function showLogin() {
+        document.getElementById('registerView').classList.remove('active');
+        document.getElementById('loginView').classList.add('active');
+        document.getElementById('viewTitle').textContent = '欢迎回来';
+        document.getElementById('viewSubtitle').textContent = '登录您的账号以继续';
+        document.getElementById('regError').textContent = '';
+        document.getElementById('loginUsername').focus();
+    }
+
+    function showToast(msg, isError) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.className = 'toast-custom' + (isError ? ' error' : '') + ' show';
+        clearTimeout(el._timeout);
+        el._timeout = setTimeout(function() { el.classList.remove('show'); }, 3000);
+    }
+
+    function persistAuth(data) {
+        if (data.token) localStorage.setItem('ai_studio_token', data.token);
+        if (data.refreshToken) localStorage.setItem('ai_studio_refresh_token', data.refreshToken);
+        if (data.userId) {
+            localStorage.setItem('ai_studio_user', JSON.stringify({
+                userId: data.userId,
+                username: data.username,
+                displayName: data.displayName,
+                role: selectedRole
+            }));
+        }
+    }
+
+    function redirectByRole() {
+        if (selectedRole === 'admin') {
+            window.location.href = '/admin';
+        } else {
+            window.location.href = '/chat';
+        }
+    }
+
+    async function doLogin() {
+        const username = document.getElementById('loginUsername').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        const errEl = document.getElementById('loginError');
+
+        if (!username || !password) {
+            errEl.textContent = '请输入用户名和密码';
+            return;
+        }
+
+        try {
+            const resp = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username, password: password })
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.token) {
+                errEl.textContent = data.error || '登录失败';
+                return;
+            }
+            persistAuth(data);
+            redirectByRole();
+        } catch (e) {
+            errEl.textContent = '网络错误，请稍后重试';
+        }
+    }
+
+    let codeCountdown = 0;
+
+    async function sendCode() {
+        const email = document.getElementById('regEmail').value.trim();
+        const errEl = document.getElementById('regError');
+        if (!email) {
+            errEl.textContent = '请先输入邮箱';
+            return;
+        }
+        if (codeCountdown > 0) return;
+
+        const btn = document.getElementById('sendCodeBtn');
+        btn.disabled = true;
+        try {
+            const resp = await fetch('/api/auth/send-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email })
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+                errEl.textContent = data.error || '发送失败';
+                btn.disabled = false;
+                return;
+            }
+            errEl.textContent = '';
+            showToast('验证码已发送至 ' + email, false);
+            codeCountdown = 60;
+            btn.textContent = codeCountdown + 's';
+            var timer = setInterval(function() {
+                codeCountdown--;
+                if (codeCountdown <= 0) {
+                    clearInterval(timer);
+                    btn.disabled = false;
+                    btn.textContent = '发送验证码';
+                } else {
+                    btn.textContent = codeCountdown + 's';
+                }
+            }, 1000);
+        } catch (e) {
+            errEl.textContent = '网络错误，请稍后重试';
+            btn.disabled = false;
+        }
+    }
+
+    async function doRegister() {
+        const username = document.getElementById('regUsername').value.trim();
+        const email = document.getElementById('regEmail').value.trim();
+        const code = document.getElementById('regCode').value.trim();
+        const password = document.getElementById('regPassword').value;
+        const displayName = document.getElementById('regDisplayName').value.trim();
+        const errEl = document.getElementById('regError');
+
+        if (!username || !email || !password) {
+            errEl.textContent = '请填写所有必填项';
+            return;
+        }
+        if (!code) {
+            errEl.textContent = '请输入邮箱验证码';
+            return;
+        }
+        if (password.length < 6) {
+            errEl.textContent = '密码至少需要6位';
+            return;
+        }
+
+        try {
+            const resp = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username, email: email, code: code, password: password, displayName: displayName })
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.token) {
+                errEl.textContent = data.error || '注册失败';
+                return;
+            }
+            selectedRole = 'user';
+            persistAuth(data);
+            showToast('注册成功，正在跳转...', false);
+            setTimeout(function() { redirectByRole(); }, 600);
+        } catch (e) {
+            errEl.textContent = '网络错误，请稍后重试';
+        }
+    }
+
+    // 回车登录
+    document.getElementById('loginPassword').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') doLogin();
+    });
+    document.getElementById('loginUsername').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('loginPassword').focus();
+    });
+
+    // 注册回车 - 验证码输入框回车触发注册
+    document.getElementById('regCode').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') doRegister();
+    });
+    document.getElementById('regDisplayName').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') doRegister();
+    });
+
+    // 已登录则自动跳转
+    (function autoRedirect() {
+        var token = localStorage.getItem('ai_studio_token');
+        if (!token) return;
+        var user = JSON.parse(localStorage.getItem('ai_studio_user') || 'null');
+        var role = user ? user.role : 'user';
+        if (role === 'admin') {
+            window.location.href = '/admin';
+        } else {
+            window.location.href = '/chat';
+        }
+    })();
+</script>
+</body>
+</html>

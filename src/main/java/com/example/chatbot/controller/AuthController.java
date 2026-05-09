@@ -2,14 +2,19 @@ package com.example.chatbot.controller;
 
 import com.example.chatbot.dto.AuthResponse;
 import com.example.chatbot.dto.LoginRequest;
+import com.example.chatbot.dto.RefreshTokenRequest;
 import com.example.chatbot.dto.RegisterRequest;
+import com.example.chatbot.dto.SendCodeRequest;
 import com.example.chatbot.security.AuthInterceptor;
 import com.example.chatbot.service.AuthService;
+import com.example.chatbot.service.EmailService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -18,6 +23,13 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final EmailService emailService;
+
+    @PostMapping("/send-code")
+    public ResponseEntity<Map<String, Object>> sendVerificationCode(@Valid @RequestBody SendCodeRequest request) {
+        emailService.sendVerificationCode(request.getEmail().trim().toLowerCase());
+        return ResponseEntity.ok(Map.of("success", true, "message", "验证码已发送"));
+    }
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
@@ -27,6 +39,11 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return ResponseEntity.ok(authService.refreshAccessToken(request.getRefreshToken()));
     }
 
     @GetMapping("/me")
