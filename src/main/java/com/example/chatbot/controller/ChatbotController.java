@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.example.chatbot.dto.ChatRequest;
 import com.example.chatbot.dto.ChatResponse;
 import com.example.chatbot.entity.ChatRecord;
+import com.example.chatbot.security.AuthInterceptor;
 import com.example.chatbot.service.ChatbotService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -34,25 +36,27 @@ public class ChatbotController {
      * 同步对话接口
      */
     @PostMapping("/message")
-    public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request) {
+    public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request, HttpServletRequest httpServletRequest) {
+        String userId = resolveUserId(httpServletRequest);
         request.setSessionId(Optional.ofNullable(request.getSessionId())
                 .filter(s -> !s.isBlank())
-                .orElse(UUID.randomUUID().toString()));
-        return ResponseEntity.ok(chatbotService.chat(request));
+                .orElse(buildSessionId(userId)));
+        return ResponseEntity.ok(chatbotService.chat(request, userId));
     }
 
     /**
      * 流式对话接口
      */
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamChat(@RequestBody ChatRequest request) {
+    public SseEmitter streamChat(@RequestBody ChatRequest request, HttpServletRequest httpServletRequest) {
+        String userId = resolveUserId(httpServletRequest);
         request.setSessionId(Optional.ofNullable(request.getSessionId())
                 .filter(s -> !s.isBlank())
-                .orElse(UUID.randomUUID().toString()));
+                .orElse(buildSessionId(userId)));
 
         SseEmitter emitter = new SseEmitter(180_000L);
         try {
-            chatbotService.streamChat(request, emitter);
+            chatbotService.streamChat(request, emitter, userId);
         } catch (Exception e) {
             log.error("初始化流式对话失败", e);
             try {
@@ -72,7 +76,8 @@ public class ChatbotController {
     public ResponseEntity<IPage<ChatRecord>> getChatRecords(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String userId) {
+            HttpServletRequest request) {
+        String userId = resolveUserId(request);
         return ResponseEntity.ok(chatbotService.getChatRecordsPage(page, size, userId));
     }
 
@@ -80,7 +85,8 @@ public class ChatbotController {
      * 个人统计：按 userId 过滤
      */
     @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getSystemStats(@RequestParam(required = false) String userId) {
+    public ResponseEntity<Map<String, Object>> getSystemStats(HttpServletRequest request) {
+        String userId = resolveUserId(request);
         return ResponseEntity.ok(chatbotService.getSystemStats(userId));
     }
 
@@ -96,19 +102,29 @@ public class ChatbotController {
      * 加载特定会话历史
      */
     @GetMapping("/history/{sessionId}")
-    public ResponseEntity<List<ChatRecord>> getChatHistory(@PathVariable String sessionId) {
-        return ResponseEntity.ok(chatbotService.getChatHistory(sessionId));
+    public ResponseEntity<List<ChatRecord>> getChatHistory(@PathVariable String sessionId, HttpServletRequest request) {
+        String userId = resolveUserId(request);
+        return ResponseEntity.ok(chatbotService.getChatHistory(sessionId, userId));
     }
     /**
      * 删除指定会话
      */
     @DeleteMapping("/{sessionId}")
-    public ResponseEntity<Map<String, Object>> deleteSession(@PathVariable String sessionId) {
-        boolean success = chatbotService.deleteSession(sessionId);
-        if (success) {
-            return ResponseEntity.ok(Map.of("success", true, "message", "会话已删除"));
-        } else {
-            return ResponseEntity.status(500).body(Map.of("success", false, "message", "删除失败"));
+    public ResponseEntity<Map<String, Object>> deleteSession(@PathVariable String sessionId, HttpServletRequest request) {
+        String userId = resolveUserId(request);
+        chatbotService.deleteSession(sessionId, userId);
+        return ResponseEntity.ok(Map.of("success", true, "message", "会话已删除"));
+    }
+
+    private String resolveUserId(HttpServletRequest request) {
+        Object userId = request.getAttribute(AuthInterceptor.AUTH_USER_ID_ATTR);
+        if (userId == null) {
+            throw new IllegalStateException("未登录或登录已过期");
         }
+        return String.valueOf(userId);
+    }
+
+    private String buildSessionId(String userId) {
+        return userId + "_" + UUID.randomUUID();
     }
 }

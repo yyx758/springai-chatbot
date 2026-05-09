@@ -88,7 +88,8 @@ public class ChatbotService {
     /**
      * 同步对话逻辑
      */
-    public ChatResponse chat(ChatRequest request) {
+    public ChatResponse chat(ChatRequest request, String userId) {
+        ensureSessionOwnedByUser(request.getSessionId(), userId);
         ChatModel model = getChatModel(request.getModel());
         if (model == null) {
             throw new RuntimeException("未找到可用的聊天模型");
@@ -217,24 +218,21 @@ public class ChatbotService {
         }
     }
 
-    public List<ChatRecord> getChatHistory(String sessionId) {
+    public List<ChatRecord> getChatHistory(String sessionId, String userId) {
+        ensureSessionOwnedByUser(sessionId, userId);
         return chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
                 .eq(ChatRecord::getSessionId, sessionId).orderByAsc(ChatRecord::getCreatedTime));
     }
 
     public Map<String, Object> getSystemStats(String userId) {
         LambdaQueryWrapper<ChatRecord> wrapper = new LambdaQueryWrapper<>();
-        if (userId != null && !userId.trim().isEmpty()) {
-            wrapper.likeRight(ChatRecord::getSessionId, userId + "_");
-        }
+        wrapper.likeRight(ChatRecord::getSessionId, buildSessionPrefix(userId));
         return Map.of("totalChats", chatRecordMapper.selectCount(wrapper), "status", "RUNNING");
     }
 
     public IPage<ChatRecord> getChatRecordsPage(int page, int size, String userId) {
         LambdaQueryWrapper<ChatRecord> wrapper = new LambdaQueryWrapper<>();
-        if (userId != null && !userId.trim().isEmpty()) {
-            wrapper.likeRight(ChatRecord::getSessionId, userId + "_");
-        }
+        wrapper.likeRight(ChatRecord::getSessionId, buildSessionPrefix(userId));
         wrapper.orderByDesc(ChatRecord::getCreatedTime);
         return chatRecordMapper.selectPage(new Page<>(page, size), wrapper);
     }
@@ -242,7 +240,8 @@ public class ChatbotService {
     /**
      * 流式对话逻辑
      */
-    public void streamChat(ChatRequest request, SseEmitter emitter) {
+    public void streamChat(ChatRequest request, SseEmitter emitter, String userId) {
+        ensureSessionOwnedByUser(request.getSessionId(), userId);
         ChatModel model = getChatModel(request.getModel());
         if (model == null) {
             sendStreamError(emitter, new IllegalStateException("未找到可用的聊天模型"));
@@ -311,22 +310,29 @@ public class ChatbotService {
     /**
      * 删除特定会话的所有记录及缓存
      */
-    public boolean deleteSession(String sessionId) {
-        try {
-            // 1. 删除数据库记录
-            LambdaQueryWrapper<ChatRecord> wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(ChatRecord::getSessionId, sessionId);
-            chatRecordMapper.delete(wrapper);
+    public boolean deleteSession(String sessionId, String userId) {
+        ensureSessionOwnedByUser(sessionId, userId);
+        LambdaQueryWrapper<ChatRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ChatRecord::getSessionId, sessionId);
+        chatRecordMapper.delete(wrapper);
+        redisTemplate.delete("chat:history:" + sessionId);
+        log.info("会话已成功删除: {}", sessionId);
+        return true;
+    }
 
-            // 2. 清理 Redis 中的对话上下文缓存
-            redisTemplate.delete("chat:history:" + sessionId);
+    private String buildSessionPrefix(String userId) {
+        return userId + "_";
+    }
 
-            log.info("会话已成功删除: {}", sessionId);
-            return true;
-        } catch (Exception e) {
-            log.error("删除会话失败: {}", sessionId, e);
-            return false;
+    private void ensureSessionOwnedByUser(String sessionId, String userId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new IllegalArgumentException("会话ID不能为空");
+        }
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("无效的用户信息");
+        }
+        if (!sessionId.startsWith(buildSessionPrefix(userId))) {
+            throw new IllegalArgumentException("无权访问该会话");
         }
     }
 }
-

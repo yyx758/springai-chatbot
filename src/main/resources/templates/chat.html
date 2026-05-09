@@ -144,6 +144,10 @@
             </div>
         </div>
         <div class="mt-auto p-3 rounded-4" style="background: rgba(255,255,255,0.4); border: 1px solid rgba(0,0,0,0.03);">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span id="currentUserDisplay" class="small text-muted">未登录</span>
+                <button class="btn btn-sm btn-outline-dark py-0 px-2" onclick="logout()">退出</button>
+            </div>
             <div class="d-flex justify-content-between small text-muted">
                 <span>总对话</span>
                 <span id="totalChats" class="fw-bold text-dark">-</span>
@@ -195,19 +199,48 @@
     </div>
 </div>
 
-<script>
-    let userId = localStorage.getItem('ai_studio_user_id') || ('u' + Date.now().toString(36));
-    localStorage.setItem('ai_studio_user_id', userId);
+<div class="modal fade" id="authModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">登录 AI Studio</h5>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small text-muted">用户名</label>
+                    <input class="form-control" id="authUsername" autocomplete="username" placeholder="请输入用户名">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">密码</label>
+                    <input type="password" class="form-control" id="authPassword" autocomplete="current-password" placeholder="请输入密码">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">昵称（仅注册）</label>
+                    <input class="form-control" id="authDisplayName" placeholder="可选">
+                </div>
+                <div class="text-danger small" id="authError"></div>
+            </div>
+            <div class="modal-footer border-0">
+                <button class="btn btn-outline-secondary" onclick="register()">注册</button>
+                <button class="btn btn-dark" onclick="login()">登录</button>
+            </div>
+        </div>
+    </div>
+</div>
 
+<script>
+    let authToken = localStorage.getItem('ai_studio_token') || '';
+    let currentUser = JSON.parse(localStorage.getItem('ai_studio_user') || 'null');
     let chatId = localStorage.getItem('ai_studio_chat_id') || ('c' + Date.now().toString(36));
     localStorage.setItem('ai_studio_chat_id', chatId);
-
-    let activeSessionId = userId + '_' + chatId;
+    let activeSessionId = '';
 
     const messagesContainer = document.getElementById('chatMessages');
     const messageInput = document.getElementById('messageInput');
     const emptyState = document.getElementById('emptyState');
     const sendButton = document.getElementById('sendButton');
+    const currentUserDisplay = document.getElementById('currentUserDisplay');
+    let authModal;
     let isStreaming = false;
     let currentAbortController = null;
     let hasStreamContent = false;
@@ -228,7 +261,140 @@
         breaks: true
     });
 
+    function buildSessionId() {
+        return `${currentUser.userId}_${chatId}`;
+    }
+
+    function getAuthHeaders(extraHeaders = {}) {
+        return Object.assign({}, extraHeaders, authToken ? { 'Authorization': `Bearer ${authToken}` } : {});
+    }
+
+    async function authFetch(url, options = {}) {
+        const mergedOptions = Object.assign({}, options);
+        mergedOptions.headers = getAuthHeaders(options.headers || {});
+        const response = await fetch(url, mergedOptions);
+        if (response.status === 401) {
+            showAuthModal('登录状态已过期，请重新登录');
+            throw new Error('未登录或登录已过期');
+        }
+        return response;
+    }
+
+    function persistAuth(authData) {
+        authToken = authData.token || authToken;
+        currentUser = {
+            userId: authData.userId,
+            username: authData.username,
+            displayName: authData.displayName
+        };
+        if (authData.token) {
+            localStorage.setItem('ai_studio_token', authData.token);
+        }
+        localStorage.setItem('ai_studio_user', JSON.stringify(currentUser));
+        currentUserDisplay.innerText = currentUser.displayName || currentUser.username;
+    }
+
+    function showAuthModal(errorText = '') {
+        if (!authModal) authModal = new bootstrap.Modal(document.getElementById('authModal'));
+        document.getElementById('authError').innerText = errorText;
+        authModal.show();
+    }
+
+    async function login() {
+        const username = document.getElementById('authUsername').value.trim();
+        const password = document.getElementById('authPassword').value;
+        const errorNode = document.getElementById('authError');
+        if (!username || !password) {
+            errorNode.innerText = '请输入用户名和密码';
+            return;
+        }
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.token) {
+                throw new Error(data.error || '登录失败');
+            }
+            persistAuth(data);
+            authModal.hide();
+            afterAuthReady();
+        } catch (e) {
+            errorNode.innerText = e.message || '登录失败，请稍后重试';
+        }
+    }
+
+    async function register() {
+        const username = document.getElementById('authUsername').value.trim();
+        const password = document.getElementById('authPassword').value;
+        const displayName = document.getElementById('authDisplayName').value.trim();
+        const errorNode = document.getElementById('authError');
+        if (!username || !password) {
+            errorNode.innerText = '请输入用户名和密码';
+            return;
+        }
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, displayName })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.token) {
+                throw new Error(data.error || '注册失败');
+            }
+            persistAuth(data);
+            authModal.hide();
+            afterAuthReady();
+        } catch (e) {
+            errorNode.innerText = e.message || '注册失败，请稍后重试';
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem('ai_studio_token');
+        localStorage.removeItem('ai_studio_user');
+        authToken = '';
+        currentUser = null;
+        currentUserDisplay.innerText = '未登录';
+        showAuthModal('已退出登录');
+    }
+
+    async function initAuth() {
+        if (!authToken) {
+            showAuthModal();
+            return false;
+        }
+        try {
+            const response = await authFetch('/api/auth/me');
+            if (!response.ok) {
+                showAuthModal('请重新登录');
+                return false;
+            }
+            const me = await response.json();
+            persistAuth(me);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function afterAuthReady() {
+        if (!currentUser) {
+            return;
+        }
+        activeSessionId = buildSessionId();
+        loadStats();
+        loadSessionHistory();
+    }
+
     async function sendMessage() {
+        if (!currentUser) {
+            showAuthModal();
+            return;
+        }
         if (isStreaming) {
             if (currentAbortController) currentAbortController.abort();
             return;
@@ -253,7 +419,7 @@
         setSendButtonMode(true);
 
         try {
-            const response = await fetch('/api/chat/stream', {
+            const response = await authFetch('/api/chat/stream', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -334,7 +500,8 @@
     function scrollToBottom() { messagesContainer.scrollTop = messagesContainer.scrollHeight; }
 
     function loadSessionHistory() {
-        fetch(`/api/chat/history/${encodeURIComponent(activeSessionId)}`)
+        if (!activeSessionId) return;
+        authFetch(`/api/chat/history/${encodeURIComponent(activeSessionId)}`)
             .then(r => r.json())
             .then(records => {
                 if (records && records.length > 0) {
@@ -346,7 +513,7 @@
     }
 
     function fetchRecords(page) {
-        fetch(`/api/chat/records?page=${page}&size=6&userId=${userId}`)
+        authFetch(`/api/chat/records?page=${page}&size=6`)
             .then(r => r.json())
             .then(data => {
                 const container = document.getElementById('recordsContent');
@@ -376,7 +543,7 @@
         event.stopPropagation(); // 防止触发父元素的切换会话点击事件
         if (!confirm('确定要删除这个会话及其所有聊天记录吗？此操作不可撤销。')) return;
 
-        fetch(`/api/chat/${encodeURIComponent(sessionId)}`, { method: 'DELETE' })
+        authFetch(`/api/chat/${encodeURIComponent(sessionId)}`, { method: 'DELETE' })
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
@@ -404,7 +571,6 @@
 
     function switchToSession(fullId) {
         const parts = fullId.split('_');
-        localStorage.setItem('ai_studio_user_id', parts[0]);
         localStorage.setItem('ai_studio_chat_id', parts[1]);
         location.reload();
     }
@@ -415,7 +581,7 @@
     }
 
     function loadStats() {
-        fetch(`/api/chat/stats?userId=${userId}`).then(r => r.json()).then(d => {
+        authFetch('/api/chat/stats').then(r => r.json()).then(d => {
             document.getElementById('totalChats').innerText = d.totalChats || 0;
         });
     }
@@ -431,8 +597,11 @@
     sendButton.onclick = sendMessage;
     messageInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') sendMessage(); });
 
-    loadStats();
-    loadSessionHistory();
+    initAuth().then(authed => {
+        if (authed) {
+            afterAuthReady();
+        }
+    });
 </script>
 </body>
 </html>

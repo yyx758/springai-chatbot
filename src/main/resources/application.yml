@@ -6,6 +6,10 @@ server:
       charset: UTF-8
 
 spring:
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
   mvc:
     async:
         # 设置为 600,000 毫秒（10分钟）
@@ -88,6 +92,9 @@ mybatis-plus:
 
 # 应用配置
 app:
+  auth:
+    jwt-secret: ${APP_JWT_SECRET:change-this-dev-secret-key-at-least-32-chars}
+    token-expire-ms: ${APP_TOKEN_EXPIRE_MS:86400000}
   chatbot:
     system-prompt: |
       你是一个专业的智能客服助手，名字叫小AI。请遵循以下规则：
