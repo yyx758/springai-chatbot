@@ -16,6 +16,8 @@ public class ChatRequest {
     
     private String message;
     private String sessionId;
-    private String model ;
+    private String model;
+    private Boolean useRag;
+    private Integer ragTopK;
 
-} 
+}

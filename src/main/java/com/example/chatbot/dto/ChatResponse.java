@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /**
  * 聊天响应DTO
  */
@@ -19,5 +21,6 @@ public class ChatResponse {
     private Long responseTime;
     private boolean success;
     private String error;
+    private List<RagReference> references;
 
 } 

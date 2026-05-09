@@ -96,6 +96,8 @@ app:
     jwt-secret: ${APP_JWT_SECRET:change-this-dev-secret-key-at-least-32-chars}
     token-expire-ms: ${APP_TOKEN_EXPIRE_MS:86400000}
   chatbot:
+    rag-enabled: true
+    rag-top-k: 3
     system-prompt: |
       你是一个专业的智能客服助手，名字叫小AI。请遵循以下规则：
       1. 始终保持友好、耐心和专业的态度

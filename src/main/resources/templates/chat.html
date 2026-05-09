@@ -117,6 +117,25 @@
 
         pre { background: #282c34; padding: 1rem; border-radius: 12px; margin: 1rem 0; overflow-x: auto; }
         code { font-family: 'Fira Code', monospace; }
+        .rag-ref-bar {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
+            padding: 10px 14px;
+            margin-bottom: 1rem;
+        }
+        .rag-ref-item {
+            border-left: 3px solid #111827;
+            padding-left: 10px;
+            margin-bottom: 8px;
+        }
+        .knowledge-item {
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            background: #fff;
+        }
     </style>
 </head>
 <body>
@@ -143,6 +162,13 @@
                 <div class="text-muted" style="font-size: 0.7rem;">管理云端归档</div>
             </div>
         </div>
+        <div class="nav-card" onclick="openKnowledgeModal()">
+            <i class="bi bi-database"></i>
+            <div>
+                <div class="fw-bold small">知识库</div>
+                <div class="text-muted" style="font-size: 0.7rem;">管理 RAG 检索文档</div>
+            </div>
+        </div>
         <div class="mt-auto p-3 rounded-4" style="background: rgba(255,255,255,0.4); border: 1px solid rgba(0,0,0,0.03);">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <span id="currentUserDisplay" class="small text-muted">未登录</span>
@@ -160,13 +186,25 @@
             <div class="d-flex align-items-center">
                 <span class="small fw-medium text-muted"><i class="bi bi-circle-fill text-success me-2" style="font-size: 8px;"></i>服务已连接</span>
             </div>
-            <select class="form-select custom-select w-auto" id="modelSelect">
-                <option value="deepseek">DeepSeek v3</option>
-                <option value="ollama">Ollama Local</option>
-            </select>
+            <div class="d-flex align-items-center gap-2">
+                <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="ragSwitch">
+                    <label class="form-check-label small text-muted" for="ragSwitch">RAG增强</label>
+                </div>
+                <select class="form-select custom-select w-auto" id="ragTopKSelect" style="min-width:90px;">
+                    <option value="1">Top1</option>
+                    <option value="3">Top3</option>
+                    <option value="5">Top5</option>
+                </select>
+                <select class="form-select custom-select w-auto" id="modelSelect">
+                    <option value="deepseek">DeepSeek v3</option>
+                    <option value="ollama">Ollama Local</option>
+                </select>
+            </div>
         </header>
 
         <section class="chat-messages" id="chatMessages">
+            <div class="rag-ref-bar d-none" id="ragReferenceBar"></div>
             <div class="empty-view text-center mt-5" id="emptyState">
                 <h4 class="fw-bold">您好</h4>
                 <p class="text-muted">输入任何问题，让我们开始探索。</p>
@@ -228,19 +266,67 @@
     </div>
 </div>
 
+<div class="modal fade" id="knowledgeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 rounded-5 shadow-lg">
+            <div class="modal-header border-0 px-5 pt-5 pb-3">
+                <h4 class="fw-bold mb-0">知识库（RAG）</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-5 py-3">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <input class="form-control" id="knowledgeTitle" placeholder="标题（必填）">
+                    </div>
+                    <div class="col-md-3">
+                        <input class="form-control" id="knowledgeTags" placeholder="标签（可选）">
+                    </div>
+                    <div class="col-md-5">
+                        <button class="btn btn-dark w-100" onclick="createKnowledgeDoc()">新增知识文档</button>
+                    </div>
+                    <div class="col-12">
+                        <textarea class="form-control" id="knowledgeContent" rows="4" placeholder="正文内容（用于检索增强）"></textarea>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-7">
+                        <h6 class="fw-bold">我的知识文档</h6>
+                        <div id="knowledgeList"></div>
+                    </div>
+                    <div class="col-md-5">
+                        <h6 class="fw-bold">检索测试</h6>
+                        <div class="d-flex gap-2 mb-2">
+                            <input class="form-control" id="knowledgeSearchQuery" placeholder="输入问题测试召回">
+                            <button class="btn btn-outline-dark" onclick="searchKnowledge()">检索</button>
+                        </div>
+                        <div id="knowledgeSearchResult"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     let authToken = localStorage.getItem('ai_studio_token') || '';
     let currentUser = JSON.parse(localStorage.getItem('ai_studio_user') || 'null');
     let chatId = localStorage.getItem('ai_studio_chat_id') || ('c' + Date.now().toString(36));
     localStorage.setItem('ai_studio_chat_id', chatId);
     let activeSessionId = '';
+    let ragEnabled = localStorage.getItem('ai_studio_rag_enabled');
+    ragEnabled = ragEnabled === null ? true : ragEnabled === 'true';
+    let ragTopK = parseInt(localStorage.getItem('ai_studio_rag_topk') || '3', 10);
 
     const messagesContainer = document.getElementById('chatMessages');
     const messageInput = document.getElementById('messageInput');
     const emptyState = document.getElementById('emptyState');
     const sendButton = document.getElementById('sendButton');
     const currentUserDisplay = document.getElementById('currentUserDisplay');
+    const ragSwitch = document.getElementById('ragSwitch');
+    const ragTopKSelect = document.getElementById('ragTopKSelect');
+    const ragReferenceBar = document.getElementById('ragReferenceBar');
     let authModal;
+    let knowledgeModal;
     let isStreaming = false;
     let currentAbortController = null;
     let hasStreamContent = false;
@@ -390,6 +476,34 @@
         loadSessionHistory();
     }
 
+    function clearReferences() {
+        ragReferenceBar.classList.add('d-none');
+        ragReferenceBar.innerHTML = '';
+    }
+
+    function escapeHtml(text) {
+        return (text || '').replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;');
+    }
+
+    function renderReferences(references) {
+        if (!Array.isArray(references) || references.length === 0) {
+            clearReferences();
+            return;
+        }
+        ragReferenceBar.classList.remove('d-none');
+        ragReferenceBar.innerHTML = `
+            <div class="small fw-bold mb-2"><i class="bi bi-bookmark-check me-1"></i>RAG 命中知识片段（${references.length}）</div>
+            ${references.map(ref => `
+                <div class="rag-ref-item">
+                    <div class="small fw-semibold">${escapeHtml(ref.title || '未命名文档')} <span class="text-muted">score:${ref.score ?? '-'}</span></div>
+                    <div class="small text-muted">${escapeHtml(ref.snippet || '')}</div>
+                </div>
+            `).join('')}
+        `;
+    }
+
     async function sendMessage() {
         if (!currentUser) {
             showAuthModal();
@@ -403,6 +517,7 @@
         const msg = messageInput.value.trim();
         if (!msg) return;
         if (document.getElementById('emptyState')) document.getElementById('emptyState').remove();
+        clearReferences();
 
         messageInput.value = '';
         addMessage(msg, 'user');
@@ -426,7 +541,13 @@
                     'Accept': 'text/event-stream'
                 },
                 signal: currentAbortController.signal,
-                body: JSON.stringify({ message: msg, sessionId: activeSessionId, model: document.getElementById('modelSelect').value })
+                body: JSON.stringify({
+                    message: msg,
+                    sessionId: activeSessionId,
+                    model: document.getElementById('modelSelect').value,
+                    useRag: ragEnabled,
+                    ragTopK: ragTopK
+                })
             });
 
             const contentType = response.headers.get('content-type') || '';
@@ -456,6 +577,14 @@
 
                     try {
                         const json = JSON.parse(data);
+                        if (Array.isArray(json.references)) {
+                            renderReferences(json.references);
+                            continue;
+                        }
+                        if (json.error) {
+                            targetBubble.innerHTML = `<span class='text-danger'>${json.error}</span>`;
+                            continue;
+                        }
                         if (json.content && json.content !== "[DONE]") {
                             hasStreamContent = true;
                             fullText += json.content;
@@ -501,12 +630,13 @@
 
     function loadSessionHistory() {
         if (!activeSessionId) return;
+        clearReferences();
         authFetch(`/api/chat/history/${encodeURIComponent(activeSessionId)}`)
             .then(r => r.json())
             .then(records => {
                 if (records && records.length > 0) {
                     if (document.getElementById('emptyState')) document.getElementById('emptyState').remove();
-                    messagesContainer.innerHTML = '';
+                    messagesContainer.querySelectorAll('.message').forEach(node => node.remove());
                     records.forEach(r => { addMessage(r.userMessage, 'user'); addMessage(r.botResponse, 'bot'); });
                 }
             });
@@ -593,7 +723,100 @@
         fetchRecords(1);
     }
 
+    function openKnowledgeModal() {
+        if (!knowledgeModal) knowledgeModal = new bootstrap.Modal(document.getElementById('knowledgeModal'));
+        knowledgeModal.show();
+        loadKnowledgeDocs(1);
+        document.getElementById('knowledgeSearchResult').innerHTML = '';
+    }
+
+    function loadKnowledgeDocs(page = 1) {
+        authFetch(`/api/knowledge/documents?page=${page}&size=20`)
+            .then(r => r.json())
+            .then(data => {
+                const records = data.records || [];
+                const container = document.getElementById('knowledgeList');
+                if (records.length === 0) {
+                    container.innerHTML = `<div class="small text-muted">暂无知识文档，请先新增。</div>`;
+                    return;
+                }
+                container.innerHTML = records.map(r => `
+                    <div class="knowledge-item">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div class="fw-semibold small">${escapeHtml(r.title)}</div>
+                            <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteKnowledgeDoc(${r.id})">删除</button>
+                        </div>
+                        <div class="small text-muted mb-1">标签：${escapeHtml(r.tags || '无')}</div>
+                        <div class="small">${escapeHtml((r.content || '').slice(0, 120))}${(r.content || '').length > 120 ? '...' : ''}</div>
+                    </div>
+                `).join('');
+            });
+    }
+
+    function createKnowledgeDoc() {
+        const title = document.getElementById('knowledgeTitle').value.trim();
+        const content = document.getElementById('knowledgeContent').value.trim();
+        const tags = document.getElementById('knowledgeTags').value.trim();
+        if (!title || !content) {
+            alert('标题和内容不能为空');
+            return;
+        }
+        authFetch('/api/knowledge/documents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, content, tags, enabled: true })
+        }).then(r => r.json()).then(() => {
+            document.getElementById('knowledgeTitle').value = '';
+            document.getElementById('knowledgeContent').value = '';
+            document.getElementById('knowledgeTags').value = '';
+            loadKnowledgeDocs(1);
+        }).catch(() => alert('新增知识失败'));
+    }
+
+    function deleteKnowledgeDoc(id) {
+        if (!confirm('确定删除该知识文档吗？')) return;
+        authFetch(`/api/knowledge/documents/${id}`, { method: 'DELETE' })
+            .then(() => loadKnowledgeDocs(1))
+            .catch(() => alert('删除失败'));
+    }
+
+    function searchKnowledge() {
+        const query = document.getElementById('knowledgeSearchQuery').value.trim();
+        if (!query) return;
+        authFetch('/api/knowledge/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, topK: ragTopK })
+        }).then(r => r.json()).then(list => {
+            const box = document.getElementById('knowledgeSearchResult');
+            if (!Array.isArray(list) || list.length === 0) {
+                box.innerHTML = `<div class="small text-muted">未命中知识片段</div>`;
+                return;
+            }
+            box.innerHTML = list.map(ref => `
+                <div class="knowledge-item">
+                    <div class="small fw-semibold">${escapeHtml(ref.title || '未命名文档')} <span class="text-muted">score:${ref.score ?? '-'}</span></div>
+                    <div class="small text-muted">${escapeHtml(ref.snippet || '')}</div>
+                </div>
+            `).join('');
+        });
+    }
+
+    function bindRagSettings() {
+        ragSwitch.checked = ragEnabled;
+        ragTopKSelect.value = String(ragTopK);
+        ragSwitch.addEventListener('change', () => {
+            ragEnabled = ragSwitch.checked;
+            localStorage.setItem('ai_studio_rag_enabled', String(ragEnabled));
+        });
+        ragTopKSelect.addEventListener('change', () => {
+            ragTopK = Number(ragTopKSelect.value) || 3;
+            localStorage.setItem('ai_studio_rag_topk', String(ragTopK));
+        });
+    }
+
     setSendButtonMode(false);
+    bindRagSettings();
     sendButton.onclick = sendMessage;
     messageInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') sendMessage(); });
 

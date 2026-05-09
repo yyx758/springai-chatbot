@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.chatbot.dto.ChatRequest;
 import com.example.chatbot.dto.ChatResponse;
+import com.example.chatbot.dto.RagReference;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.mapper.ChatRecordMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +39,7 @@ public class ChatbotService {
     private final ChatRecordMapper chatRecordMapper;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final RagService ragService;
 
     @Value("${app.chatbot.system-prompt}")
     private String systemPrompt;
@@ -45,6 +47,10 @@ public class ChatbotService {
     private int maxHistory;
     @Value("${spring.ai.openai.api-key:}")
     private String openAiApiKey;
+    @Value("${app.chatbot.rag-enabled:true}")
+    private boolean ragEnabledDefault;
+    @Value("${app.chatbot.rag-top-k:3}")
+    private int ragTopKDefault;
 
     @Autowired
     public ChatbotService(
@@ -52,11 +58,13 @@ public class ChatbotService {
             ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
             ChatRecordMapper chatRecordMapper,
             RedisTemplate<String, Object> redisTemplate,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            RagService ragService
     ) {
         this.chatRecordMapper = chatRecordMapper;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.ragService = ragService;
 
         // 使用 try-catch 包裹 getIfAvailable()，防止 Bean 创建失败（如网络不通）导致整个应用崩溃
         OpenAiChatModel openAi = null;
@@ -97,17 +105,24 @@ public class ChatbotService {
         if (model == openAiChatModel && (openAiApiKey == null || openAiApiKey.isBlank())) {
             throw new RuntimeException("AI 接口鉴权失败，请检查 DEEPSEEK_API_KEY");
         }
-        List<Message> messages = buildConversationContext(request.getSessionId(), request.getMessage());
+        ConversationContext conversationContext = buildConversationContext(
+                request.getSessionId(),
+                request.getMessage(),
+                userId,
+                request.getUseRag(),
+                request.getRagTopK()
+        );
         long start = System.currentTimeMillis();
 
         try {
-            String res = model.call(new Prompt(messages)).getResult().getOutput().getContent();
+            String res = model.call(new Prompt(conversationContext.messages())).getResult().getOutput().getContent();
             asyncSaveChatRecord(request.getSessionId(), request.getMessage(), res);
             return ChatResponse.builder()
                     .message(res)
                     .sessionId(request.getSessionId())
                     .responseTime(System.currentTimeMillis() - start)
                     .success(true)
+                    .references(conversationContext.references())
                     .build();
         } catch (Exception e) {
             log.error("同步聊天失败: {}", e.getMessage());
@@ -121,9 +136,27 @@ public class ChatbotService {
     /**
      * 核心逻辑：构建对话上下文（带 Redis/MySQL 性能对比统计）
      */
-    private List<Message> buildConversationContext(String sessionId, String userInput) {
+    private ConversationContext buildConversationContext(
+            String sessionId,
+            String userInput,
+            String userId,
+            Boolean useRag,
+            Integer ragTopK
+    ) {
         List<Message> messages = new ArrayList<>();
         messages.add(new SystemMessage(systemPrompt));
+        List<RagReference> references = Collections.emptyList();
+
+        if (shouldUseRag(useRag)) {
+            try {
+                references = ragService.retrieveReferences(Long.valueOf(userId), userInput, resolveTopK(ragTopK));
+                if (!references.isEmpty()) {
+                    messages.add(new SystemMessage(ragService.buildKnowledgePrompt(references)));
+                }
+            } catch (Exception e) {
+                log.warn("RAG 检索失败，已降级为普通对话: {}", e.getMessage());
+            }
+        }
 
         String key = "chat:history:" + sessionId;
         List<ChatRecord> history = Collections.emptyList();
@@ -187,7 +220,7 @@ public class ChatbotService {
         });
 
         messages.add(new UserMessage(userInput));
-        return messages;
+        return new ConversationContext(messages, references);
     }
 
     @Async
@@ -251,12 +284,26 @@ public class ChatbotService {
             sendStreamError(emitter, new IllegalStateException("AI 接口鉴权失败，请检查 DEEPSEEK_API_KEY"));
             return;
         }
-        List<Message> messages = buildConversationContext(request.getSessionId(), request.getMessage());
+        ConversationContext conversationContext = buildConversationContext(
+                request.getSessionId(),
+                request.getMessage(),
+                userId,
+                request.getUseRag(),
+                request.getRagTopK()
+        );
+        if (!conversationContext.references().isEmpty()) {
+            try {
+                emitter.send(SseEmitter.event().name("references")
+                        .data(Map.of("references", conversationContext.references())));
+            } catch (Exception e) {
+                log.warn("SSE 发送知识引用失败: {}", e.getMessage());
+            }
+        }
         // 用于收集纯文本内容保存到数据库
         StringBuilder fullRes = new StringBuilder();
 
         try {
-            model.stream(new Prompt(messages))
+            model.stream(new Prompt(conversationContext.messages()))
                     .map(res -> res.getResult().getOutput().getContent()) // 这里获取的是纯文本内容
                     .subscribe(
                             chunk -> {
@@ -334,5 +381,19 @@ public class ChatbotService {
         if (!sessionId.startsWith(buildSessionPrefix(userId))) {
             throw new IllegalArgumentException("无权访问该会话");
         }
+    }
+
+    private boolean shouldUseRag(Boolean requestUseRag) {
+        return requestUseRag == null ? ragEnabledDefault : requestUseRag;
+    }
+
+    private Integer resolveTopK(Integer requestTopK) {
+        if (requestTopK == null || requestTopK <= 0) {
+            return ragTopKDefault;
+        }
+        return requestTopK;
+    }
+
+    private record ConversationContext(List<Message> messages, List<RagReference> references) {
     }
 }
