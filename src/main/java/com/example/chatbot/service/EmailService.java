@@ -4,7 +4,6 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -20,9 +19,7 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
     private final RedisTemplate<String, Object> redisTemplate;
-
-    @Value("${spring.mail.username}")
-    private String from;
+    private final org.springframework.core.env.Environment env;
 
     private static final String CODE_KEY_PREFIX = "email_code:";
     private static final long CODE_TTL_MINUTES = 5;
@@ -43,6 +40,12 @@ public class EmailService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            // 读 spring.mail.username（YAML 中的 ${SMTP_USERNAME:}）；
+            // 如果 YAML 也没读到（systemd env 传不进 Spring），fallback 到 spring.mail.properties.from
+            String from = env.getProperty("spring.mail.username", "");
+            if (from.isBlank()) from = env.getProperty("SMTP_USERNAME", "");
+            if (from.isBlank()) from = env.getProperty("spring.mail.properties.from", "");
+            if (from.isBlank()) throw new IllegalStateException("发件人邮箱未配置，请检查 SMTP_USERNAME");
             helper.setFrom(from);
             helper.setTo(toEmail);
             helper.setSubject("AI Studio - 邮箱验证码");
@@ -51,6 +54,7 @@ public class EmailService {
             log.info("验证码已发送至 {}，有效期 {} 分钟", toEmail, CODE_TTL_MINUTES);
         } catch (MessagingException e) {
             redisTemplate.delete(key);
+            log.error("邮件发送失败: {}", e.getMessage(), e);
             throw new IllegalStateException("邮件发送失败，请稍后重试");
         }
     }
