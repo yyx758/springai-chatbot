@@ -21,6 +21,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/auth/register",
                         "/api/auth/refresh",
                         "/api/auth/send-code",
+                        "/api/auth/forgot-password",
+                        "/api/auth/reset-password",
                         "/api/chat/health"
                 );
     }

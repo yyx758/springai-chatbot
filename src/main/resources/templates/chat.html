@@ -530,14 +530,31 @@
 
                     try {
                         const json = JSON.parse(data);
+                        // RAG 引用
                         if (Array.isArray(json.references)) {
                             renderReferences(json.references);
                             continue;
                         }
-                        if (json.error) {
-                            targetBubble.innerHTML = `<span class='text-danger'>${json.error}</span>`;
+                        // 排队状态
+                        if (json.status === 'queued') {
+                            targetBubble.innerHTML = `<div class="d-flex align-items-center gap-3">
+                                <div class="thinking-wave"><div class="line"></div><div class="line"></div><div class="line"></div></div>
+                                <span class="text-muted small">${json.message || 'AI 正忙，排队等待中…'}</span></div>`;
                             continue;
                         }
+                        if (json.status === 'processing') {
+                            targetBubble.innerHTML = `<div class="d-flex align-items-center gap-3">
+                                <div class="thinking-wave"><div class="line"></div><div class="line"></div><div class="line"></div></div>
+                                <span class="text-muted small">AI 正在思考中...</span></div>`;
+                            continue;
+                        }
+                        // 错误
+                        if (json.error) {
+                            targetBubble.innerHTML = `<div class='d-flex align-items-center gap-2 text-danger'>
+                                <i class="bi bi-exclamation-triangle"></i>${json.error}</div>`;
+                            continue;
+                        }
+                        // 正常内容
                         if (json.content && json.content !== "[DONE]") {
                             hasStreamContent = true;
                             fullText += json.content;
