@@ -1,10 +1,6 @@
 package com.example.chatbot.controller;
 
-import com.example.chatbot.dto.AuthResponse;
-import com.example.chatbot.dto.LoginRequest;
-import com.example.chatbot.dto.RefreshTokenRequest;
-import com.example.chatbot.dto.RegisterRequest;
-import com.example.chatbot.dto.SendCodeRequest;
+import com.example.chatbot.dto.*;
 import com.example.chatbot.security.AuthInterceptor;
 import com.example.chatbot.service.AuthService;
 import com.example.chatbot.service.EmailService;
@@ -44,6 +40,18 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         return ResponseEntity.ok(authService.refreshAccessToken(request.getRefreshToken()));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, Object>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.sendForgotPasswordCode(request.getEmail().trim().toLowerCase());
+        return ResponseEntity.ok(Map.of("success", true, "message", "重置密码验证码已发送"));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, Object>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.getEmail(), request.getCode(), request.getNewPassword());
+        return ResponseEntity.ok(Map.of("success", true, "message", "密码已重置，请重新登录"));
     }
 
     @GetMapping("/me")

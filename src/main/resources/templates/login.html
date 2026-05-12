@@ -269,7 +269,50 @@
                 <span class="switch-link">
                     没有账号？<span onclick="showRegister()">立即注册</span>
                 </span>
+                <br>
+                <span class="switch-link" style="font-size:0.8rem;">
+                    <span onclick="showForgot()">忘记密码？</span>
+                </span>
             </p>
+        </div>
+
+        <!-- ========== 忘记密码视图 ========== -->
+        <div class="form-view" id="forgotView">
+            <div class="back-link" onclick="showLogin()">
+                <i class="bi bi-arrow-left"></i> 返回登录
+            </div>
+
+            <div class="text-center mb-3">
+                <span class="badge rounded-pill py-2 px-4" style="background: #f1f5f9; color: #475569; font-weight: 500; font-size: 0.85rem;">
+                    <i class="bi bi-key me-1"></i>重置密码
+                </span>
+            </div>
+
+            <div class="mb-3 position-relative">
+                <i class="bi bi-envelope field-icon"></i>
+                <input type="email" class="form-control form-control-custom input-with-icon email-input"
+                       id="forgotEmail" autocomplete="off" placeholder="注册时使用的邮箱">
+                <button class="send-code-btn" id="forgotSendBtn" onclick="sendForgotCode()">发送验证码</button>
+            </div>
+            <div class="mb-3 position-relative">
+                <i class="bi bi-shield-check field-icon"></i>
+                <input class="form-control form-control-custom input-with-icon"
+                       id="forgotCode" autocomplete="off" placeholder="邮箱验证码">
+            </div>
+            <div class="mb-3 position-relative">
+                <i class="bi bi-lock field-icon"></i>
+                <input type="password" class="form-control form-control-custom input-with-icon"
+                       id="forgotNewPassword" autocomplete="off" placeholder="新密码（至少6位）">
+            </div>
+            <div class="mb-3 position-relative">
+                <i class="bi bi-lock-fill field-icon"></i>
+                <input type="password" class="form-control form-control-custom input-with-icon"
+                       id="forgotConfirmPassword" autocomplete="off" placeholder="确认新密码">
+            </div>
+            <div class="error-msg text-danger" id="forgotError"></div>
+            <button class="btn btn-primary-custom btn-login" onclick="doResetPassword()">
+                <i class="bi bi-check-circle me-2"></i>重置密码
+            </button>
         </div>
 
         <!-- ========== 注册视图 ========== -->
@@ -350,11 +393,83 @@
 
     function showLogin() {
         document.getElementById('registerView').classList.remove('active');
+        document.getElementById('forgotView').classList.remove('active');
         document.getElementById('loginView').classList.add('active');
         document.getElementById('viewTitle').textContent = '欢迎回来';
         document.getElementById('viewSubtitle').textContent = '登录您的账号以继续';
         document.getElementById('regError').textContent = '';
+        document.getElementById('forgotError').textContent = '';
         document.getElementById('loginUsername').focus();
+    }
+
+    function showForgot() {
+        document.getElementById('loginView').classList.remove('active');
+        document.getElementById('registerView').classList.remove('active');
+        document.getElementById('forgotView').classList.add('active');
+        document.getElementById('viewTitle').textContent = '重置密码';
+        document.getElementById('viewSubtitle').textContent = '通过注册邮箱重置您的密码';
+        document.getElementById('loginError').textContent = '';
+        document.getElementById('forgotError').textContent = '';
+        document.getElementById('forgotEmail').focus();
+    }
+
+    let forgotCodeCountdown = 0;
+
+    async function sendForgotCode() {
+        const email = document.getElementById('forgotEmail').value.trim();
+        const errEl = document.getElementById('forgotError');
+        if (!email) { errEl.textContent = '请输入注册时使用的邮箱'; return; }
+        if (forgotCodeCountdown > 0) return;
+
+        const btn = document.getElementById('forgotSendBtn');
+        btn.disabled = true;
+        try {
+            const resp = await fetch('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email })
+            });
+            const data = await resp.json();
+            if (!resp.ok) { errEl.textContent = data.error || '发送失败'; btn.disabled = false; return; }
+            errEl.textContent = '';
+            showToast('重置密码验证码已发送至 ' + email, false);
+            forgotCodeCountdown = 60;
+            btn.textContent = forgotCodeCountdown + 's';
+            var timer = setInterval(function() {
+                forgotCodeCountdown--;
+                if (forgotCodeCountdown <= 0) {
+                    clearInterval(timer); btn.disabled = false; btn.textContent = '发送验证码';
+                } else { btn.textContent = forgotCodeCountdown + 's'; }
+            }, 1000);
+        } catch (e) { errEl.textContent = '网络错误，请稍后重试'; btn.disabled = false; }
+    }
+
+    async function doResetPassword() {
+        const email = document.getElementById('forgotEmail').value.trim();
+        const code = document.getElementById('forgotCode').value.trim();
+        const newPassword = document.getElementById('forgotNewPassword').value;
+        const confirmPassword = document.getElementById('forgotConfirmPassword').value;
+        const errEl = document.getElementById('forgotError');
+
+        if (!email || !code || !newPassword) { errEl.textContent = '请填写所有必填项'; return; }
+        if (newPassword.length < 6) { errEl.textContent = '密码至少需要6位'; return; }
+        if (newPassword !== confirmPassword) { errEl.textContent = '两次密码不一致'; return; }
+
+        try {
+            const resp = await fetch('/api/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email, code: code, newPassword: newPassword })
+            });
+            const data = await resp.json();
+            if (!resp.ok) { errEl.textContent = data.error || '重置失败'; return; }
+            showToast('密码已重置，请登录', false);
+            showLogin();
+            document.getElementById('forgotEmail').value = '';
+            document.getElementById('forgotCode').value = '';
+            document.getElementById('forgotNewPassword').value = '';
+            document.getElementById('forgotConfirmPassword').value = '';
+        } catch (e) { errEl.textContent = '网络错误，请稍后重试'; }
     }
 
     function showToast(msg, isError) {

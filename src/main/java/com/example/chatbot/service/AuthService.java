@@ -78,6 +78,31 @@ public class AuthService {
         return buildAuthResponse(user, createTokenPair(user));
     }
 
+    public void sendForgotPasswordCode(String email) {
+        UserAccount user = userAccountMapper.selectOne(new LambdaQueryWrapper<UserAccount>()
+                .eq(UserAccount::getEmail, email.toLowerCase()));
+        if (user == null) {
+            throw new IllegalArgumentException("该邮箱未注册");
+        }
+        emailService.sendResetCode(email);
+    }
+
+    @Transactional
+    public void resetPassword(String email, String code, String newPassword) {
+        String lowerEmail = email.trim().toLowerCase();
+        UserAccount user = userAccountMapper.selectOne(new LambdaQueryWrapper<UserAccount>()
+                .eq(UserAccount::getEmail, lowerEmail));
+        if (user == null) {
+            throw new IllegalArgumentException("该邮箱未注册");
+        }
+        if (!emailService.verifyResetCode(lowerEmail, code)) {
+            throw new IllegalArgumentException("验证码错误或已过期");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userAccountMapper.updateById(user);
+        refreshTokenStore.revokeAllForUser(user.getId());
+    }
+
     public AuthResponse getProfile(Long userId) {
         UserAccount user = userAccountMapper.selectById(userId);
         if (user == null) {

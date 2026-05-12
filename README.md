@@ -6,7 +6,7 @@
 
 - [技术栈](#技术栈)
 - [系统架构](#系统架构)
-- [功能列表](#功能列表)
+- [功能列表](#功能列表),  
 - [项目结构](#项目结构)
 - [快速开始](#快速开始)
 - [环境变量](#环境变量)
@@ -122,9 +122,16 @@
 ### 用户认证
 
 - **邮箱验证码注册**：SMTP 发送 6 位验证码，5 分钟有效，60 秒发送间隔
+- **忘记密码重置**：通过注册邮箱验证身份后重置密码，重置后强制所有设备重新登录
 - **JWT 双令牌**：Access Token（30 分钟） + Refresh Token（7 天）
 - **Token 轮转**：刷新时旧 Refresh Token 被原子删除，防止重放攻击
 - **静默刷新**：前端 `authFetch()` 遇到 401 自动刷新令牌，用户无感知
+
+### AI 并发控制
+
+- **Ollama 信号量排队**：本地模型单线程推理，`Semaphore(1)` 串行化请求，120 秒超时
+- **排队状态推送**：SSE 推送排队状态，前端实时显示"排队等待中"
+- **中断保护**：流式中断时保留已生成内容，释放信号量，不影响后续用户
 
 ### RBAC 权限管理
 
@@ -183,6 +190,8 @@ src/main/java/com/example/chatbot/
 │   ├── RagReference.java                # RAG 引用片段
 │   ├── RefreshTokenRequest.java         # 刷新令牌请求
 │   ├── RegisterRequest.java             # 注册请求（含邮箱验证码）
+│   ├── ResetPasswordRequest.java        # 重置密码请求
+│   ├── ForgotPasswordRequest.java       # 忘记密码请求
 │   ├── SendCodeRequest.java             # 发送验证码请求
 │   ├── UpdateEnabledRequest.java        # 状态更新请求
 │   ├── UpdateRoleRequest.java           # 角色更新请求
@@ -354,10 +363,12 @@ http://localhost:8080
 不校验认证：
 
 ```
-POST /api/auth/send-code   发送邮箱验证码（60 秒内同邮箱只能发一次）
-POST /api/auth/register    注册新用户
-POST /api/auth/login       用户登录
-POST /api/auth/refresh     刷新令牌（Token 轮转）
+POST /api/auth/send-code         发送邮箱验证码（60 秒内同邮箱只能发一次）
+POST /api/auth/register          注册新用户
+POST /api/auth/login             用户登录
+POST /api/auth/refresh           刷新令牌（Token 轮转）
+POST /api/auth/forgot-password   发送重置密码验证码
+POST /api/auth/reset-password    重置密码
 ```
 
 需要认证：
@@ -553,7 +564,9 @@ DELETE /api/admin/documents/{id}                删除文档
 | Token 轮转 | Redis `getAndDelete` 原子操作 |
 | 角色检查 | `@RequireRole` 注解 + Interceptor |
 | 管理员自保护 | 不允许删除自己的账户 |
+| 密码重置 | 邮箱验证后重置，同时吊销所有已签发 Token，强制全设备重登 |
 | 用户禁用 | 开启后登录被拒 + RefreshToken 可被吊销 |
+| 并发控制 | Ollama `Semaphore(1)` 排队，120s 超时，中断自动释放信号量 |
 | 防并发刷新 | 前端 `refreshPromise` 互斥锁 |
 
 ---

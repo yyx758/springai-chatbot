@@ -27,6 +27,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -40,6 +41,8 @@ public class ChatbotService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
     private final RagService ragService;
+
+    private final Semaphore ollamaSemaphore = new Semaphore(1);
 
     @Value("${app.chatbot.system-prompt}")
     private String systemPrompt;
@@ -271,26 +274,53 @@ public class ChatbotService {
     }
 
     /**
-     * 流式对话逻辑
+     * 流式对话逻辑（带并发控制）
      */
     public void streamChat(ChatRequest request, SseEmitter emitter, String userId) {
         ensureSessionOwnedByUser(request.getSessionId(), userId);
         ChatModel model = getChatModel(request.getModel());
         if (model == null) {
-            sendStreamError(emitter, new IllegalStateException("未找到可用的聊天模型"));
+            sendStreamError(emitter, "未找到可用的聊天模型");
             return;
         }
         if (model == openAiChatModel && (openAiApiKey == null || openAiApiKey.isBlank())) {
-            sendStreamError(emitter, new IllegalStateException("AI 接口鉴权失败，请检查 DEEPSEEK_API_KEY"));
+            sendStreamError(emitter, "AI 接口鉴权失败，请检查 DEEPSEEK_API_KEY");
             return;
         }
+
+        boolean isOllama = model == ollamaChatModel;
+        boolean acquired = false;
+
+        // Ollama 单线程推理，用信号量排队
+        if (isOllama) {
+            try {
+                int available = ollamaSemaphore.availablePermits();
+                if (available == 0) {
+                    emitter.send(SseEmitter.event().name("status")
+                            .data(Map.of("status", "queued", "message", "AI 正在处理其他请求，请稍候…")));
+                }
+                acquired = ollamaSemaphore.tryAcquire(120, TimeUnit.SECONDS);
+                if (!acquired) {
+                    sendStreamError(emitter, "当前排队人数过多，请稍后重试");
+                    return;
+                }
+                emitter.send(SseEmitter.event().name("status")
+                        .data(Map.of("status", "processing", "message", "")));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                sendStreamError(emitter, "请求被中断，请重试");
+                return;
+            } catch (Exception e) {
+                log.warn("SSE 状态发送失败: {}", e.getMessage());
+            }
+        }
+
+        boolean finalAcquired = isOllama && acquired;
         ConversationContext conversationContext = buildConversationContext(
-                request.getSessionId(),
-                request.getMessage(),
-                userId,
-                request.getUseRag(),
-                request.getRagTopK()
+                request.getSessionId(), request.getMessage(), userId,
+                request.getUseRag(), request.getRagTopK()
         );
+
         if (!conversationContext.references().isEmpty()) {
             try {
                 emitter.send(SseEmitter.event().name("references")
@@ -299,57 +329,86 @@ public class ChatbotService {
                 log.warn("SSE 发送知识引用失败: {}", e.getMessage());
             }
         }
-        // 用于收集纯文本内容保存到数据库
+
         StringBuilder fullRes = new StringBuilder();
+        final int[] retryCount = {0};
 
         try {
             model.stream(new Prompt(conversationContext.messages()))
-                    .map(res -> res.getResult().getOutput().getContent()) // 这里获取的是纯文本内容
+                    .map(res -> res.getResult().getOutput().getContent())
                     .subscribe(
                             chunk -> {
                                 try {
                                     if (chunk != null) {
-                                        fullRes.append(chunk); // 仅保存纯文本到 StringBuilder
-                                        emitter.send(Map.of("content", chunk)); // 发送 Map，SseEmitter 会自动转为 JSON
+                                        fullRes.append(chunk);
+                                        emitter.send(Map.of("content", chunk));
+                                        retryCount[0] = 0;
                                     }
-                                } catch (Exception e) { log.error("SSE发送失败"); }
+                                } catch (Exception e) {
+                                    log.warn("SSE 发送 chunk 失败: {}", e.getMessage());
+                                }
                             },
                             err -> {
-                                log.error("流式对话失败", err);
-                                sendStreamError(emitter, err);
+                                log.error("流式对话失败: {}", resolveErrorMessage(err), err);
+                                asyncSaveChatRecord(request.getSessionId(), request.getMessage(),
+                                        fullRes.length() > 0 ? fullRes.toString() + "\n\n[回答中断]" : "");
+                                sendStreamError(emitter, resolveErrorMessage(err));
+                                releaseIfOllama(finalAcquired);
                             },
                             () -> {
-                                // 只有在这里保存到数据库，确保内容是干净的
                                 asyncSaveChatRecord(request.getSessionId(), request.getMessage(), fullRes.toString());
                                 emitter.complete();
+                                releaseIfOllama(finalAcquired);
                             }
                     );
         } catch (Exception e) {
-            log.error("流式对话初始化失败", e);
-            sendStreamError(emitter, e);
+            log.error("流式对话初始化失败: {}", resolveErrorMessage(e), e);
+            sendStreamError(emitter, resolveErrorMessage(e));
+            releaseIfOllama(finalAcquired);
         }
     }
 
-    private String resolveStreamErrorMessage(Throwable err) {
-        Throwable cursor = err;
-        while (cursor != null) {
-            if (cursor instanceof WebClientResponseException webEx) {
-                if (webEx.getStatusCode().value() == 401) {
-                    return "AI 接口鉴权失败，请检查 DEEPSEEK_API_KEY";
-                }
-                return "AI 接口调用失败: HTTP " + webEx.getStatusCode().value();
-            }
-            cursor = cursor.getCause();
+    private void releaseIfOllama(boolean acquired) {
+        if (acquired) {
+            ollamaSemaphore.release();
         }
-        return "流式对话失败: " + (err.getMessage() == null ? "未知错误" : err.getMessage());
     }
 
-    private void sendStreamError(SseEmitter emitter, Throwable err) {
-        String message = resolveStreamErrorMessage(err);
+    private String resolveErrorMessage(Throwable err) {
+        String msg = err.getMessage();
+        if (msg == null) msg = "未知错误";
+
+        // 401 鉴权
+        if (msg.contains("401") || msg.contains("Unauthorized") || msg.contains("Incorrect API key"))
+            return "API 密钥错误，请检查 DEEPSEEK_API_KEY 配置";
+
+        // 429 限流
+        if (msg.contains("429") || msg.contains("Rate limit") || msg.contains("Too Many Requests"))
+            return "请求过于频繁，请稍后重试";
+
+        // 连接超时 / 拒绝
+        if (msg.contains("timeout") || msg.contains("Timeout") || msg.contains("timed out"))
+            return "AI 服务响应超时，请重试";
+
+        if (msg.contains("Connection refused") || msg.contains("connect") || msg.contains("refused"))
+            return "AI 服务连接失败，请检查网络或模型是否运行中";
+
+        // 500 服务器错误
+        if (msg.contains("500") || msg.contains("Internal Server Error"))
+            return "AI 服务内部错误，请稍后重试";
+
+        // 内容被审查
+        if (msg.contains("content_filter") || msg.contains("safety") || msg.contains("moderation"))
+            return "内容被安全策略拦截，请修改提问内容";
+
+        return "服务异常，请重试";
+    }
+
+    private void sendStreamError(SseEmitter emitter, String message) {
         try {
             emitter.send(SseEmitter.event().name("error").data(Map.of("error", message)));
         } catch (Exception sendEx) {
-            log.warn("SSE 发送失败: {}", sendEx.getMessage());
+            log.warn("SSE 错误发送失败: {}", sendEx.getMessage());
         }
         emitter.complete();
     }
