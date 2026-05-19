@@ -1,6 +1,7 @@
 package com.example.chatbot.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,6 +22,8 @@ public class ChatRecord {
     private Long id;
     private String userMessage;
     private String botResponse;
+    @JsonIgnore
+    private String imageData;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdTime;

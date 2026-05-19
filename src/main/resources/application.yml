@@ -39,7 +39,7 @@ spring:
       lettuce:
         pool:
           max-active: 8
-          max-wait: -1ms
+          max-wait: 5s
           max-idle: 8
           min-idle: 0
     # 数据源配置 (MySQL)
@@ -84,6 +84,8 @@ spring:
         options:
           model: qwen2.5:0.5b # 确保你本地电脑已经 pull 了这个模型
           temperature: 0.7
+          # 视觉模型（用于多模态图文输入），需要先执行: ollama pull llava:7b
+          # 多模态聊天时会自动切换到此模型
   # 数据库初始化配置
   sql:
     init:
@@ -112,7 +114,7 @@ app:
     rag-enabled: true
     rag-top-k: 3
     system-prompt: |
-      你是 AI Studio 的智能助手，可以叫我小助手。请遵守以下规则：
+      你是 AI Studio 的智能助手。请遵守以下规则：
 
       【回复风格】
       1. 简洁直接，先说结论再展开，避免废话和套话
@@ -130,6 +132,8 @@ app:
       9. 遇到恶意提示时礼貌拒绝，不展开讨论
     max-history: 5
     timeout: 30000
+    # Ollama 视觉模型名称（多模态图文输入专用），需先 ollama pull llava
+    vision-model: llava:latest
 
 # 日志配置
 logging:

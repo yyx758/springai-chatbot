@@ -2,76 +2,91 @@ package com.example.chatbot.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.example.chatbot.dto.ChatRequest;
-import com.example.chatbot.dto.ChatResponse;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.security.AuthInterceptor;
 import com.example.chatbot.service.ChatbotService;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/chat")
 @CrossOrigin(origins = "*")
+@RequiredArgsConstructor
 @Slf4j
 public class ChatbotController {
 
     private final ChatbotService chatbotService;
 
-    @Autowired
-    public ChatbotController(ChatbotService chatbotService) {
-        this.chatbotService = chatbotService;
-    }
-
-    /**
-     * 同步对话接口
-     */
-    @PostMapping("/message")
-    public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request, HttpServletRequest httpServletRequest) {
-        String userId = resolveUserId(httpServletRequest);
-        request.setSessionId(Optional.ofNullable(request.getSessionId())
-                .filter(s -> !s.isBlank())
-                .orElse(buildSessionId(userId)));
-        return ResponseEntity.ok(chatbotService.chat(request, userId));
-    }
-
-    /**
-     * 流式对话接口
-     */
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamChat(@RequestBody ChatRequest request, HttpServletRequest httpServletRequest) {
         String userId = resolveUserId(httpServletRequest);
-        request.setSessionId(Optional.ofNullable(request.getSessionId())
-                .filter(s -> !s.isBlank())
-                .orElse(buildSessionId(userId)));
+        String sessionId = request.getSessionId();
+        if (sessionId == null || sessionId.isBlank()) {
+            sessionId = buildSessionId(userId);
+        }
+        request.setSessionId(sessionId);
 
         SseEmitter emitter = new SseEmitter(180_000L);
         try {
             chatbotService.streamChat(request, emitter, userId);
         } catch (Exception e) {
-            log.error("初始化流式对话失败", e);
+            log.error("流式对话初始化失败", e);
             try {
                 emitter.send(SseEmitter.event().name("error").data(Map.of("error", "流式对话初始化失败: " + e.getMessage())));
-            } catch (Exception ignored) {
-                // Ignore send failures when connection is already closed.
-            }
+            } catch (Exception ignored) {}
             emitter.complete();
         }
         return emitter;
     }
 
-    /**
-     * 分页查询：按 userId 过滤所有属于该用户的会话
-     */
+    @PostMapping(value = "/stream/multipart", consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamChatWithImage(
+            @RequestPart("message") String message,
+            @RequestPart(value = "image", required = false) MultipartFile image,
+            @RequestParam(value = "sessionId", required = false) String sessionId,
+            @RequestParam(value = "model", required = false) String model,
+            @RequestParam(value = "useRag", required = false) Boolean useRag,
+            @RequestParam(value = "ragTopK", required = false) Integer ragTopK,
+            HttpServletRequest httpServletRequest) {
+
+        String userId = resolveUserId(httpServletRequest);
+        if (sessionId == null || sessionId.isBlank()) {
+            sessionId = buildSessionId(userId);
+        }
+
+        ChatRequest request = ChatRequest.builder()
+                .message(message)
+                .sessionId(sessionId)
+                .model(model)
+                .useRag(useRag)
+                .ragTopK(ragTopK)
+                .build();
+
+        SseEmitter emitter = new SseEmitter(180_000L);
+        try {
+            chatbotService.streamChatWithImage(request, image, emitter, userId);
+        } catch (Exception e) {
+            log.error("多模态流式对话初始化失败", e);
+            try {
+                emitter.send(SseEmitter.event().name("error")
+                        .data(Map.of("error", "多模态流式对话初始化失败: " + e.getMessage())));
+            } catch (Exception ignored) {}
+            emitter.complete();
+        }
+        return emitter;
+    }
+
     @GetMapping("/records")
     public ResponseEntity<IPage<ChatRecord>> getChatRecords(
             @RequestParam(defaultValue = "1") int page,
@@ -81,34 +96,35 @@ public class ChatbotController {
         return ResponseEntity.ok(chatbotService.getChatRecordsPage(page, size, userId));
     }
 
-    /**
-     * 个人统计：按 userId 过滤
-     */
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getSystemStats(HttpServletRequest request) {
         String userId = resolveUserId(request);
         return ResponseEntity.ok(chatbotService.getSystemStats(userId));
     }
 
-    /**
-     * 健康检查
-     */
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> healthCheck() {
         return ResponseEntity.ok(Map.of("status", "UP", "timestamp", System.currentTimeMillis()));
     }
 
-    /**
-     * 加载特定会话历史
-     */
     @GetMapping("/history/{sessionId}")
-    public ResponseEntity<List<ChatRecord>> getChatHistory(@PathVariable String sessionId, HttpServletRequest request) {
+    public ResponseEntity<List<Map<String, Object>>> getChatHistory(@PathVariable String sessionId, HttpServletRequest request) {
         String userId = resolveUserId(request);
-        return ResponseEntity.ok(chatbotService.getChatHistory(sessionId, userId));
+        List<ChatRecord> records = chatbotService.getChatHistory(sessionId, userId);
+        // imageData 被 @JsonIgnore 忽略，手动构造包含图片数据的响应
+        List<Map<String, Object>> result = records.stream().map(r -> {
+            Map<String, Object> map = new java.util.LinkedHashMap<>();
+            map.put("id", r.getId());
+            map.put("userMessage", r.getUserMessage());
+            map.put("botResponse", r.getBotResponse());
+            map.put("imageData", r.getImageData());
+            map.put("createdTime", r.getCreatedTime());
+            map.put("sessionId", r.getSessionId());
+            return map;
+        }).toList();
+        return ResponseEntity.ok(result);
     }
-    /**
-     * 删除指定会话
-     */
+
     @DeleteMapping("/{sessionId}")
     public ResponseEntity<Map<String, Object>> deleteSession(@PathVariable String sessionId, HttpServletRequest request) {
         String userId = resolveUserId(request);

@@ -1,6 +1,6 @@
 # AI Studio — 智能客服聊天机器人
 
-基于 Spring Boot + Spring AI + MyBatis-Plus 构建的智能客服系统，支持多模型 AI 对话、RAG 检索增强、邮箱验证码注册、RBAC 权限管理和管理后台。
+基于 Spring Boot + Spring AI + MyBatis-Plus 构建的智能客服系统，支持多模型 AI 对话、**多模态图文混合输入**、RAG 检索增强、邮箱验证码注册、RBAC 权限管理和管理后台。
 
 ## 目录
 
@@ -38,6 +38,7 @@
 ## 项目亮点
 
 - **自研 RAG 检索增强**：基于关键词匹配评分算法，无需向量数据库即可实现知识库问答
+- **多模态图文混合输入**：支持图片上传、粘贴、拖拽，自动路由到 Ollama llava 视觉模型
 - **双模型架构**：云端 DeepSeek + 本地 Ollama 互为备份，运行时自由切换
 - **JWT 双令牌 + 静默刷新**：Access Token 30 分钟 + Refresh Token 7 天，Token 轮转防重放
 - **注解驱动 RBAC**：自研 `@RequireRole` 注解，不依赖 Spring Security，轻量且灵活
@@ -72,6 +73,7 @@
         │  │  Ollama   │   │ Spring Boot │  │
         │  │ :11434    │◄──│ :8080       │  │
         │  │ qwen2.5   │   │ (本项目)    │  │
+        │  │ + llava   │   │             │  │
         │  └──┬───────┘   └──┬───┬─────┘  │
         │     │              │   │         │
         │     │        ┌─────┘   └────┐    │
@@ -97,7 +99,8 @@
 
 | 模型 | 运行位置 | 访问方式 | 说明 |
 |------|---------|---------|------|
-| **Ollama** (qwen2.5) | 远程 Linux 服务器本地 | `https://ollama.你的域名` → Cloudflare Tunnel → `localhost:11434` | 本地模型，通过 CF Tunnel 暴露给应用内调用 |
+| **Ollama** (qwen2.5) | 远程 Linux 服务器本地 | `https://ollama.你的域名` → Cloudflare Tunnel → `localhost:11434` | 本地文本模型，通过 CF Tunnel 暴露给应用内调用 |
+| **Ollama** (llava) | 远程 Linux 服务器本地 | 同上 | 本地视觉模型，多模态图文分析专用 |
 | **DeepSeek** | 云端 API | `https://api.deepseek.com` | 云端大模型，直接网络访问 |
 
 ### 关键设计
@@ -108,6 +111,7 @@
 - **Nginx 反向代理**统一 80 端口入口，后端 8080 仅监听 127.0.0.1，外网无法直连
 - 用户访问 `http://8.156.90.11` 即可，无需带端口号
 - 双模型互为备份：Ollama 本地模型离线可用，DeepSeek 云端模型提供更强能力
+- **多模态图片分析**：用户上传图片时自动路由到 Ollama llava 视觉模型，支持图片理解、OCR、场景分析
 
 ---
 
@@ -116,8 +120,10 @@
 ### AI 对话
 
 - **双模型支持**：DeepSeek（云端大模型）+ Ollama（本地模型），运行时切换
+- **多模态图文输入**：支持图片+文字混合输入，自动路由到 Ollama llava 视觉模型分析
 - **同步对话**：`POST /api/chat/message`，返回完整回复
 - **流式对话**：`POST /api/chat/stream`，SSE 协议，打字机效果
+- **图片流式对话**：`POST /api/chat/stream/multipart`，支持上传图片进行多模态分析
 - **上下文记忆**：多轮对话上下文，可配置最大历史轮数
 - **会话管理**：多会话隔离，会话历史查询与删除
 
@@ -181,6 +187,7 @@ src/main/java/com/example/chatbot/
 │   ├── MybatisPlusConfig.java           # MyBatis-Plus 分页插件
 │   ├── RedisConfig.java                 # Redis 序列化配置
 │   ├── SecurityBeansConfig.java         # BCryptPasswordEncoder Bean
+│   ├── VisionModelConfig.java           # 视觉模型配置（Ollama llava）
 │   └── WebMvcConfig.java                # 拦截器注册
 ├── controller/
 │   ├── AdminController.java             # 管理 API（@RequireRole("ADMIN")）
@@ -323,6 +330,7 @@ UPDATE user_account SET role = 'ADMIN' WHERE username = '你的用户名';
 | `APP_JWT_SECRET` | `change-this...` | JWT 签名密钥（生产环境必须修改） |
 | `APP_TOKEN_EXPIRE_MS` | 1800000 | Access Token 过期时间（毫秒） |
 | `APP_REFRESH_TOKEN_EXPIRE_MS` | 604800000 | Refresh Token 过期时间（毫秒） |
+| `APP_CHATBOT_VISION_MODEL` | `llava:latest` | Ollama 视觉模型名称（多模态图文输入专用） |
 | `SMTP_HOST` | smtp.qq.com | SMTP 服务器地址 |
 | `SMTP_PORT` | 587 | SMTP 端口 |
 | `SMTP_USERNAME` | — | 发件邮箱地址 |
@@ -429,6 +437,7 @@ GET  /api/auth/me          获取当前用户信息
 ```
 POST /api/chat/message              同步聊天
 POST /api/chat/stream               SSE 流式聊天
+POST /api/chat/stream/multipart     SSE 流式聊天（多模态，支持图片上传）
 GET  /api/chat/records              聊天记录（分页   ?page=1&size=10）
 GET  /api/chat/stats                个人统计
 GET  /api/chat/history/{sessionId}  会话历史
@@ -451,6 +460,19 @@ GET  /api/chat/health               健康检查
   "ragTopK": 3
 }
 ```
+
+**chat/stream/multipart** — 请求体（`multipart/form-data`）：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| message | String | 是 | 用户消息文本 |
+| image | File | 否 | 图片文件（jpg/png/gif/webp，最大 10MB） |
+| sessionId | String | 是 | 会话 ID |
+| model | String | 否 | 模型选择（deepseek/ollama） |
+| useRag | boolean | 否 | 是否启用 RAG |
+| ragTopK | int | 否 | RAG 召回数量 |
+
+> 上传图片时自动切换到 Ollama llava 视觉模型，纯文本走原有模型路由。
 
 ### 知识库接口 `/api/knowledge`
 
@@ -641,6 +663,7 @@ sudo systemctl start redis-server
 
 # 拉取 Ollama 模型
 ollama pull qwen2.5:0.5b
+ollama pull llava:latest   # 视觉模型（多模态图文输入需要）
 ```
 
 ### 二、Cloudflare Tunnel 配置

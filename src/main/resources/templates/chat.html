@@ -96,6 +96,24 @@
         }
         #messageInput { flex: 1; border: none; background: transparent; outline: none; font-size: 0.95rem; }
         .send-btn { background: var(--primary-black); color: var(--primary-white); border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: 0.2s; }
+        .upload-btn { background: none; border: none; color: #6b7280; cursor: pointer; padding: 6px; border-radius: 50%; transition: 0.2s; margin-right: 4px; }
+        .upload-btn:hover { background: rgba(0,0,0,0.06); color: var(--primary-black); }
+        .image-preview-bar {
+            display: none; padding: 8px 15%; position: absolute; bottom: 80px; left: 0; right: 0;
+            background: linear-gradient(to top, var(--bg-color) 90%, transparent); z-index: 15;
+        }
+        .image-preview-bar.active { display: flex; align-items: center; gap: 10px; }
+        .image-preview-thumb {
+            position: relative; width: 64px; height: 64px; border-radius: 12px; overflow: hidden;
+            border: 2px solid var(--border-light); flex-shrink: 0;
+        }
+        .image-preview-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .image-preview-thumb .remove-img {
+            position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%;
+            background: rgba(0,0,0,0.6); color: #fff; border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1;
+        }
+        .msg-image { max-width: 240px; border-radius: 12px; margin-bottom: 6px; }
 
         .history-item { position: relative; cursor: pointer; transition: var(--transition-smooth); border: 1px solid var(--border-light); }
         .history-item:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.05); border-color: var(--primary-black); }
@@ -212,7 +230,16 @@
         </section>
 
         <footer class="input-area">
+            <div class="image-preview-bar" id="imagePreviewBar">
+                <div class="image-preview-thumb" id="imagePreviewThumb">
+                    <img id="imagePreviewImg" src="" alt="preview">
+                    <button class="remove-img" id="removeImageBtn" title="移除图片">&times;</button>
+                </div>
+                <span class="small text-muted" id="imageName"></span>
+            </div>
             <div class="input-box">
+                <input type="file" id="imageFileInput" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none">
+                <button class="upload-btn" id="uploadBtn" title="上传图片"><i class="bi bi-paperclip"></i></button>
                 <input type="text" id="messageInput" placeholder="输入消息并发射..." autocomplete="off">
                 <button class="send-btn" id="sendButton"><i class="bi bi-arrow-up"></i></button>
             </div>
@@ -302,6 +329,65 @@
     let currentAbortController = null;
     let hasStreamContent = false;
     let currentTargetBubble = null;
+
+    // 图片上传相关
+    let selectedImageFile = null;
+    const imageFileInput = document.getElementById('imageFileInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const imagePreviewBar = document.getElementById('imagePreviewBar');
+    const imagePreviewImg = document.getElementById('imagePreviewImg');
+    const removeImageBtn = document.getElementById('removeImageBtn');
+    const imageName = document.getElementById('imageName');
+
+    function selectImage(file) {
+        if (!file || !file.type.startsWith('image/')) return;
+        if (file.size > 10 * 1024 * 1024) {
+            alert('图片大小不能超过 10MB');
+            return;
+        }
+        selectedImageFile = file;
+        const url = URL.createObjectURL(file);
+        imagePreviewImg.src = url;
+        imageName.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + 'KB)';
+        imagePreviewBar.classList.add('active');
+    }
+
+    function clearImage() {
+        selectedImageFile = null;
+        imageFileInput.value = '';
+        imagePreviewImg.src = '';
+        imagePreviewBar.classList.remove('active');
+    }
+
+    uploadBtn.addEventListener('click', () => imageFileInput.click());
+    imageFileInput.addEventListener('change', () => {
+        if (imageFileInput.files.length > 0) selectImage(imageFileInput.files[0]);
+    });
+    removeImageBtn.addEventListener('click', clearImage);
+
+    // 粘贴图片支持
+    document.addEventListener('paste', (e) => {
+        const items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                selectImage(item.getAsFile());
+                break;
+            }
+        }
+    });
+
+    // 拖拽图片到输入区域
+    const inputArea = document.querySelector('.input-area');
+    inputArea.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
+    inputArea.addEventListener('drop', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const files = e.dataTransfer && e.dataTransfer.files;
+        if (files && files.length > 0 && files[0].type.startsWith('image/')) {
+            selectImage(files[0]);
+        }
+    });
 
     function setSendButtonMode(streaming) {
         sendButton.innerHTML = streaming
@@ -468,12 +554,22 @@
         }
 
         const msg = messageInput.value.trim();
-        if (!msg) return;
+        const hasImage = selectedImageFile !== null;
+        if (!msg && !hasImage) return;
         if (document.getElementById('emptyState')) document.getElementById('emptyState').remove();
         clearReferences();
 
+        // 构建用户消息显示内容（含图片预览）
+        let userHtml = '';
+        if (hasImage) {
+            const previewUrl = URL.createObjectURL(selectedImageFile);
+            userHtml += `<img src="${previewUrl}" class="msg-image" alt="uploaded image"><br>`;
+        }
+        if (msg) userHtml += escapeHtml(msg);
+        else userHtml += '<span class="text-muted small">[图片]</span>';
+
         messageInput.value = '';
-        addMessage(msg, 'user');
+        addMessage(userHtml, 'user', '', true);
 
         const messageId = 'ai_' + Date.now();
         const loadingHtml = `<div class="d-flex align-items-center gap-3"><div class="thinking-wave"><div class="line"></div><div class="line"></div><div class="line"></div></div><span class="text-muted small">AI 正在思考中...</span></div>`;
@@ -487,21 +583,41 @@
         setSendButtonMode(true);
 
         try {
-            const response = await authFetch('/api/chat/stream', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'text/event-stream'
-                },
-                signal: currentAbortController.signal,
-                body: JSON.stringify({
-                    message: msg,
-                    sessionId: activeSessionId,
-                    model: document.getElementById('modelSelect').value,
-                    useRag: ragEnabled,
-                    ragTopK: ragTopK
-                })
-            });
+            let fetchOptions;
+            const modelVal = document.getElementById('modelSelect').value;
+
+            if (hasImage) {
+                const formData = new FormData();
+                formData.append('message', msg || '请描述这张图片');
+                formData.append('image', selectedImageFile);
+                formData.append('sessionId', activeSessionId);
+                formData.append('model', modelVal);
+                formData.append('useRag', String(ragEnabled));
+                formData.append('ragTopK', String(ragTopK));
+                clearImage();
+                fetchOptions = {
+                    method: 'POST',
+                    headers: { 'Accept': 'text/event-stream' },
+                    signal: currentAbortController.signal,
+                    body: formData
+                };
+            } else {
+                fetchOptions = {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+                    signal: currentAbortController.signal,
+                    body: JSON.stringify({
+                        message: msg,
+                        sessionId: activeSessionId,
+                        model: modelVal,
+                        useRag: ragEnabled,
+                        ragTopK: ragTopK
+                    })
+                };
+            }
+
+            const endpoint = hasImage ? '/api/chat/stream/multipart' : '/api/chat/stream';
+            const response = await authFetch(endpoint, fetchOptions);
 
             const contentType = response.headers.get('content-type') || '';
             if (!contentType.includes('text/event-stream')) {
@@ -586,10 +702,17 @@
         }
     }
 
-    function addMessage(content, type, id = '') {
+    function addMessage(content, type, id = '', rawHtml = false) {
         const div = document.createElement('div');
         div.className = `message ${type}`;
-        const displayContent = (type === 'bot' && (!id || !id.startsWith('ai_'))) ? marked.parse(content) : content;
+        let displayContent;
+        if (rawHtml) {
+            displayContent = content;
+        } else if (type === 'bot' && (!id || !id.startsWith('ai_'))) {
+            displayContent = marked.parse(content);
+        } else {
+            displayContent = content;
+        }
         div.innerHTML = `<div class="bubble" ${id ? `id="${id}"` : ''}>${displayContent}</div>`;
         messagesContainer.appendChild(div);
         if(type === 'bot') div.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
@@ -607,7 +730,16 @@
                 if (records && records.length > 0) {
                     if (document.getElementById('emptyState')) document.getElementById('emptyState').remove();
                     messagesContainer.querySelectorAll('.message').forEach(node => node.remove());
-                    records.forEach(r => { addMessage(r.userMessage, 'user'); addMessage(r.botResponse, 'bot'); });
+                    records.forEach(r => {
+                        let userHtml = '';
+                        if (r.imageData) {
+                            userHtml += `<img src="${r.imageData}" class="msg-image" alt="uploaded image"><br>`;
+                        }
+                        if (r.userMessage) userHtml += escapeHtml(r.userMessage);
+                        else if (r.imageData) userHtml += '<span class="text-muted small">[图片]</span>';
+                        addMessage(userHtml || escapeHtml(r.userMessage || ''), 'user', '', true);
+                        addMessage(r.botResponse, 'bot');
+                    });
                 }
             });
     }
@@ -627,7 +759,7 @@
                                 <span class="badge bg-light text-dark border">会话: ${r.sessionId.split('_')[1] || '默认'}</span>
                                 <small class="text-muted" style="font-size:0.7rem;">${r.createdTime}</small>
                             </div>
-                            <div class="small text-truncate"><b>问：</b>${r.userMessage}</div>
+                            <div class="small text-truncate"><b>问：</b>${r.imageData ? '🖼️ ' : ''}${r.userMessage}</div>
                             <div class="small text-muted text-truncate mt-1"><b>答：</b>${r.botResponse}</div>
                         </div>
                     </div>
