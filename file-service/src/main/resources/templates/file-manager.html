@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Manager - 文件管理</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563EB;
+            --primary-hover: #1D4ED8;
+            --secondary: #3B82F6;
+            --accent: #D97706;
+            --background: #F8FAFC;
+            --foreground: #0F172A;
+            --muted: #F1F5F9;
+            --border: #E2E8F0;
+            --destructive: #DC2626;
+            --destructive-hover: #B91C1C;
+            --success: #059669;
+            --ring: #2563EB;
+            --radius: 12px;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Fira Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--background);
+            color: var(--foreground);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--primary);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: var(--foreground);
+        }
+
+        .header p {
+            font-size: 0.875rem;
+            color: #64748B;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary);
+            font-family: 'Fira Code', monospace;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #64748B;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Upload Area */
+        .upload-section {
+            margin-bottom: 2rem;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 3rem 2rem;
+            text-align: center;
+            background: white;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .upload-zone:hover,
+        .upload-zone.drag-over {
+            border-color: var(--primary);
+            background: #EFF6FF;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .upload-title {
+            font-size: 1.125rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-subtitle {
+            font-size: 0.875rem;
+            color: #64748B;
+            margin-bottom: 1.5rem;
+        }
+
+        .upload-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .upload-btn:hover {
+            background: var(--primary-hover);
+        }
+
+        .upload-input {
+            display: none;
+        }
+
+        /* Filters */
+        .filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filter-label {
+            font-size: 0.875rem;
+            color: #64748B;
+            font-weight: 500;
+        }
+
+        .filter-select {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.875rem;
+            background: white;
+            color: var(--foreground);
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+
+        .filter-select:focus {
+            border-color: var(--ring);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.875rem;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+
+        .search-input:focus {
+            border-color: var(--ring);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* File Table */
+        .file-table-container {
+            background: white;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .file-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .file-table th {
+            background: var(--muted);
+            padding: 1rem 1.25rem;
+            text-align: left;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #64748B;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .file-table td {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.875rem;
+        }
+
+        .file-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .file-table tr:hover {
+            background: #FAFBFC;
+        }
+
+        .file-name {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .file-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .file-icon.image {
+            background: #DBEAFE;
+            color: #2563EB;
+        }
+
+        .file-icon.document {
+            background: #FEF3C7;
+            color: #D97706;
+        }
+
+        .file-icon.other {
+            background: #F1F5F9;
+            color: #64748B;
+        }
+
+        .file-info {
+            min-width: 0;
+        }
+
+        .file-title {
+            font-weight: 500;
+            color: var(--foreground);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 300px;
+        }
+
+        .file-meta {
+            font-size: 0.75rem;
+            color: #64748B;
+        }
+
+        .file-size {
+            font-family: 'Fira Code', monospace;
+            color: #64748B;
+        }
+
+        .file-date {
+            color: #64748B;
+        }
+
+        .file-biz-type {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: var(--muted);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #64748B;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .action-btn {
+            width: 36px;
+            height: 36px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: white;
+            color: #64748B;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            transition: all 0.15s ease;
+        }
+
+        .action-btn:hover {
+            background: var(--muted);
+            color: var(--foreground);
+        }
+
+        .action-btn.download:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .action-btn.delete:hover {
+            border-color: var(--destructive);
+            color: var(--destructive);
+            background: #FEF2F2;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            background: white;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+        }
+
+        .empty-icon {
+            font-size: 4rem;
+            color: #CBD5E1;
+            margin-bottom: 1.5rem;
+        }
+
+        .empty-title {
+            font-size: 1.25rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-subtitle {
+            color: #64748B;
+            font-size: 0.875rem;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .toast {
+            padding: 1rem 1.25rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: var(--shadow-md);
+            border-left: 4px solid var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            animation: slideIn 0.3s ease;
+            min-width: 300px;
+        }
+
+        .toast.success {
+            border-left-color: var(--success);
+        }
+
+        .toast.error {
+            border-left-color: var(--destructive);
+        }
+
+        .toast-icon {
+            font-size: 1.25rem;
+        }
+
+        .toast.success .toast-icon {
+            color: var(--success);
+        }
+
+        .toast.error .toast-icon {
+            color: var(--destructive);
+        }
+
+        .toast-message {
+            flex: 1;
+            font-size: 0.875rem;
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            color: #94A3B8;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.25rem;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Preview Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: white;
+            border-radius: var(--radius);
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            transform: scale(0.95);
+            transition: transform 0.2s ease;
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: var(--muted);
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            color: #64748B;
+            transition: background 0.15s ease;
+        }
+
+        .modal-close:hover {
+            background: #E2E8F0;
+        }
+
+        .file-detail {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .detail-label {
+            font-size: 0.875rem;
+            color: #64748B;
+            font-weight: 500;
+        }
+
+        .detail-value {
+            font-size: 0.875rem;
+            color: var(--foreground);
+            font-family: 'Fira Code', monospace;
+            text-align: right;
+            max-width: 60%;
+            word-break: break-all;
+        }
+
+        .preview-image {
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: var(--muted);
+            margin-top: 1rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+
+            .header-stats {
+                width: 100%;
+                justify-content: space-around;
+            }
+
+            .filters {
+                flex-direction: column;
+            }
+
+            .filter-group {
+                width: 100%;
+            }
+
+            .filter-select,
+            .search-input {
+                flex: 1;
+            }
+
+            .file-table th:nth-child(4),
+            .file-table td:nth-child(4) {
+                display: none;
+            }
+
+            .file-title {
+                max-width: 150px;
+            }
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--muted);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94A3B8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <div class="logo-icon">
+                    <i class="bi bi-folder-fill"></i>
+                </div>
+                <div>
+                    <h1>File Manager</h1>
+                    <p>文件存储服务管理后台</p>
+                </div>
+            </div>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="totalFiles">-</div>
+                    <div class="stat-label">文件总数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="totalSize">-</div>
+                    <div class="stat-label">总大小</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Upload Section -->
+        <section class="upload-section">
+            <div class="upload-zone" id="uploadZone">
+                <div class="upload-icon">
+                    <i class="bi bi-cloud-arrow-up"></i>
+                </div>
+                <div class="upload-title">拖拽文件到此处或点击上传</div>
+                <div class="upload-subtitle">支持 JPG, PNG, GIF, WebP, PDF, TXT 等格式，单个文件最大 10MB</div>
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    <i class="bi bi-plus-lg"></i>
+                    选择文件
+                </button>
+                <input type="file" id="fileInput" class="upload-input" multiple>
+            </div>
+        </section>
+
+        <!-- Filters -->
+        <section class="filters">
+            <div class="filter-group">
+                <label class="filter-label">业务类型:</label>
+                <select class="filter-select" id="bizTypeFilter">
+                    <option value="">全部</option>
+                    <option value="CHAT_IMAGE">聊天图片</option>
+                    <option value="KNOWLEDGE_DOC">知识文档</option>
+                    <option value="AVATAR">头像</option>
+                    <option value="TEST">测试</option>
+                </select>
+            </div>
+            <input type="text" class="search-input" id="searchInput" placeholder="搜索文件名...">
+        </section>
+
+        <!-- File List -->
+        <section id="fileList">
+            <div class="loading" id="loadingState">
+                <div class="spinner"></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Preview Modal -->
+    <div class="modal-overlay" id="previewModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">文件详情</h2>
+                <button class="modal-close" onclick="closeModal()">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div class="file-detail" id="fileDetail"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/files';
+        let allFiles = [];
+
+        // Format file size
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // Format date
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Get file icon class
+        function getFileIconClass(contentType) {
+            if (!contentType) return 'other';
+            if (contentType.startsWith('image/')) return 'image';
+            if (contentType.includes('pdf') || contentType.includes('document') || contentType.includes('text')) return 'document';
+            return 'other';
+        }
+
+        // Get file icon
+        function getFileIcon(contentType) {
+            if (!contentType) return 'bi-file-earmark';
+            if (contentType.startsWith('image/')) return 'bi-file-earmark-image';
+            if (contentType.includes('pdf')) return 'bi-file-earmark-pdf';
+            if (contentType.includes('text')) return 'bi-file-earmark-text';
+            return 'bi-file-earmark';
+        }
+
+        // Show toast
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <i class="toast-icon bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill'}"></i>
+                <span class="toast-message">${message}</span>
+                <button class="toast-close" onclick="this.parentElement.remove()">
+                    <i class="bi bi-x"></i>
+                </button>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Load files
+        async function loadFiles() {
+            const loadingState = document.getElementById('loadingState');
+            loadingState.style.display = 'flex';
+
+            try {
+                // Since we don't have a list endpoint, we'll show empty state
+                // In real app, you'd call a GET /api/files endpoint
+                allFiles = [];
+                renderFiles(allFiles);
+                updateStats();
+            } catch (error) {
+                console.error('Load files failed:', error);
+                showToast('加载文件列表失败', 'error');
+            } finally {
+                loadingState.style.display = 'none';
+            }
+        }
+
+        // Render files
+        function renderFiles(files) {
+            const container = document.getElementById('fileList');
+
+            if (files.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">
+                            <i class="bi bi-folder2-open"></i>
+                        </div>
+                        <div class="empty-title">暂无文件</div>
+                        <div class="empty-subtitle">上传您的第一个文件开始使用</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="file-table-container">
+                    <table class="file-table">
+                        <thead>
+                            <tr>
+                                <th>文件名</th>
+                                <th>大小</th>
+                                <th>业务类型</th>
+                                <th>上传时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${files.map(file => `
+                                <tr>
+                                    <td>
+                                        <div class="file-name">
+                                            <div class="file-icon ${getFileIconClass(file.contentType)}">
+                                                <i class="${getFileIcon(file.contentType)}"></i>
+                                            </div>
+                                            <div class="file-info">
+                                                <div class="file-title">${file.originalName || file.fileKey}</div>
+                                                <div class="file-meta">${file.contentType || '未知类型'}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="file-size">${formatSize(file.fileSize || 0)}</td>
+                                    <td><span class="file-biz-type">${file.bizType || '-'}</span></td>
+                                    <td class="file-date">${formatDate(file.createdTime)}</td>
+                                    <td>
+                                        <div class="file-actions">
+                                            <button class="action-btn download" title="下载" onclick="downloadFile('${file.fileKey}')">
+                                                <i class="bi bi-download"></i>
+                                            </button>
+                                            <button class="action-btn" title="详情" onclick="showFileDetail('${file.fileKey}')">
+                                                <i class="bi bi-info-circle"></i>
+                                            </button>
+                                            <button class="action-btn delete" title="删除" onclick="deleteFile('${file.fileKey}')">
+                                                <i class="bi bi-trash3"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // Update stats
+        function updateStats() {
+            document.getElementById('totalFiles').textContent = allFiles.length;
+            const totalSize = allFiles.reduce((sum, file) => sum + (file.fileSize || 0), 0);
+            document.getElementById('totalSize').textContent = formatSize(totalSize);
+        }
+
+        // Upload file
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('bizType', document.getElementById('bizTypeFilter').value || 'TEST');
+
+            try {
+                const response = await fetch(`${API_BASE}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`文件 "${file.name}" 上传成功`);
+                    // Add to local list
+                    allFiles.unshift(result.data);
+                    renderFiles(allFiles);
+                    updateStats();
+                } else {
+                    showToast(result.error || '上传失败', 'error');
+                }
+            } catch (error) {
+                console.error('Upload failed:', error);
+                showToast('上传失败: ' + error.message, 'error');
+            }
+        }
+
+        // Download file
+        function downloadFile(fileKey) {
+            window.open(`${API_BASE}/download/${fileKey}`, '_blank');
+        }
+
+        // Show file detail
+        async function showFileDetail(fileKey) {
+            try {
+                const response = await fetch(`${API_BASE}/info/${fileKey}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const file = result.data;
+                    const isImage = file.contentType && file.contentType.startsWith('image/');
+
+                    document.getElementById('fileDetail').innerHTML = `
+                        <div class="detail-row">
+                            <span class="detail-label">文件名</span>
+                            <span class="detail-value">${file.originalName}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">文件 Key</span>
+                            <span class="detail-value">${file.fileKey}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">类型</span>
+                            <span class="detail-value">${file.contentType}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">大小</span>
+                            <span class="detail-value">${formatSize(file.fileSize)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">业务类型</span>
+                            <span class="detail-value">${file.bizType}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">上传者</span>
+                            <span class="detail-value">${file.uploaderId || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">上传时间</span>
+                            <span class="detail-value">${formatDate(file.createdTime)}</span>
+                        </div>
+                        ${isImage ? `<img src="${API_BASE}/download/${file.fileKey}" class="preview-image" alt="preview">` : ''}
+                    `;
+                    document.getElementById('previewModal').classList.add('active');
+                } else {
+                    showToast('获取文件信息失败', 'error');
+                }
+            } catch (error) {
+                showToast('获取文件信息失败', 'error');
+            }
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('previewModal').classList.remove('active');
+        }
+
+        // Delete file
+        async function deleteFile(fileKey) {
+            if (!confirm('确定要删除这个文件吗？此操作不可撤销。')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/delete/${fileKey}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showToast('文件删除成功');
+                    allFiles = allFiles.filter(f => f.fileKey !== fileKey);
+                    renderFiles(allFiles);
+                    updateStats();
+                } else {
+                    showToast(result.error || '删除失败', 'error');
+                }
+            } catch (error) {
+                showToast('删除失败', 'error');
+            }
+        }
+
+        // Filter files
+        function filterFiles() {
+            const bizType = document.getElementById('bizTypeFilter').value;
+            const search = document.getElementById('searchInput').value.toLowerCase();
+
+            let filtered = allFiles;
+
+            if (bizType) {
+                filtered = filtered.filter(f => f.bizType === bizType);
+            }
+
+            if (search) {
+                filtered = filtered.filter(f =>
+                    (f.originalName || '').toLowerCase().includes(search) ||
+                    (f.fileKey || '').toLowerCase().includes(search)
+                );
+            }
+
+            renderFiles(filtered);
+        }
+
+        // Event listeners
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            files.forEach(file => uploadFile(file));
+            e.target.value = '';
+        });
+
+        document.getElementById('bizTypeFilter').addEventListener('change', filterFiles);
+        document.getElementById('searchInput').addEventListener('input', filterFiles);
+
+        // Drag and drop
+        const uploadZone = document.getElementById('uploadZone');
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('drag-over');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+            const files = Array.from(e.dataTransfer.files);
+            files.forEach(file => uploadFile(file));
+        });
+
+        // Close modal on overlay click
+        document.getElementById('previewModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                closeModal();
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Init
+        loadFiles();
+    </script>
+</body>
+</html>

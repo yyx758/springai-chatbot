@@ -1,0 +1,10 @@
+target/
+.idea/
+*.iml
+.git/
+.gitignore
+md/
+screenshots/
+nginx-config/
+docker-compose*.yml
+*.md

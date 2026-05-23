@@ -5,3 +5,6 @@ target/
 .claude/
 *.log
 .env
+META-INF/
+uploads/
+downloaded_test.txt

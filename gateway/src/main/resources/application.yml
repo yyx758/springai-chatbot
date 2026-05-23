@@ -1,0 +1,107 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: chatbot-gateway
+
+  # Nacos 服务注册
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        namespace: public
+
+    # 网关配置
+    gateway:
+      # 开启服务发现路由（自动从 Nacos 获取服务地址）
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+      # 路由规则
+      routes:
+        # 认证服务路由 - 使用服务发现（lb://负载均衡）
+        - id: auth-service
+          uri: lb://chatbot-service
+          predicates:
+            - Path=/api/auth/**
+
+        # 聊天服务路由
+        - id: chat-service
+          uri: lb://chatbot-service
+          predicates:
+            - Path=/api/chat/**
+
+        # 知识库服务路由
+        - id: knowledge-service
+          uri: lb://chatbot-service
+          predicates:
+            - Path=/api/knowledge/**
+
+        # 管理后台路由
+        - id: admin-service
+          uri: lb://chatbot-service
+          predicates:
+            - Path=/api/admin/**
+
+        # 文件服务路由
+        - id: file-service
+          uri: lb://file-service
+          predicates:
+            - Path=/api/files/**
+
+        # 页面路由（Thymeleaf）
+        - id: page-service
+          uri: lb://chatbot-service
+          predicates:
+            - Path=/,/login,/chat,/admin
+
+        # 静态资源
+        - id: static-resources
+          uri: lb://chatbot-service
+          predicates:
+            - Path=/favicon.ico,/static/**
+
+      # 全局默认过滤器
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+
+      # 全局 CORS 配置
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+  # Redis 配置（限流用）
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: yyx2005yyx
+
+# 应用配置
+app:
+  auth:
+    jwt-secret: ${APP_JWT_SECRET:change-this-dev-secret-key-at-least-32-chars}
+    exclude-paths:
+      - /api/auth/login
+      - /api/auth/register
+      - /api/auth/send-code
+      - /api/auth/refresh
+      - /api/auth/forgot-password
+      - /api/auth/reset-password
+      - /api/chat/health
+      - /actuator/**
+
+# 日志
+logging:
+  level:
+    com.example.chatbot.gateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    com.alibaba.nacos: INFO
