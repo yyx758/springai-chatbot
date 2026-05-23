@@ -1,19 +1,34 @@
 # AI Studio — 智能客服聊天机器人
 
-基于 Spring Boot + Spring AI + MyBatis-Plus 构建的智能客服系统，支持多模型 AI 对话、**多模态图文混合输入**、RAG 检索增强、邮箱验证码注册、RBAC 权限管理和管理后台。
+基于 Spring Boot + Spring AI + MyBatis-Plus 的微服务智能客服系统，支持多模型 AI 对话、多模态图文混合输入、RAG 检索增强、邮箱验证码注册、RBAC 权限管理和管理后台。
 
 ## 目录
 
+- [版本演进](#版本演进)
 - [技术栈](#技术栈)
 - [系统架构](#系统架构)
-- [功能列表](#功能列表),  
+- [功能列表](#功能列表)
 - [项目结构](#项目结构)
-- [快速开始](#快速开始)
+- [快速开始（Docker 一键部署）](#快速开始docker-一键部署)
+- [本地开发](#本地开发)
 - [环境变量](#环境变量)
 - [API 文档](#api-文档)
 - [数据库设计](#数据库设计)
 - [安全设计](#安全设计)
-- [部署](#部署)
+- [远程 Linux 服务器部署](#远程-linux-服务器部署)
+
+---
+
+## 版本演进
+
+| 版本 | 关键变更 |
+|------|---------|
+| v19 | Docker 容器化部署 + 文件管理微服务 + Maven 多模块 + Kafka/Nacos 集成 |
+| v18 | 多模态图文混合输入（Ollama llava 视觉模型） |
+| v17 | 忘记密码找回 + 多人并发 Ollama 排队控制 |
+| v16 | RBAC + RefreshToken + 邮箱验证码 + 管理后台 + RAG |
+| v15 | 登录注册 + 管理员管理 |
+| v14 | RAG 检索增强 |
 
 ---
 
@@ -22,6 +37,8 @@
 | 类别 | 技术 | 说明 |
 |------|------|------|
 | 后端框架 | Spring Boot 3.2 + Java 17 | 主框架 |
+| 微服务 | Spring Cloud Gateway + Nacos | 网关路由 + 服务注册发现 |
+| 消息队列 | Kafka (KRaft 模式) | 事件驱动异步通信 |
 | AI 集成 | Spring AI + DeepSeek + Ollama | 多模型对话、流式输出（SSE） |
 | ORM | MyBatis-Plus 3.5 | 分页、Lambda 查询 |
 | 数据库 | MySQL + Flyway 迁移 | 持久化 + 版本管理 |
@@ -29,89 +46,58 @@
 | 认证安全 | JWT + BCrypt + RBAC | 双 Token 刷新、角色权限控制 |
 | 邮件 | Spring Mail（SMTP） | 邮箱验证码注册 |
 | 模板引擎 | Thymeleaf + Bootstrap 5 | 服务端渲染页面 |
-| 反向代理 | Nginx | 统一入口、API 限流、动静分离 |
-| 运维 | Cloudflare Tunnel + Linux + systemd | 内网穿透暴露本地模型，服务化部署 |
+| 容器化 | Docker + Docker Compose | 一键部署 7 个服务 |
 | CI/CD | GitHub Actions | 自动构建、Docker 镜像 |
-
----
-
-## 项目亮点
-
-- **自研 RAG 检索增强**：基于关键词匹配评分算法，无需向量数据库即可实现知识库问答
-- **多模态图文混合输入**：支持图片上传、粘贴、拖拽，自动路由到 Ollama llava 视觉模型
-- **双模型架构**：云端 DeepSeek + 本地 Ollama 互为备份，运行时自由切换
-- **JWT 双令牌 + 静默刷新**：Access Token 30 分钟 + Refresh Token 7 天，Token 轮转防重放
-- **注解驱动 RBAC**：自研 `@RequireRole` 注解，不依赖 Spring Security，轻量且灵活
-- **Cloudflare Tunnel 内网穿透**：QUIC 协议 + HTTP/2 多路复用，无需公网 IP 即可对外提供本地 AI 服务
-- **Nginx 反向代理**：统一 80 端口入口，API 限流保护，SSE 流式代理，动静分离
 
 ---
 
 ## 系统架构
 
-### 整体架构图
+### Docker 微服务架构（v19）
 
 ```
-                      互联网用户
-                          │
-                          ▼
-                http://8.156.90.11:80
-                          │
-                          ▼
-                  ┌───────────────┐
-                  │    Nginx       │  反向代理 + 限流 + 动静分离
-                  │    :80         │
-                  └───┬───────┬───┘
-                      │       │
-              /api/*  │       │  / 页面请求
-                      │       │
-                      ▼       ▼
-        ┌──────────────────────────────────┐
-        │         远程 Linux 服务器          │
-        │                                  │
-        │  ┌──────────┐   ┌────────────┐  │
-        │  │  Ollama   │   │ Spring Boot │  │
-        │  │ :11434    │◄──│ :8080       │  │
-        │  │ qwen2.5   │   │ (本项目)    │  │
-        │  │ + llava   │   │             │  │
-        │  └──┬───────┘   └──┬───┬─────┘  │
-        │     │              │   │         │
-        │     │        ┌─────┘   └────┐    │
-        │     │        ▼              ▼    │
-        │     │  ┌──────────┐  ┌────────┐  │
-        │     │  │  MySQL    │  │  Redis  │  │
-        │     │  │  :3306    │  │  :6379  │  │
-        │     │  └──────────┘  └────────┘  │
-        │     │                            │
-        └─────┼────────────────────────────┘
-              │ Cloudflare Tunnel (QUIC)
-              ▼
-      ollama.域名 (Ollama API 对外暴露)
-              │
-              ▼
-      ┌───────────────┐
-      │  DeepSeek API  │  (云端大模型)
-      │  api.deepseek  │
-      └───────────────┘
+                    ┌─────────────────────────────────────────┐
+                    │           Docker Compose                 │
+                    │                                          │
+用户浏览器            │  ┌───────────────┐  ┌────────────────┐ │
+:8080/:9000 ─────────┼─►│chatbot-service│  │  file-service  │ │
+                    │  │    :8080      │  │    :8081       │ │
+                    │  │  聊天主服务    │  │  文件管理服务   │ │
+                    │  └───┬───────┬───┘  └──┬────┬────────┘ │
+                    │      │       │         │    │          │
+                    │      ▼       ▼         │    │          │
+                    │  ┌──────┐ ┌──────┐     │    │          │
+                    │  │MySQL │ │Redis │◄────┘    │          │
+                    │  │:3306 │ │:6379 │          │          │
+                    │  └──────┘ └──────┘          │          │
+                    │      │                      │          │
+                    │      ▼                      │          │
+                    │  ┌──────────────────────┐   │          │
+                    │  │       Kafka          │◄──┘          │
+                    │  │ 事件驱动异步通信       │              │
+                    │  └──────────────────────┘              │
+                    │                                        │
+                    │  ┌──────────────────────┐              │
+                    │  │       Nacos          │              │
+                    │  │  服务注册 + 配置中心   │              │
+                    │  └──────────────────────┘              │
+                    │           ▲                            │
+                    │           │                            │
+                    │  ┌──────────────────────┐              │
+                    │  │  chatbot-gateway     │              │
+                    │  │     :9000            │              │
+                    │  │  统一路由 + JWT 鉴权  │              │
+                    │  └──────────────────────┘              │
+                    └─────────────────────────────────────────┘
 ```
 
-### 模型访问路径
+### 模型访问
 
-| 模型 | 运行位置 | 访问方式 | 说明 |
-|------|---------|---------|------|
-| **Ollama** (qwen2.5) | 远程 Linux 服务器本地 | `https://ollama.你的域名` → Cloudflare Tunnel → `localhost:11434` | 本地文本模型，通过 CF Tunnel 暴露给应用内调用 |
-| **Ollama** (llava) | 远程 Linux 服务器本地 | 同上 | 本地视觉模型，多模态图文分析专用 |
-| **DeepSeek** | 云端 API | `https://api.deepseek.com` | 云端大模型，直接网络访问 |
-
-### 关键设计
-
-- **Ollama 本地运行**在远程 Linux 服务器上（端口 11434），不直接暴露给互联网
-- **Cloudflare Tunnel** 将 Ollama API 通过域名 `ollama.你的域名` 安全暴露，无需公网 IP
-- Spring Boot 应用通过 Cloudflare Tunnel 域名访问 Ollama（配置在 `spring.ai.ollama.base-url`）
-- **Nginx 反向代理**统一 80 端口入口，后端 8080 仅监听 127.0.0.1，外网无法直连
-- 用户访问 `http://8.156.90.11` 即可，无需带端口号
-- 双模型互为备份：Ollama 本地模型离线可用，DeepSeek 云端模型提供更强能力
-- **多模态图片分析**：用户上传图片时自动路由到 Ollama llava 视觉模型，支持图片理解、OCR、场景分析
+| 模型 | 运行位置 | 说明 |
+|------|---------|------|
+| **Ollama** (qwen2.5) | 远程 Linux 服务器 | 本地文本模型 |
+| **Ollama** (llava) | 远程 Linux 服务器 | 本地视觉模型，多模态图文分析 |
+| **DeepSeek** | 云端 API | 云端大模型 |
 
 ---
 
@@ -119,136 +105,128 @@
 
 ### AI 对话
 
-- **双模型支持**：DeepSeek（云端大模型）+ Ollama（本地模型），运行时切换
-- **多模态图文输入**：支持图片+文字混合输入，自动路由到 Ollama llava 视觉模型分析
-- **同步对话**：`POST /api/chat/message`，返回完整回复
-- **流式对话**：`POST /api/chat/stream`，SSE 协议，打字机效果
-- **图片流式对话**：`POST /api/chat/stream/multipart`，支持上传图片进行多模态分析
+- **双模型支持**：DeepSeek（云端）+ Ollama（本地），运行时切换
+- **多模态图文输入**：支持图片+文字混合输入，自动路由到 Ollama llava 视觉模型
+- **流式对话**：POST /api/chat/stream，SSE 协议，打字机效果
 - **上下文记忆**：多轮对话上下文，可配置最大历史轮数
 - **会话管理**：多会话隔离，会话历史查询与删除
+- **图片存储**：Base64 存储改为 file-service 独立管理
 
 ### RAG 检索增强
 
-- **本地关键词召回**：无需向量数据库，纯文本匹配评分
-- **召回算法**：标题匹配 +40，正文匹配 +30，标签匹配 +20，子词加权
+- **关键词匹配评分**：标题 +40、正文 +30、标签 +20、子词加权
 - **可配置 Top-K**：支持 1/3/5 个召回结果
 - **降级保护**：检索失败时自动降级为普通对话
 
+### 文件管理（file-service）
+
+- **文件上传/下载/删除**：REST API，支持图片/文档
+- **缩略图生成**：上传图片自动生成 200x200 缩略图
+- **文件管理后台**：Web UI 查看、预览、管理所有文件
+- **存储抽象**：支持本地磁盘 / MinIO 切换
+
 ### 用户认证
 
-- **邮箱验证码注册**：SMTP 发送 6 位验证码，5 分钟有效，60 秒发送间隔
-- **忘记密码重置**：通过注册邮箱验证身份后重置密码，重置后强制所有设备重新登录
-- **JWT 双令牌**：Access Token（30 分钟） + Refresh Token（7 天）
-- **Token 轮转**：刷新时旧 Refresh Token 被原子删除，防止重放攻击
-- **静默刷新**：前端 `authFetch()` 遇到 401 自动刷新令牌，用户无感知
-
-### AI 并发控制
-
-- **Ollama 信号量排队**：本地模型单线程推理，`Semaphore(1)` 串行化请求，120 秒超时
-- **排队状态推送**：SSE 推送排队状态，前端实时显示"排队等待中"
-- **中断保护**：流式中断时保留已生成内容，释放信号量，不影响后续用户
+- **邮箱验证码注册**：6 位验证码，5 分钟有效，60 秒发送间隔
+- **忘记密码重置**：邮箱验证后重置 + 强制所有设备重新登录
+- **JWT 双令牌**：Access Token（30 分钟）+ Refresh Token（7 天）
+- **Token 轮转**：Redis 原子操作防重放
+- **静默刷新**：前端 authFetch() 自动刷新，用户无感知
 
 ### RBAC 权限管理
 
-- **双角色**：USER（普通用户）、ADMIN（管理员）
-- **注解驱动**：`@RequireRole("ADMIN")` 类级/方法级注解
-- **拦截器检查**：基于 `HandlerInterceptor`，不引入 Spring Security
+- **双角色**：USER / ADMIN
+- **注解驱动**：@RequireRole("ADMIN")
+- **拦截器检查**：不引入 Spring Security
 
 ### 管理后台
 
-- **仪表盘**：用户总数、对话总数、知识文档数
-- **用户管理**：角色切换、启用/禁用、删除
-- **文档管理**：查看/删除所有用户的知识文档
-
-### 知识库管理
-
-- 用户级文档 CRUD
-- 标签系统
-- 启用/禁用控制
-- 检索效果测试
-
-### 运维
-
-- Flyway 数据库自动迁移
-- 全局异常处理和参数校验
-- 健康检查端点
-- GitHub Actions CI/CD
-- 所有敏感值环境变量注入
+- 用户管理（角色切换、启用/禁用、删除）
+- 文档管理（全部知识文档查看/删除）
+- 系统统计（用户总数、对话总数、文档数）
 
 ---
 
 ## 项目结构
 
 ```
-src/main/java/com/example/chatbot/
-├── ChatbotApplication.java              # Spring Boot 主入口
-├── config/
-│   ├── GlobalExceptionHandler.java      # 全局异常处理（400/401/403/500）
-│   ├── MybatisPlusConfig.java           # MyBatis-Plus 分页插件
-│   ├── RedisConfig.java                 # Redis 序列化配置
-│   ├── SecurityBeansConfig.java         # BCryptPasswordEncoder Bean
-│   ├── VisionModelConfig.java           # 视觉模型配置（Ollama llava）
-│   └── WebMvcConfig.java                # 拦截器注册
-├── controller/
-│   ├── AdminController.java             # 管理 API（@RequireRole("ADMIN")）
-│   ├── AuthController.java              # 认证 API（登录/注册/刷新/验证码）
-│   ├── ChatbotController.java           # 聊天 API（同步/流式/历史）
-│   ├── KnowledgeController.java         # 知识库 API（CRUD/检索）
-│   └── PageController.java              # 页面路由（/ /login /chat /admin）
-├── dto/
-│   ├── AdminStatsResponse.java          # 管理统计响应
-│   ├── AuthResponse.java                # 认证响应（含双 token）
-│   ├── ChatRequest.java                 # 聊天请求
-│   ├── ChatResponse.java                # 聊天响应
-│   ├── KnowledgeDocumentCreateRequest.java  # 文档创建请求
-│   ├── KnowledgeSearchRequest.java      # 知识检索请求
-│   ├── LoginRequest.java                # 登录请求
-│   ├── RagReference.java                # RAG 引用片段
-│   ├── RefreshTokenRequest.java         # 刷新令牌请求
-│   ├── RegisterRequest.java             # 注册请求（含邮箱验证码）
-│   ├── ResetPasswordRequest.java        # 重置密码请求
-│   ├── ForgotPasswordRequest.java       # 忘记密码请求
-│   ├── SendCodeRequest.java             # 发送验证码请求
-│   ├── UpdateEnabledRequest.java        # 状态更新请求
-│   ├── UpdateRoleRequest.java           # 角色更新请求
-│   └── UserDto.java                     # 用户信息 DTO
-├── entity/
-│   ├── ChatRecord.java                  # 聊天记录实体
-│   ├── KnowledgeDocument.java           # 知识文档实体
-│   └── UserAccount.java                 # 用户账户实体
-├── mapper/
-│   ├── ChatRecordMapper.java            # 聊天记录 Mapper
-│   ├── KnowledgeDocumentMapper.java     # 知识文档 Mapper
-│   └── UserAccountMapper.java           # 用户 Mapper
-├── security/
-│   ├── AuthInterceptor.java             # 认证拦截器（JWT + RBAC）
-│   ├── ForbiddenException.java          # 403 权限异常
-│   ├── JwtTokenProvider.java            # JWT 令牌提供者
-│   ├── RefreshTokenStore.java           # Redis 刷新令牌存储
-│   └── RequireRole.java                 # 角色注解
-└── service/
-    ├── AdminService.java                # 管理员业务逻辑
-    ├── AuthService.java                 # 认证业务逻辑
-    ├── ChatbotService.java              # 聊天核心逻辑（AI + RAG + 历史）
-    ├── EmailService.java                # 邮件验证码服务
-    └── RagService.java                  # RAG 检索评分引擎
-
-src/main/resources/
-├── application.yml                      # 应用配置
-├── db/migration/                        # Flyway 迁移脚本
-│   ├── V1__create_user_account_table.sql
-│   ├── V2__create_knowledge_document_table.sql
-│   ├── V3__add_role_and_enabled_to_user_account.sql
-│   └── V4__add_email_to_user_account.sql
-└── templates/                           # Thymeleaf 模板
-    ├── login.html                       # 登录注册页面
-    ├── chat.html                        # 聊天主界面
-    └── admin.html                       # 管理后台
+springai-chatbot/
+├── docker-compose.yml              # Docker 一键部署编排
+├── DOCKER.md                       # Docker 部署说明
+├── pom.xml                         # 父 POM（多模块管理）
+├── .env                            # 环境变量（不提交到 Git）
+│
+├── chatbot-service/                # 聊天主服务（:8080）
+│   ├── Dockerfile
+│   ├── pom.xml
+│   └── src/main/java/com/example/chatbot/
+│       ├── ChatbotApplication.java
+│       ├── config/                 # 全局异常、MyBatis-Plus、Redis、Security、Vision、WebMvc
+│       ├── controller/             # Admin、Auth、Chatbot、Knowledge、Page
+│       ├── dto/                    # 请求/响应 DTO
+│       ├── entity/                 # ChatRecord、KnowledgeDocument、UserAccount
+│       ├── kafka/                  # Kafka Producer / Consumer / Config
+│       ├── mapper/                 # MyBatis-Plus Mapper
+│       ├── security/               # JWT、RBAC、拦截器
+│       └── service/                # Admin、Auth、Chatbot、Email、Rag、FileServiceClient
+│
+├── file-service/                   # 文件管理服务（:8081）
+│   ├── Dockerfile
+│   ├── pom.xml
+│   └── src/main/java/com/example/file/
+│       ├── FileServiceApplication.java
+│       ├── config/                 # CORS、Storage
+│       ├── controller/             # FileController、FileManagerController
+│       ├── entity/                 # FileRecord
+│       ├── mapper/                 # FileRecordMapper
+│       ├── service/                # FileService、ImageProcessor
+│       └── storage/                # FileStorage、LocalStorage
+│
+└── gateway/                        # API 网关（:9000）
+    ├── Dockerfile
+    ├── pom.xml
+    └── src/main/java/com/example/chatbot/gateway/
+        ├── GatewayApplication.java
+        ├── config/                 # JwtConfig
+        └── filter/                 # AuthGlobalFilter、RequestLoggingFilter
 ```
 
 ---
 
-## 快速开始
+## 快速开始（Docker 一键部署）
+
+只需 Docker Desktop + 一条命令：
+
+```bash
+git clone https://github.com/yyx758/springai-chatbot.git
+cd springai-chatbot
+
+# 配置 .env 文件
+# 编辑 .env，填入 DeepSeek API Key 和 SMTP 邮箱信息
+
+# 一键启动
+docker-compose up -d
+```
+
+启动后访问：
+
+| 地址 | 功能 |
+|------|------|
+| http://localhost:8080 | 聊天主页面 |
+| http://localhost:8080/admin | 管理后台 |
+| http://localhost:8081/admin/files | 文件管理 |
+| http://localhost:9000 | 网关入口 |
+
+**停止服务：**
+
+```bash
+docker-compose down           # 停止容器，保留数据
+docker-compose down -v        # 停止容器，清除所有数据
+```
+
+---
+
+## 本地开发
 
 ### 环境要求
 
@@ -259,8 +237,6 @@ src/main/resources/
 
 ### 1. 初始化数据库
 
-创建 MySQL 数据库（Flyway 会自动建表）：
-
 ```sql
 CREATE DATABASE IF NOT EXISTS chatbot DEFAULT CHARSET utf8mb4;
 ```
@@ -268,56 +244,33 @@ CREATE DATABASE IF NOT EXISTS chatbot DEFAULT CHARSET utf8mb4;
 ### 2. 配置环境变量
 
 ```bash
-# AI 模型密钥
 export DEEPSEEK_API_KEY="你的 DeepSeek API Key"
 export SPRING_AI_OPENAI_ENABLED=true
-
-# JWT 密钥（至少 32 位随机字符串）
-export APP_JWT_SECRET="你的JWT密钥-至少32个字符-请使用随机字符串"
-
-# SMTP 邮件（QQ 邮箱为例）
+export APP_JWT_SECRET="你的JWT密钥-至少32个字符"
 export SMTP_HOST="smtp.qq.com"
 export SMTP_PORT="587"
-export SMTP_USERNAME="你的QQ号@qq.com"
+export SMTP_USERNAME="你的邮箱@qq.com"
 export SMTP_PASSWORD="QQ邮箱授权码"
 ```
 
-### 3. 修改数据库和 Redis 连接
-
-编辑 `src/main/resources/application.yml`：
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/chatbot?...
-    username: root
-    password: 你的MySQL密码
-  data:
-    redis:
-      host: localhost
-      port: 6379
-      password: 你的Redis密码
-```
-
-### 4. 启动项目
+### 3. 启动
 
 ```bash
-mvn spring-boot:run
+# 启动聊天主服务
+mvn -pl chatbot-service spring-boot:run
+
+# 启动文件服务（另一个终端）
+mvn -pl file-service spring-boot:run
+
+# 启动网关（另一个终端）
+mvn -pl gateway spring-boot:run
 ```
 
-### 5. 访问
-
-打开浏览器访问 `http://localhost:8080/`
-
-### 6. 设置管理员
-
-先用邮箱注册一个账号，再在数据库中设为管理员：
+### 4. 设置管理员
 
 ```sql
 UPDATE user_account SET role = 'ADMIN' WHERE username = '你的用户名';
 ```
-
-之后登录时选择"管理员"身份即可进入管理后台。
 
 ---
 
@@ -327,196 +280,79 @@ UPDATE user_account SET role = 'ADMIN' WHERE username = '你的用户名';
 |------|--------|------|
 | `DEEPSEEK_API_KEY` | — | DeepSeek API 密钥 |
 | `SPRING_AI_OPENAI_ENABLED` | false | 是否启用 DeepSeek |
-| `APP_JWT_SECRET` | `change-this...` | JWT 签名密钥（生产环境必须修改） |
+| `APP_JWT_SECRET` | — | JWT 签名密钥（生产环境必须修改，≥ 32 位） |
 | `APP_TOKEN_EXPIRE_MS` | 1800000 | Access Token 过期时间（毫秒） |
 | `APP_REFRESH_TOKEN_EXPIRE_MS` | 604800000 | Refresh Token 过期时间（毫秒） |
-| `APP_CHATBOT_VISION_MODEL` | `llava:latest` | Ollama 视觉模型名称（多模态图文输入专用） |
 | `SMTP_HOST` | smtp.qq.com | SMTP 服务器地址 |
 | `SMTP_PORT` | 587 | SMTP 端口 |
 | `SMTP_USERNAME` | — | 发件邮箱地址 |
 | `SMTP_PASSWORD` | — | 发件邮箱授权码 |
-
-### SMTP 授权码获取（QQ 邮箱）
-
-1. 登录 [QQ 邮箱](https://mail.qq.com) → 设置 → 账户
-2. 找到 POP3/SMTP 服务 → 点击开启
-3. 按提示发送短信 → 获得 16 位授权码
-4. 将授权码填入 `SMTP_PASSWORD`
-
-| 其他邮箱 | SMTP 地址 | 端口 |
-|----------|----------|------|
-| 163 邮箱 | smtp.163.com | 465 |
-| Gmail | smtp.gmail.com | 587 |
-| Outlook | smtp.office365.com | 587 |
+| `SPRING_KAFKA_BOOTSTRAP_SERVERS` | localhost:9092 | Kafka 地址（Docker 内自动设为 kafka:29092） |
+| `NACOS_SERVER_ADDR` | localhost:8848 | Nacos 地址 |
 
 ---
 
 ## API 文档
 
-### 基础 URL
+### 服务端口
 
-```
-http://localhost:8080
-```
-
-### 认证说明
-
-- 认证方式：请求头 `Authorization: Bearer <access_token>`
-- Access Token 过期时间：30 分钟
-- Refresh Token 过期时间：7 天
-- 常见 HTTP 状态码：200 成功、400 参数错误、401 未登录/token 过期、403 权限不足、500 服务器错误
-
-### 页面路由
-
-| 方法 | 路径 | 说明 |
+| 服务 | 端口 | 说明 |
 |------|------|------|
-| GET | `/` | 登录注册页 |
-| GET | `/login` | 登录注册页（同 /） |
-| GET | `/chat` | 聊天界面 |
-| GET | `/admin` | 管理后台（需 ADMIN） |
+| chatbot-service | 8080 | 聊天 + 认证 + 知识库 + 管理 |
+| file-service | 8081 | 文件上传/下载/管理 |
+| gateway | 9000 | 统一入口 + 路由转发 |
 
 ### 认证接口 `/api/auth`
 
-不校验认证：
-
 ```
-POST /api/auth/send-code         发送邮箱验证码（60 秒内同邮箱只能发一次）
+POST /api/auth/send-code         发送邮箱验证码
 POST /api/auth/register          注册新用户
 POST /api/auth/login             用户登录
-POST /api/auth/refresh           刷新令牌（Token 轮转）
+POST /api/auth/refresh           刷新令牌
 POST /api/auth/forgot-password   发送重置密码验证码
 POST /api/auth/reset-password    重置密码
-```
-
-需要认证：
-
-```
-GET  /api/auth/me          获取当前用户信息
-```
-
-**send-code** — 请求体：
-```json
-{ "email": "user@example.com" }
-```
-
-**register** — 请求体：
-```json
-{
-  "username": "test",
-  "email": "user@example.com",
-  "code": "824719",
-  "password": "123456",
-  "displayName": "测试用户"
-}
-```
-
-**login** — 请求体：
-```json
-{
-  "username": "test",
-  "password": "123456"
-}
-```
-
-**login / register / refresh** — 响应体：
-```json
-{
-  "userId": 1,
-  "username": "test",
-  "displayName": "测试用户",
-  "token": "eyJhbGciOi...",
-  "refreshToken": "a1b2c3d4...",
-  "expiresIn": 1800
-}
+GET  /api/auth/me                获取当前用户信息（需认证）
 ```
 
 ### 聊天接口 `/api/chat`
 
-全部需要认证：
-
 ```
-POST /api/chat/message              同步聊天
-POST /api/chat/stream               SSE 流式聊天
-POST /api/chat/stream/multipart     SSE 流式聊天（多模态，支持图片上传）
-GET  /api/chat/records              聊天记录（分页   ?page=1&size=10）
-GET  /api/chat/stats                个人统计
-GET  /api/chat/history/{sessionId}  会话历史
-DELETE /api/chat/{sessionId}         删除会话
-```
-
-无需认证：
-
-```
+POST /api/chat/message              同步聊天（需认证）
+POST /api/chat/stream               SSE 流式聊天（需认证）
+POST /api/chat/stream/multipart     SSE 流式聊天 + 图片（需认证）
+GET  /api/chat/records              聊天记录分页（需认证）
+GET  /api/chat/history/{sessionId}  会话历史（需认证）
+DELETE /api/chat/{sessionId}        删除会话（需认证）
 GET  /api/chat/health               健康检查
 ```
 
-**chat/message** — 请求体：
-```json
-{
-  "message": "你好",
-  "sessionId": "1_session123",
-  "model": "deepseek",
-  "useRag": true,
-  "ragTopK": 3
-}
-```
-
-**chat/stream/multipart** — 请求体（`multipart/form-data`）：
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| message | String | 是 | 用户消息文本 |
-| image | File | 否 | 图片文件（jpg/png/gif/webp，最大 10MB） |
-| sessionId | String | 是 | 会话 ID |
-| model | String | 否 | 模型选择（deepseek/ollama） |
-| useRag | boolean | 否 | 是否启用 RAG |
-| ragTopK | int | 否 | RAG 召回数量 |
-
-> 上传图片时自动切换到 Ollama llava 视觉模型，纯文本走原有模型路由。
-
-### 知识库接口 `/api/knowledge`
-
-全部需要认证：
+### 文件接口 `/api/files`（file-service :8081）
 
 ```
-POST   /api/knowledge/documents              创建文档
-GET    /api/knowledge/documents              文档列表（分页 ?page=1&size=10）
-DELETE /api/knowledge/documents/{id}          删除文档
-POST   /api/knowledge/search                 检索测试
+POST   /api/files/upload              上传文件
+GET    /api/files/download/{fileKey}  下载文件
+GET    /api/files/{fileKey}/info      文件信息
+DELETE /api/files/{fileKey}           删除文件
+POST   /api/files/batch               批量查询
 ```
 
-**创建文档** — 请求体：
-```json
-{
-  "title": "产品说明",
-  "content": "这是产品的详细说明...",
-  "tags": "产品,说明",
-  "enabled": true
-}
+### 知识库 `/api/knowledge`
+
+```
+POST   /api/knowledge/documents       创建文档（需认证）
+GET    /api/knowledge/documents       文档列表（需认证）
+DELETE /api/knowledge/documents/{id}  删除文档（需认证）
+POST   /api/knowledge/search          检索测试（需认证）
 ```
 
 ### 管理接口 `/api/admin`
 
-全部需要认证 + ADMIN 角色：
-
 ```
-GET    /api/admin/stats                        系统统计
-GET    /api/admin/users                        用户列表（分页 ?page=1&size=20）
-PUT    /api/admin/users/{id}/role              修改角色
-PUT    /api/admin/users/{id}/enabled            启/禁用用户
-DELETE /api/admin/users/{id}                    删除用户
-GET    /api/admin/documents                    全部文档（分页）
-DELETE /api/admin/documents/{id}                删除文档
-```
-
-**修改角色** — 请求体：
-```json
-{ "role": "ADMIN" }
-```
-
-**启/禁用** — 请求体：
-```json
-{ "enabled": false }
+GET    /api/admin/stats               系统统计（需 ADMIN）
+GET    /api/admin/users               用户列表（需 ADMIN）
+PUT    /api/admin/users/{id}/role     修改角色（需 ADMIN）
+PUT    /api/admin/users/{id}/enabled  启/禁用用户（需 ADMIN）
+DELETE /api/admin/users/{id}          删除用户（需 ADMIN）
 ```
 
 ---
@@ -525,300 +361,120 @@ DELETE /api/admin/documents/{id}                删除文档
 
 ### user_account
 
-| 列 | 类型 | 约束 | 说明 |
-|-----|------|------|------|
-| id | BIGINT | PK, AUTO_INCREMENT | 主键 |
-| username | VARCHAR(64) | NOT NULL, UNIQUE | 用户名 |
-| email | VARCHAR(128) | NULL, UNIQUE | 邮箱（V4 新增） |
-| password_hash | VARCHAR(255) | NOT NULL | BCrypt 密码哈希 |
-| display_name | VARCHAR(64) | NOT NULL | 显示名称 |
-| role | VARCHAR(16) | NOT NULL, DEFAULT 'USER' | 角色：USER / ADMIN |
-| enabled | TINYINT(1) | NOT NULL, DEFAULT 1 | 是否启用 |
-| created_time | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
-| updated_time | TIMESTAMP | ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
+| 列 | 类型 | 说明 |
+|-----|------|------|
+| id | BIGINT PK | 主键 |
+| username | VARCHAR(64) UNIQUE | 用户名 |
+| email | VARCHAR(128) UNIQUE | 邮箱 |
+| password_hash | VARCHAR(255) | BCrypt 密码哈希 |
+| display_name | VARCHAR(64) | 显示名称 |
+| role | VARCHAR(16) | USER / ADMIN |
+| enabled | TINYINT(1) | 是否启用 |
+| created_time | TIMESTAMP | 创建时间 |
+| updated_time | TIMESTAMP | 更新时间 |
 
 ### chat_record
 
 | 列 | 类型 | 说明 |
 |-----|------|------|
-| id | BIGINT | 主键 |
+| id | BIGINT PK | 主键 |
 | user_message | TEXT | 用户消息 |
 | bot_response | TEXT | AI 回复 |
-| session_id | VARCHAR(128) | 会话 ID（格式：`{userId}_{uuid}`） |
-| created_time | TIMESTAMP | 创建时间 |
+| image_data | LONGTEXT | 图片数据（Base64） |
+| session_id | VARCHAR(255) | 会话 ID |
+| created_time | DATETIME | 创建时间 |
 
 ### knowledge_document
 
 | 列 | 类型 | 说明 |
 |-----|------|------|
-| id | BIGINT | 主键 |
-| user_id | BIGINT | 所属用户 ID |
-| title | VARCHAR(128) | 文档标题 |
-| content | TEXT | 文档正文 |
+| id | BIGINT PK | 主键 |
+| user_id | BIGINT | 所属用户 |
+| title | VARCHAR(128) | 标题 |
+| content | TEXT | 正文 |
 | tags | VARCHAR(256) | 标签 |
-| enabled | TINYINT(1) | 是否启用，默认 1 |
+| enabled | TINYINT(1) | 是否启用 |
 | created_time | TIMESTAMP | 创建时间 |
 | updated_time | TIMESTAMP | 更新时间 |
 
-### Redis 键设计
+### file_record（file-service）
 
-| Key 模式 | 用途 | TTL |
-|----------|------|-----|
-| `refresh_token:{tokenId}` | 刷新令牌 → userId | 7 天 |
-| `email_code:{email}` | 邮箱验证码 | 5 分钟 |
-| `email_send_interval:{email}` | 发送间隔锁 | 60 秒 |
-| `chat:history:{sessionId}` | 聊天历史缓存 | 2 小时 |
+| 列 | 类型 | 说明 |
+|-----|------|------|
+| id | BIGINT PK | 主键 |
+| file_key | VARCHAR(255) UNIQUE | 文件唯一标识 |
+| original_name | VARCHAR(500) | 原始文件名 |
+| content_type | VARCHAR(100) | MIME 类型 |
+| file_size | BIGINT | 文件大小 |
+| storage_path | VARCHAR(1000) | 存储路径 |
+| thumbnail_key | VARCHAR(255) | 缩略图键 |
+| uploader_id | BIGINT | 上传者 ID |
+| biz_type | VARCHAR(50) | 业务类型 |
+| created_time | DATETIME | 创建时间 |
 
 ---
 
 ## 安全设计
 
-### 认证流程
-
-```
-1. 注册: 邮箱 → 发送验证码 → 填写验证码 + 用户名 + 密码 → 创建用户
-2. 登录: 用户名 + 密码 → 返回 AccessToken + RefreshToken
-3. 请求: 携带 Authorization: Bearer <AccessToken>
-4. 过期: 401 → 前端自动用 RefreshToken 刷新 → 获得新 Token 对 → 重试请求
-5. 退出: 清除前端 Token，跳转登录页
-```
-
-### 安全措施
-
 | 措施 | 实现 |
 |------|------|
-| 密码加密 | BCrypt（spring-security-crypto） |
-| 验证码有效期 | Redis TTL 5 分钟自动过期 |
-| 验证码一次性 | 验证通过后立即删除 |
-| 发送频率限制 | Redis SETNX，60 秒间隔 |
-| 邮箱唯一 | MySQL 唯一索引，一邮箱一账号 |
-| Token 轮转 | Redis `getAndDelete` 原子操作 |
-| 角色检查 | `@RequireRole` 注解 + Interceptor |
-| 管理员自保护 | 不允许删除自己的账户 |
-| 密码重置 | 邮箱验证后重置，同时吊销所有已签发 Token，强制全设备重登 |
-| 用户禁用 | 开启后登录被拒 + RefreshToken 可被吊销 |
-| 并发控制 | Ollama `Semaphore(1)` 排队，120s 超时，中断自动释放信号量 |
-| 防并发刷新 | 前端 `refreshPromise` 互斥锁 |
+| 密码加密 | BCrypt |
+| 验证码有效期 | Redis TTL 5 分钟 |
+| 发送频率限制 | Redis SETNX 60 秒 |
+| Token 轮转 | Redis getAndDelete 原子操作 |
+| 角色检查 | @RequireRole + Interceptor |
+| 密码重置 | 邮箱验证 + 吊销所有已签发 Token |
+| 用户禁用 | 登录被拒 + RefreshToken 可被吊销 |
+| Ollama 并发 | Semaphore(1) + 120s 超时 |
+| 防并发刷新 | 前端 refreshPromise 互斥锁 |
+| Gateway 鉴权 | JWT 统一校验，未认证拒绝转发 |
 
 ---
 
-## 部署
+## 远程 Linux 服务器部署
 
-### 部署架构说明
-
-本项目部署在一台远程 Linux 服务器上，Ollama 模型运行在服务器本地，通过 Cloudflare Tunnel 内网穿透暴露 Ollama API 给应用调用。
-
-```
-用户浏览器 ──→ http://服务器IP:8080 ──→ Spring Boot 应用
-                                          │
-                              ┌───────────┼───────────┐
-                              │           │           │
-                              ▼           ▼           ▼
-                           MySQL      Redis       Ollama
-                           :3306      :6379       :11434
-                                                    │
-                                                    ▼
-                              Cloudflare Tunnel ──→ ollama.域名
-                              (QUIC 协议，实现在线调用本地模型)
-```
-
-### 一、远程 Linux 服务器环境准备
-
-#### 1. 安装必要软件
+### 环境准备
 
 ```bash
 # JDK 17
 sudo apt install openjdk-17-jdk -y
 
-# MySQL 8.0
-sudo apt install mysql-server -y
-sudo mysql_secure_installation
-
-# Redis
-sudo apt install redis-server -y
-sudo systemctl enable redis-server
-
-# Maven
-sudo apt install maven -y
+# MySQL 8.0 + Redis
+sudo apt install mysql-server redis-server -y
 
 # Ollama
 curl -fsSL https://ollama.com/install.sh | sh
 
-# Cloudflare Tunnel (cloudflared)
+# Cloudflare Tunnel
 curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
   -o /usr/local/bin/cloudflared
 chmod +x /usr/local/bin/cloudflared
 ```
 
-#### 2. 初始化服务
+### 初始化
 
 ```bash
-# 启动 MySQL 并创建数据库
-sudo systemctl start mysql
 sudo mysql -e "CREATE DATABASE IF NOT EXISTS chatbot DEFAULT CHARSET utf8mb4;"
-sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '你的密码';"
-
-# 启动 Redis
-sudo systemctl start redis-server
-
-# 拉取 Ollama 模型
 ollama pull qwen2.5:0.5b
-ollama pull llava:latest   # 视觉模型（多模态图文输入需要）
+ollama pull llava:latest
 ```
 
-### 二、Cloudflare Tunnel 配置
-
-Cloudflare Tunnel 用于将 Ollama API 安全地暴露到公网，无需服务器有公网 IP。
-
-#### 1. 登录并创建 Tunnel
+### Docker 部署
 
 ```bash
-cloudflared tunnel login        # 打开浏览器登录 CF 账号
-cloudflared tunnel create ollama-tunnel
-cloudflared tunnel list         # 记下 Tunnel ID
+git clone https://github.com/yyx758/springai-chatbot.git
+cd springai-chatbot
+# 编辑 .env 配置密钥和邮箱
+docker-compose up -d
 ```
 
-#### 2. 创建配置文件
-
-编辑 `~/.cloudflared/config.yml`：
-
-```yaml
-tunnel: 你的Tunnel-ID
-credentials-file: /root/.cloudflared/你的Tunnel-ID.json
-
-protocol: quic              # QUIC 协议，比 HTTP/2 更快
-no-tls-verify: false
-retries: 3
-grace-period: 30s
-
-ha-connections: 4           # 4 个并发连接提高稳定性
-
-loglevel: info
-
-ingress:
-  - hostname: ollama.你的域名.com
-    service: http://localhost:11434
-    originRequest:
-      connectTimeout: 30s
-      disableChunkedEncoding: false  # 流式响应必需
-      http2Origin: true              # HTTP/2 多路复用
-      keepAliveConnections: 100
-      keepAliveTimeout: 90s
-      tcpKeepAlive: 30s
-
-  - service: http_status:404        # 默认规则（必需）
-```
-
-#### 3. 配置 DNS 并启动
+### JAR 包部署
 
 ```bash
-cloudflared tunnel route dns ollama-tunnel ollama.你的域名.com
-cloudflared service install        # 安装为系统服务
-cloudflared service start          # 启动 Tunnel（后台运行）
-
-# 验证
-curl https://ollama.你的域名.com/api/tags
-```
-
-#### 4. 修改 application.yml
-
-```yaml
-spring:
-  ai:
-    ollama:
-      base-url: https://ollama.你的域名.com   # 指向 Cloudflare Tunnel 域名
-```
-
-### 三、部署应用
-
-#### 方式一：JAR 包直接运行
-
-```bash
-# 在服务器上克隆项目
-git clone <your-repo-url>
-cd springaI-chatbot
-
-# 打包
 mvn clean package -DskipTests
-
-# 配置环境变量并启动
 export DEEPSEEK_API_KEY="你的密钥"
-export SPRING_AI_OPENAI_ENABLED=true
-export APP_JWT_SECRET="随机32位以上字符串"
-export SMTP_HOST="smtp.qq.com"
-export SMTP_USERNAME="你的QQ号@qq.com"
-export SMTP_PASSWORD="QQ邮箱授权码"
-
-nohup java -jar target/springai-chatbot-0.0.1-SNAPSHOT.jar > app.log 2>&1 &
+export APP_JWT_SECRET="随机32位字符串"
+export SMTP_USERNAME="你的邮箱"
+export SMTP_PASSWORD="授权码"
+nohup java -jar chatbot-service/target/chatbot-service-0.0.1-SNAPSHOT.jar > app.log 2>&1 &
 ```
-
-#### 方式二：Docker 部署
-
-```bash
-mvn clean package -DskipTests
-docker build -t ai-studio .
-
-docker run -d --name ai-studio \
-  --network host \
-  -e DEEPSEEK_API_KEY="xxx" \
-  -e SPRING_AI_OPENAI_ENABLED=true \
-  -e APP_JWT_SECRET="xxx" \
-  -e SMTP_HOST="smtp.qq.com" \
-  -e SMTP_USERNAME="xxx" \
-  -e SMTP_PASSWORD="xxx" \
-  ai-studio
-```
-
-> 使用 `--network host` 可以访问宿主机上的 MySQL、Redis 和 Ollama。
-
-#### 方式三：应用也通过 Cloudflare Tunnel 暴露
-
-如果希望用户通过域名访问应用（而非 IP:8080），可新增一条 ingress 规则：
-
-```yaml
-ingress:
-  - hostname: app.你的域名.com
-    service: http://localhost:8080
-  - hostname: ollama.你的域名.com
-    service: http://localhost:11434
-  # ...
-```
-
-然后配置 DNS：
-
-```bash
-cloudflared tunnel route dns ollama-tunnel app.你的域名.com
-```
-
-用户即可通过 `https://app.你的域名.com` 访问应用。
-
-### 四、服务管理
-
-```bash
-# 查看应用日志
-tail -f app.log
-
-# 查看 Ollama 状态
-ollama list
-curl http://localhost:11434/api/tags
-
-# 查看 Cloudflare Tunnel 状态
-cloudflared tunnel info ollama-tunnel
-cloudflared tunnel list
-
-# 查看 MySQL 状态
-sudo systemctl status mysql
-
-# 查看 Redis 状态
-sudo systemctl status redis-server
-```
-
-### 注意事项
-
-1. **生产环境必须修改** `APP_JWT_SECRET` 为随机长字符串（≥ 32 位）
-2. 数据库密码和 Redis 密码不要硬编码，使用环境变量
-3. DeepSeek 默认关闭，需设置 `SPRING_AI_OPENAI_ENABLED=true`
-4. SMTP 必须正确配置，否则注册功能不可用
-5. Cloudflare Tunnel 的 QUIC 协议在某些防火墙下可能被阻，可回退为 `protocol: http2`
-6. Ollama 模型首次推理较慢，建议服务器配置 GPU 或使用更高性能 CPU
-7. 如果服务器内存有限，`qwen2.5:0.5b` 是最轻量选择，也可换成其他小模型
