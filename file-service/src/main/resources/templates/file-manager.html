@@ -711,6 +711,13 @@
                 <div class="spinner"></div>
             </div>
         </section>
+
+        <!-- Pagination -->
+        <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:16px;padding:8px 0;" id="paginationBar">
+            <button class="action-btn" onclick="changePage(-1)" id="prevBtn" style="padding:6px 16px;">← 上一页</button>
+            <span style="color:#64748b;font-size:14px;" id="pageInfo">第 1 页</span>
+            <button class="action-btn" onclick="changePage(1)" id="nextBtn" style="padding:6px 16px;">下一页 →</button>
+        </div>
     </div>
 
     <!-- Toast Container -->
@@ -732,6 +739,8 @@
     <script>
         const API_BASE = '/api/files';
         let allFiles = [];
+        let currentPage = 1;
+        let totalPages = 1;
 
         // Format file size
         function formatSize(bytes) {
@@ -794,11 +803,20 @@
             loadingState.style.display = 'flex';
 
             try {
-                // Since we don't have a list endpoint, we'll show empty state
-                // In real app, you'd call a GET /api/files endpoint
-                allFiles = [];
-                renderFiles(allFiles);
-                updateStats();
+                const resp = await fetch(`${API_BASE}?page=${currentPage}&size=20`);
+                const result = await resp.json();
+                if (result.success && result.data) {
+                    allFiles = result.data.records || [];
+                    totalFiles = result.data.total || 0;
+                    totalPages = Math.ceil(totalFiles / 20);
+                    renderFiles(allFiles);
+                    updateStats();
+                    renderPagination();
+                } else {
+                    allFiles = [];
+                    renderFiles([]);
+                    updateStats();
+                }
             } catch (error) {
                 console.error('Load files failed:', error);
                 showToast('加载文件列表失败', 'error');
@@ -876,9 +894,22 @@
 
         // Update stats
         function updateStats() {
-            document.getElementById('totalFiles').textContent = allFiles.length;
+            document.getElementById('totalFiles').textContent = totalFiles || allFiles.length;
             const totalSize = allFiles.reduce((sum, file) => sum + (file.fileSize || 0), 0);
             document.getElementById('totalSize').textContent = formatSize(totalSize);
+        }
+
+        function renderPagination() {
+            document.getElementById('pageInfo').textContent = `第 ${currentPage} 页，共 ${totalPages} 页`;
+            document.getElementById('prevBtn').disabled = currentPage <= 1;
+            document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+        }
+
+        function changePage(delta) {
+            const newPage = currentPage + delta;
+            if (newPage < 1 || newPage > totalPages) return;
+            currentPage = newPage;
+            loadFiles();
         }
 
         // Upload file

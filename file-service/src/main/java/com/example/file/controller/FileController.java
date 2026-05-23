@@ -25,6 +25,13 @@ public class FileController {
     private final FileService fileService;
     private final FileStorage fileStorage;
 
+    @GetMapping
+    public Map<String, Object> listFiles(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return Map.of("success", true, "data", fileService.listFiles(page, size));
+    }
+
     @PostMapping("/upload")
     public Map<String, Object> upload(
             @RequestParam("file") MultipartFile file,
@@ -110,6 +117,33 @@ public class FileController {
             return Map.of("success", true, "message", "文件删除成功");
         }
         return Map.of("success", false, "error", "文件不存在");
+    }
+
+    /**
+     * 上传知识库文档（自动解析 PDF/DOCX/TXT）
+     */
+    @PostMapping("/upload/knowledge")
+    public Map<String, Object> uploadKnowledge(
+            @RequestParam("file") MultipartFile file,
+            @RequestHeader(value = "X-Auth-UserId", defaultValue = "0") Long uploaderId) {
+
+        try {
+            FileService.KnowledgeUploadResult result = fileService.uploadKnowledgeDoc(file, uploaderId);
+            return Map.of(
+                    "success", true,
+                    "data", Map.of(
+                            "fileKey", result.fileRecord().getFileKey(),
+                            "originalName", result.fileRecord().getOriginalName(),
+                            "fileSize", result.fileRecord().getFileSize(),
+                            "contentType", result.fileRecord().getContentType(),
+                            "parsedContent", result.parsedContent(),
+                            "charCount", result.parsedContent().length()
+                    )
+            );
+        } catch (Exception e) {
+            log.error("【FileController】知识库文档上传失败", e);
+            return Map.of("success", false, "error", e.getMessage());
+        }
     }
 
     @PostMapping("/batch")

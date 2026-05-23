@@ -28,6 +28,9 @@ public class KnowledgeDocument {
 
     private String content;
 
+    @TableField("file_key")
+    private String fileKey;
+
     private String tags;
 
     private Boolean enabled;

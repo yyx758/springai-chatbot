@@ -1,6 +1,8 @@
 package com.example.file.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.file.entity.FileRecord;
 import com.example.file.mapper.FileRecordMapper;
 import com.example.file.storage.FileStorage;
@@ -25,6 +27,9 @@ public class FileService {
     private final FileStorage fileStorage;
     private final FileRecordMapper fileRecordMapper;
     private final ImageProcessor imageProcessor;
+    private final KnowledgeDocParser docParser;
+
+    public record KnowledgeUploadResult(FileRecord fileRecord, String parsedContent) {}
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy/MM/dd");
 
@@ -110,6 +115,54 @@ public class FileService {
 
         log.info("【FileService】文件删除成功: key={}", fileKey);
         return true;
+    }
+
+    /**
+     * 上传知识库文档，自动解析内容
+     */
+    public IPage<FileRecord> listFiles(int page, int size) {
+        return fileRecordMapper.selectPage(
+                new Page<>(page, size),
+                new LambdaQueryWrapper<FileRecord>()
+                        .orderByDesc(FileRecord::getCreatedTime)
+        );
+    }
+
+    public KnowledgeUploadResult uploadKnowledgeDoc(MultipartFile file, Long uploaderId) throws IOException {
+        String contentType = file.getContentType();
+        String originalName = file.getOriginalFilename();
+
+        if (!docParser.isSupported(contentType, originalName)) {
+            throw new IllegalArgumentException("不支持的文件格式，请上传 PDF、DOCX、TXT 或 MD 文件");
+        }
+
+        // 生成文件键
+        String fileKey = generateFileKey(originalName);
+
+        // 存储原始文件
+        byte[] fileBytes = file.getBytes();
+        fileStorage.store(new ByteArrayInputStream(fileBytes), fileKey, contentType);
+
+        // 解析文档内容
+        String parsedContent = docParser.parse(new ByteArrayInputStream(fileBytes), contentType, originalName);
+
+        // 保存元数据
+        FileRecord record = FileRecord.builder()
+                .fileKey(fileKey)
+                .originalName(originalName)
+                .contentType(contentType)
+                .fileSize((long) fileBytes.length)
+                .storageType("LOCAL")
+                .storagePath(fileKey)
+                .uploaderId(uploaderId)
+                .bizType("KNOWLEDGE_DOC")
+                .downloadCount(0)
+                .build();
+
+        fileRecordMapper.insert(record);
+        log.info("【FileService】知识库文档上传+解析成功: key={}, 解析字符数={}", fileKey, parsedContent.length());
+
+        return new KnowledgeUploadResult(record, parsedContent);
     }
 
     public List<FileRecord> batchGetInfo(List<String> fileKeys) {

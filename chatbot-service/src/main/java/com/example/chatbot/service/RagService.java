@@ -35,6 +35,7 @@ public class RagService {
                 .userId(userId)
                 .title(request.getTitle().trim())
                 .content(request.getContent().trim())
+                .fileKey(request.getFileKey() != null ? request.getFileKey().trim() : null)
                 .tags(request.getTags() == null ? null : request.getTags().trim())
                 .enabled(request.getEnabled() == null ? true : request.getEnabled())
                 .build();

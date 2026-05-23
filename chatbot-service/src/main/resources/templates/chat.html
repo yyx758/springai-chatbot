@@ -287,12 +287,18 @@
                     <div class="col-md-3">
                         <input class="form-control" id="knowledgeTags" placeholder="标签（可选）">
                     </div>
-                    <div class="col-md-5">
+                    <div class="col-md-3">
+                        <input type="file" class="form-control" id="knowledgeFileInput"
+                               accept=".pdf,.docx,.txt,.md" onchange="uploadKnowledgeFile()">
+                    </div>
+                    <div class="col-md-2">
                         <button class="btn btn-dark w-100" onclick="createKnowledgeDoc()">新增知识文档</button>
                     </div>
                     <div class="col-12">
-                        <textarea class="form-control" id="knowledgeContent" rows="4" placeholder="正文内容（用于检索增强）"></textarea>
+                        <textarea class="form-control" id="knowledgeContent" rows="6" placeholder="正文内容（用于检索增强，或上传 PDF/DOCX/TXT 自动解析）"></textarea>
                     </div>
+                    <input type="hidden" id="knowledgeFileKey" value="">
+                    <div class="col-12" id="knowledgeParseStatus" style="display:none;"></div>
                 </div>
                 <div class="row g-3">
                     <div class="col-md-7">
@@ -909,20 +915,66 @@
         const title = document.getElementById('knowledgeTitle').value.trim();
         const content = document.getElementById('knowledgeContent').value.trim();
         const tags = document.getElementById('knowledgeTags').value.trim();
+        const fileKey = document.getElementById('knowledgeFileKey').value.trim();
         if (!title || !content) {
             alert('标题和内容不能为空');
             return;
         }
+        const body = { title, content, tags, enabled: true };
+        if (fileKey) body.fileKey = fileKey;
         authFetch('/api/knowledge/documents', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, content, tags, enabled: true })
+            body: JSON.stringify(body)
         }).then(r => r.json()).then(() => {
-            document.getElementById('knowledgeTitle').value = '';
-            document.getElementById('knowledgeContent').value = '';
-            document.getElementById('knowledgeTags').value = '';
+            resetKnowledgeForm();
             loadKnowledgeDocs(1);
         }).catch(() => alert('新增知识失败'));
+    }
+
+    async function uploadKnowledgeFile() {
+        const fileInput = document.getElementById('knowledgeFileInput');
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        const statusEl = document.getElementById('knowledgeParseStatus');
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = '<span class="text-info small">正在解析文件...</span>';
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const resp = await fetch('http://localhost:8081/api/files/upload/knowledge', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await resp.json();
+            if (result.success && result.data) {
+                document.getElementById('knowledgeContent').value = result.data.parsedContent;
+                document.getElementById('knowledgeFileKey').value = result.data.fileKey;
+                if (!document.getElementById('knowledgeTitle').value) {
+                    document.getElementById('knowledgeTitle').value = result.data.originalName
+                        .replace(/\.(pdf|docx|txt|md)$/i, '');
+                }
+                statusEl.innerHTML = '<span class="text-success small">解析成功! ' +
+                    result.data.originalName + ' (' + result.data.charCount + ' 字符)</span>';
+            } else {
+                statusEl.innerHTML = '<span class="text-danger small">解析失败: ' +
+                    (result.error || '未知错误') + '</span>';
+            }
+        } catch (e) {
+            statusEl.innerHTML = '<span class="text-danger small">网络错误，请重试</span>';
+            console.error('文档上传失败:', e);
+        }
+    }
+
+    function resetKnowledgeForm() {
+        document.getElementById('knowledgeTitle').value = '';
+        document.getElementById('knowledgeContent').value = '';
+        document.getElementById('knowledgeTags').value = '';
+        document.getElementById('knowledgeFileKey').value = '';
+        document.getElementById('knowledgeFileInput').value = '';
+        document.getElementById('knowledgeParseStatus').style.display = 'none';
     }
 
     function deleteKnowledgeDoc(id) {
