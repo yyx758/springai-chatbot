@@ -10,6 +10,7 @@ public class AuthResponse {
     private Long userId;
     private String username;
     private String displayName;
+    private String role;
     private String token;
     private String refreshToken;
     private Long expiresIn;

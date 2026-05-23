@@ -121,6 +121,8 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       # JVM 调优
       JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+      # 文件服务地址（容器内通信用 Docker 服务名）
+      FILE_SERVICE_URL: http://file-service:8081
     depends_on:
       mysql:
         condition: service_healthy

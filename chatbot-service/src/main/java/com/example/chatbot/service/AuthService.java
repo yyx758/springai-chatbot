@@ -150,7 +150,8 @@ public class AuthService {
         AuthResponse.AuthResponseBuilder builder = AuthResponse.builder()
                 .userId(user.getId())
                 .username(user.getUsername())
-                .displayName(user.getDisplayName());
+                .displayName(user.getDisplayName())
+                .role(user.getRole());
         if (tokenPair != null) {
             builder.token(tokenPair.accessToken())
                     .refreshToken(tokenPair.refreshToken())

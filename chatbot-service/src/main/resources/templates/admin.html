@@ -314,7 +314,7 @@
         }
         if (resp.status === 403) {
             showToast('权限不足，仅管理员可访问', true);
-            window.location.href = '/login';
+            doLogout();
             throw new Error('forbidden');
         }
         return resp;
@@ -489,12 +489,17 @@
         if (!authToken) { window.location.href = '/login'; return; }
         try {
             const resp = await authFetch('/api/auth/me');
-            if (!resp.ok) { window.location.href = '/login'; return; }
+            if (!resp.ok) { doLogout(); return; }
             const me = await resp.json();
             if (currentUser && currentUser.userId === me.userId) {
                 document.getElementById('adminName').textContent = me.displayName || me.username;
             }
-        } catch { window.location.href = '/login'; return; }
+            if (me.role !== 'ADMIN') {
+                showToast('权限不足，仅管理员可访问', true);
+                window.location.href = '/chat';
+                return;
+            }
+        } catch { doLogout(); return; }
         loadStats();
     }
 
