@@ -122,3 +122,101 @@ environment:
 ```
 
 Docker 内部的 DNS 会自动把 `mysql` / `redis` / `kafka` 解析为对应容器的 IP，所以**不要写成 localhost**。
+
+## 日常运维命令
+
+### 容器状态
+
+```bash
+docker ps                              # 查看所有运行中的容器
+docker ps -a                           # 包括已停止的
+docker stats                           # 实时 CPU/内存占用
+docker logs 容器名                      # 查看日志
+docker logs -f 容器名                   # 实时追踪日志（Ctrl+C 退出）
+docker logs --tail 50 容器名            # 只看最后 50 行
+```
+
+### 进入容器操作
+
+```bash
+# 进入 MySQL 交互式命令行（-it = 交互模式）
+docker exec -it chatbot-mysql mysql -uroot -pyyx2005yyx chatbot
+
+# 进去之后可以跑 SQL：
+SELECT id, username, role FROM user_account;
+UPDATE user_account SET role = 'ADMIN' WHERE username = '你的用户名';
+UPDATE user_account SET enabled = 1 WHERE username = '你的用户名';
+
+# 退出 MySQL 命令行
+exit
+```
+
+### 一行命令操作数据库
+
+不需要进入交互模式，直接执行 SQL：
+
+```bash
+# 查看所有用户
+docker exec chatbot-mysql mysql -uroot -pyyx2005yyx chatbot -e "SELECT id, username, role FROM user_account;"
+
+# 设为管理员
+docker exec chatbot-mysql mysql -uroot -pyyx2005yyx chatbot -e "UPDATE user_account SET role='ADMIN' WHERE username='yyx';"
+
+# 禁用/启用用户
+docker exec chatbot-mysql mysql -uroot -pyyx2005yyx chatbot -e "UPDATE user_account SET enabled=0 WHERE username='xxx';"
+
+# 查看聊天记录数量
+docker exec chatbot-mysql mysql -uroot -pyyx2005yyx chatbot -e "SELECT COUNT(*) FROM chat_record;"
+
+# 查看知识库文档
+docker exec chatbot-mysql mysql -uroot -pyyx2005yyx chatbot -e "SELECT id, title, user_id FROM knowledge_document;"
+```
+
+### Redis 操作
+
+```bash
+# 进入 Redis 命令行
+docker exec -it chatbot-redis redis-cli -a yyx2005yyx
+
+# 直接执行命令
+docker exec chatbot-redis redis-cli -a yyx2005yyx KEYS "*"     # 查看所有 key
+docker exec chatbot-redis redis-cli -a yyx2005yyx FLUSHALL     # 清空缓存（谨慎）
+```
+
+### 重启和管理
+
+```bash
+# 重启单个服务（改配置后）
+docker restart chatbot-service
+
+# 重新部署单个服务（改代码后）
+docker compose build chatbot-service   # 重建镜像
+docker compose up -d chatbot-service   # 用新镜像重启
+
+# 重新部署所有服务
+docker compose up -d
+
+# 停止所有服务（保留数据）
+docker compose down
+
+# 停止 + 删除所有数据（危险）
+docker compose down -v
+```
+
+### 常用排查
+
+```bash
+# 某服务为什么崩了
+docker logs --tail 100 chatbot-service
+
+# 容器内存占用
+docker stats --no-stream
+
+# 看端口是否在监听
+sudo ss -tlnp | grep -E '8080|8081'
+
+# 看磁盘占用
+df -h /
+docker system df                       # Docker 占了多少磁盘
+docker system prune -a                 # 清理没用的镜像和缓存（慎用）
+```
