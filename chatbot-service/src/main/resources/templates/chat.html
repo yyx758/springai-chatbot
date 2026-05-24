@@ -320,6 +320,7 @@
 </div>
 
 <script>
+    const FILE_SERVICE_BASE = 'http://' + window.location.hostname + ':8081';
     let authToken = localStorage.getItem('ai_studio_token') || '';
     let currentUser = JSON.parse(localStorage.getItem('ai_studio_user') || 'null');
     let chatId = localStorage.getItem('ai_studio_chat_id') || ('c' + Date.now().toString(36));
@@ -380,7 +381,7 @@
             formData.append('bizType', 'CHAT_IMAGE');
 
             // 直接调用 file-service（8081端口）
-            const response = await fetch('http://localhost:8081/api/files/upload', {
+            const response = await fetch('' + FILE_SERVICE_BASE + '/api/files/upload', {
                 method: 'POST',
                 body: formData
             });
@@ -782,7 +783,7 @@
                             let imgSrc = r.imageData;
                             if (r.imageData.startsWith('filekey:')) {
                                 const fileKey = r.imageData.substring(8); // 去掉 'filekey:' 前缀
-                                imgSrc = 'http://localhost:8081/api/files/download/' + fileKey;
+                                imgSrc = '' + FILE_SERVICE_BASE + '/api/files/download/' + fileKey;
                             }
                             userHtml += `<img src="${imgSrc}" class="msg-image" alt="uploaded image"><br>`;
                         }
@@ -885,7 +886,7 @@
 
     // 打开文件管理页面（新窗口）
     function openFileManager() {
-        window.open('http://localhost:8081/admin/files', '_blank');
+        window.open('' + FILE_SERVICE_BASE + '/admin/files', '_blank');
     }
 
     function loadKnowledgeDocs(page = 1) {
@@ -944,7 +945,7 @@
         try {
             const formData = new FormData();
             formData.append('file', file);
-            const resp = await fetch('http://localhost:8081/api/files/upload/knowledge', {
+            const resp = await fetch('' + FILE_SERVICE_BASE + '/api/files/upload/knowledge', {
                 method: 'POST',
                 body: formData
             });
