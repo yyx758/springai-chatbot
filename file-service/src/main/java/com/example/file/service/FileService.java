@@ -97,9 +97,9 @@ public class FileService {
         return getByFileKey(fileKey);
     }
 
-    public boolean delete(String fileKey) {
+    public boolean delete(String fileKey, Long userId) {
         FileRecord record = getByFileKey(fileKey);
-        if (record == null) {
+        if (record == null || !canAccess(record, userId)) {
             return false;
         }
 
@@ -120,12 +120,25 @@ public class FileService {
     /**
      * 上传知识库文档，自动解析内容
      */
-    public IPage<FileRecord> listFiles(int page, int size) {
-        return fileRecordMapper.selectPage(
-                new Page<>(page, size),
-                new LambdaQueryWrapper<FileRecord>()
-                        .orderByDesc(FileRecord::getCreatedTime)
-        );
+    public IPage<FileRecord> listFiles(int page, int size, Long userId) {
+        LambdaQueryWrapper<FileRecord> wrapper = new LambdaQueryWrapper<FileRecord>()
+                .orderByDesc(FileRecord::getCreatedTime);
+        // 如果传了 userId，只返回该用户的文件
+        if (userId != null && userId > 0) {
+            wrapper.eq(FileRecord::getUploaderId, userId);
+        }
+        return fileRecordMapper.selectPage(new Page<>(page, size), wrapper);
+    }
+
+    /**
+     * 检查用户是否有权访问该文件
+     */
+    public boolean canAccess(FileRecord record, Long userId) {
+        if (record == null) return false;
+        if (userId == null || userId == 0) return true; // 未登录用户暂时放行（兼容旧调用）
+        // 文件上传者为 0（未认证时上传的旧数据）也放行
+        if (record.getUploaderId() == null || record.getUploaderId() == 0) return true;
+        return record.getUploaderId().equals(userId);
     }
 
     public KnowledgeUploadResult uploadKnowledgeDoc(MultipartFile file, Long uploaderId) throws IOException {

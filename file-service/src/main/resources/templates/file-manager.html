@@ -741,6 +741,23 @@
         let allFiles = [];
         let currentPage = 1;
         let totalPages = 1;
+        // 从 URL 读取当前用户 ID
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentUserId = urlParams.get('userId') || '0';
+
+        function getFileHeaders(extra = {}) {
+            const headers = Object.assign({}, extra);
+            if (currentUserId && currentUserId !== '0') {
+                headers['X-Auth-UserId'] = currentUserId;
+            }
+            return headers;
+        }
+
+        async function fileApiFetch(url, options = {}) {
+            const opts = Object.assign({}, options);
+            opts.headers = getFileHeaders(options.headers || {});
+            return fetch(url, opts);
+        }
 
         // Format file size
         function formatSize(bytes) {
@@ -803,7 +820,7 @@
             loadingState.style.display = 'flex';
 
             try {
-                const resp = await fetch(`${API_BASE}?page=${currentPage}&size=20`);
+                const resp = await fileApiFetch(`${API_BASE}?page=${currentPage}&size=20`);
                 const result = await resp.json();
                 if (result.success && result.data) {
                     allFiles = result.data.records || [];
@@ -919,7 +936,7 @@
             formData.append('bizType', document.getElementById('bizTypeFilter').value || 'TEST');
 
             try {
-                const response = await fetch(`${API_BASE}/upload`, {
+                const response = await fileApiFetch(`${API_BASE}/upload`, {
                     method: 'POST',
                     body: formData
                 });
@@ -948,7 +965,7 @@
         // Show file detail
         async function showFileDetail(fileKey) {
             try {
-                const response = await fetch(`${API_BASE}/info/${fileKey}`);
+                const response = await fileApiFetch(`${API_BASE}/info/${fileKey}`);
                 const result = await response.json();
 
                 if (result.success) {
@@ -1005,7 +1022,7 @@
             if (!confirm('确定要删除这个文件吗？此操作不可撤销。')) return;
 
             try {
-                const response = await fetch(`${API_BASE}/delete/${fileKey}`, {
+                const response = await fileApiFetch(`${API_BASE}/delete/${fileKey}`, {
                     method: 'DELETE'
                 });
 

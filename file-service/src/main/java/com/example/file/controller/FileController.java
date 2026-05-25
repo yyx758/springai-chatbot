@@ -25,11 +25,15 @@ public class FileController {
     private final FileService fileService;
     private final FileStorage fileStorage;
 
+    /**
+     * 文件列表（按用户隔离，不传 userId 则只返回公开文件）
+     */
     @GetMapping
     public Map<String, Object> listFiles(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return Map.of("success", true, "data", fileService.listFiles(page, size));
+            @RequestParam(defaultValue = "20") int size,
+            @RequestHeader(value = "X-Auth-UserId", required = false) Long userId) {
+        return Map.of("success", true, "data", fileService.listFiles(page, size, userId));
     }
 
     @PostMapping("/upload")
@@ -63,8 +67,15 @@ public class FileController {
         }
     }
 
+    /**
+     * 文件下载（检查所属权）
+     */
     @GetMapping("/download/{*fileKey}")
-    public void download(@PathVariable String fileKey, HttpServletResponse response) {
+    public void download(@PathVariable String fileKey,
+                         @RequestHeader(value = "X-Auth-UserId", required = false) Long headerUserId,
+                         @RequestParam(value = "userId", required = false) Long paramUserId,
+                         HttpServletResponse response) {
+        Long userId = headerUserId != null ? headerUserId : paramUserId;
         if (fileKey.startsWith("/")) {
             fileKey = fileKey.substring(1);
         }
@@ -73,6 +84,13 @@ public class FileController {
             if (info == null) {
                 response.setStatus(HttpServletResponse.SC_NOT_FOUND);
                 response.getWriter().write("{\"success\":false,\"error\":\"文件不存在\"}");
+                return;
+            }
+
+            // 权限检查：文件所属用户和请求用户不一致时拒绝
+            if (!fileService.canAccess(info, userId)) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.getWriter().write("{\"success\":false,\"error\":\"无权访问该文件\"}");
                 return;
             }
 
@@ -96,7 +114,8 @@ public class FileController {
     }
 
     @GetMapping("/info/{*fileKey}")
-    public Map<String, Object> getFileInfo(@PathVariable String fileKey) {
+    public Map<String, Object> getFileInfo(@PathVariable String fileKey,
+                                           @RequestHeader(value = "X-Auth-UserId", required = false) Long userId) {
         if (fileKey.startsWith("/")) {
             fileKey = fileKey.substring(1);
         }
@@ -104,19 +123,26 @@ public class FileController {
         if (record == null) {
             return Map.of("success", false, "error", "文件不存在");
         }
+        if (!fileService.canAccess(record, userId)) {
+            return Map.of("success", false, "error", "无权访问该文件");
+        }
         return Map.of("success", true, "data", record);
     }
 
+    /**
+     * 文件删除（检查所属权）
+     */
     @DeleteMapping("/delete/{*fileKey}")
-    public Map<String, Object> delete(@PathVariable String fileKey) {
+    public Map<String, Object> delete(@PathVariable String fileKey,
+                                       @RequestHeader(value = "X-Auth-UserId", defaultValue = "0") Long userId) {
         if (fileKey.startsWith("/")) {
             fileKey = fileKey.substring(1);
         }
-        boolean deleted = fileService.delete(fileKey);
+        boolean deleted = fileService.delete(fileKey, userId);
         if (deleted) {
             return Map.of("success", true, "message", "文件删除成功");
         }
-        return Map.of("success", false, "error", "文件不存在");
+        return Map.of("success", false, "error", "文件不存在或无权删除");
     }
 
     /**
@@ -147,12 +173,17 @@ public class FileController {
     }
 
     @PostMapping("/batch")
-    public Map<String, Object> batchGetInfo(@RequestBody Map<String, List<String>> request) {
+    public Map<String, Object> batchGetInfo(@RequestBody Map<String, List<String>> request,
+                                             @RequestHeader(value = "X-Auth-UserId", required = false) Long userId) {
         List<String> fileKeys = request.get("fileKeys");
         if (fileKeys == null || fileKeys.isEmpty()) {
             return Map.of("success", false, "error", "fileKeys 不能为空");
         }
         List<FileRecord> records = fileService.batchGetInfo(fileKeys);
+        // 过滤：只能看自己的文件
+        records = records.stream()
+                .filter(r -> fileService.canAccess(r, userId))
+                .toList();
         return Map.of("success", true, "data", records);
     }
 }
