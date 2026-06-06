@@ -21,6 +21,9 @@ public class KafkaTopicConfig {
     /** 通知事件 Topic（邮件等） */
     public static final String TOPIC_NOTIFICATION_EVENTS = "notification.events";
 
+    /** 死信 Topic（消费失败的消息） */
+    public static final String TOPIC_DLT = "chat.events.DLT";
+
     @Bean
     public NewTopic chatEventsTopic() {
         return TopicBuilder.name(TOPIC_CHAT_EVENTS)
@@ -41,6 +44,14 @@ public class KafkaTopicConfig {
     public NewTopic notificationEventsTopic() {
         return TopicBuilder.name(TOPIC_NOTIFICATION_EVENTS)
                 .partitions(3)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic dltTopic() {
+        return TopicBuilder.name(TOPIC_DLT)
+                .partitions(1)
                 .replicas(1)
                 .build();
     }

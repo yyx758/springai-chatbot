@@ -7,13 +7,18 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="springai-chatbot" />
+        <module name="chatbot-service" />
+        <module name="chatbot-gateway" />
+        <module name="file-service" />
       </profile>
     </annotationProcessing>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
-      <module name="springai-chatbot" options="-parameters -parameters" />
+      <module name="chatbot-gateway" options="-parameters -parameters" />
+      <module name="chatbot-service" options="-parameters -parameters" />
+      <module name="file-service" options="-parameters -parameters" />
+      <module name="springai-chatbot" options="" />
     </option>
   </component>
 </project>

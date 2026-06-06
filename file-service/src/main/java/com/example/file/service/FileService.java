@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -178,6 +179,33 @@ public class FileService {
         return new KnowledgeUploadResult(record, parsedContent);
     }
 
+    public FileRecord uploadGeneratedKnowledgeMarkdown(String title, String content, String bizId, Long uploaderId) {
+        String safeTitle = sanitizeFilename(title);
+        String originalName = safeTitle.endsWith(".md") ? safeTitle : safeTitle + ".md";
+        byte[] fileBytes = (content == null ? "" : content).getBytes(StandardCharsets.UTF_8);
+        String contentType = "text/markdown";
+        String fileKey = generateFileKey(originalName);
+
+        fileStorage.store(new ByteArrayInputStream(fileBytes), fileKey, contentType);
+
+        FileRecord record = FileRecord.builder()
+                .fileKey(fileKey)
+                .originalName(originalName)
+                .contentType(contentType)
+                .fileSize((long) fileBytes.length)
+                .storageType("LOCAL")
+                .storagePath(fileKey)
+                .uploaderId(uploaderId)
+                .bizType("KNOWLEDGE_DOC")
+                .bizId(bizId)
+                .downloadCount(0)
+                .build();
+
+        fileRecordMapper.insert(record);
+        log.info("銆怓ileService銆慉gent鐢熸垚鐭ヨ瘑鏂囨。宸插瓨鍏ユ枃浠舵湇鍔? key={}, bizId={}", fileKey, bizId);
+        return record;
+    }
+
     public List<FileRecord> batchGetInfo(List<String> fileKeys) {
         return fileRecordMapper.selectList(new LambdaQueryWrapper<FileRecord>()
                 .in(FileRecord::getFileKey, fileKeys));
@@ -200,5 +228,17 @@ public class FileService {
             return "";
         }
         return filename.substring(filename.lastIndexOf("."));
+    }
+
+    private String sanitizeFilename(String title) {
+        String value = title == null ? "" : title.trim();
+        if (value.isEmpty()) {
+            value = "generated-knowledge";
+        }
+        value = value.replaceAll("[\\\\/:*?\"<>|\\r\\n\\t]", "_");
+        if (value.length() > 80) {
+            value = value.substring(0, 80);
+        }
+        return value;
     }
 }

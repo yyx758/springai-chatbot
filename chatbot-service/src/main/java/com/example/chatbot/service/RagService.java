@@ -9,18 +9,24 @@ import com.example.chatbot.entity.KnowledgeDocument;
 import com.example.chatbot.kafka.KnowledgeEvent;
 import com.example.chatbot.kafka.KnowledgeEventProducer;
 import com.example.chatbot.mapper.KnowledgeDocumentMapper;
+import com.example.chatbot.rag.RagProperties;
+import com.example.chatbot.rag.VectorRagService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RagService {
 
     private static final int DEFAULT_TOP_K = 3;
@@ -29,8 +35,12 @@ public class RagService {
 
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeEventProducer knowledgeEventProducer;
+    private final VectorRagService vectorRagService;
+    private final RagProperties ragProperties;
+    private final FileServiceClient fileServiceClient;
 
     public KnowledgeDocument createDocument(Long userId, KnowledgeDocumentCreateRequest request) {
+        String indexStatus = vectorRagService.isEnabled() ? "PENDING_INDEX" : "VECTOR_DISABLED";
         KnowledgeDocument document = KnowledgeDocument.builder()
                 .userId(userId)
                 .title(request.getTitle().trim())
@@ -38,8 +48,11 @@ public class RagService {
                 .fileKey(request.getFileKey() != null ? request.getFileKey().trim() : null)
                 .tags(request.getTags() == null ? null : request.getTags().trim())
                 .enabled(request.getEnabled() == null ? true : request.getEnabled())
+                .indexStatus(indexStatus)
                 .build();
         knowledgeDocumentMapper.insert(document);
+
+        ensureGeneratedFile(userId, document);
 
         // 发布知识库创建事件，通知 ChatService 刷新 RAG 缓存
         knowledgeEventProducer.sendKnowledgeEvent(KnowledgeEvent.builder()
@@ -54,13 +67,15 @@ public class RagService {
     }
 
     public IPage<KnowledgeDocument> listDocuments(Long userId, int page, int size) {
-        return knowledgeDocumentMapper.selectPage(
+        IPage<KnowledgeDocument> result = knowledgeDocumentMapper.selectPage(
                 new Page<>(page, size),
                 new LambdaQueryWrapper<KnowledgeDocument>()
                         .eq(KnowledgeDocument::getUserId, userId)
                         .orderByDesc(KnowledgeDocument::getUpdatedTime)
                         .orderByDesc(KnowledgeDocument::getId)
         );
+        result.getRecords().forEach(document -> ensureGeneratedFile(userId, document));
+        return result;
     }
 
     public void deleteDocument(Long userId, Long documentId) {
@@ -84,6 +99,51 @@ public class RagService {
     }
 
     public List<RagReference> retrieveReferences(Long userId, String query, Integer topK) {
+        String mode = ragProperties.getMode() == null ? "keyword" : ragProperties.getMode().trim().toLowerCase(Locale.ROOT);
+        int finalTopK = normalizeTopK(topK);
+
+        if ("vector".equals(mode)) {
+            try {
+                List<RagReference> vectorResults = vectorRagService.retrieve(userId, query, finalTopK);
+                if (!vectorResults.isEmpty() || !ragProperties.isFallbackToKeyword()) {
+                    return vectorResults;
+                }
+            } catch (Exception e) {
+                log.warn("Vector RAG failed, fallbackToKeyword={}, error={}", ragProperties.isFallbackToKeyword(), e.getMessage());
+                if (!ragProperties.isFallbackToKeyword()) {
+                    return List.of();
+                }
+            }
+            return retrieveKeywordReferences(userId, query, finalTopK);
+        }
+
+        if ("hybrid".equals(mode)) {
+            List<RagReference> keywordResults = retrieveKeywordReferences(userId, query, finalTopK);
+            try {
+                List<RagReference> vectorResults = vectorRagService.retrieve(userId, query, finalTopK);
+                return mergeReferences(vectorResults, keywordResults, finalTopK);
+            } catch (Exception e) {
+                log.warn("Hybrid vector retrieval failed, using keyword results: {}", e.getMessage());
+                return keywordResults;
+            }
+        }
+
+        return retrieveKeywordReferences(userId, query, finalTopK);
+    }
+
+    public KnowledgeDocument getDocument(Long userId, Long documentId) {
+        KnowledgeDocument document = knowledgeDocumentMapper.selectById(documentId);
+        if (document == null) {
+            throw new IllegalArgumentException("鐭ヨ瘑鏂囨。涓嶅瓨鍦?");
+        }
+        if (!userId.equals(document.getUserId())) {
+            throw new IllegalArgumentException("鏃犳潈璁块棶璇ョ煡璇嗘枃妗?");
+        }
+        ensureGeneratedFile(userId, document);
+        return document;
+    }
+
+    public List<RagReference> retrieveKeywordReferences(Long userId, String query, Integer topK) {
         String safeQuery = query == null ? "" : query.trim();
         if (safeQuery.isBlank()) {
             return List.of();
@@ -119,6 +179,24 @@ public class RagService {
                         .snippet(buildSnippet(sd.document().getContent(), keywords))
                         .score(sd.score())
                         .build())
+                .collect(Collectors.toList());
+    }
+
+    private List<RagReference> mergeReferences(List<RagReference> vectorResults, List<RagReference> keywordResults, int topK) {
+        Map<Long, RagReference> merged = new LinkedHashMap<>();
+        for (RagReference reference : vectorResults) {
+            merged.put(reference.getDocumentId(), reference);
+        }
+        for (RagReference reference : keywordResults) {
+            merged.merge(reference.getDocumentId(), reference, (existing, incoming) -> {
+                int existingScore = existing.getScore() == null ? 0 : existing.getScore();
+                int incomingScore = incoming.getScore() == null ? 0 : incoming.getScore();
+                return incomingScore > existingScore ? incoming : existing;
+            });
+        }
+        return merged.values().stream()
+                .sorted(Comparator.comparingInt((RagReference r) -> r.getScore() == null ? 0 : r.getScore()).reversed())
+                .limit(topK)
                 .collect(Collectors.toList());
     }
 
@@ -240,5 +318,24 @@ public class RagService {
     }
 
     private record ScoredDocument(KnowledgeDocument document, int score) {
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private void ensureGeneratedFile(Long userId, KnowledgeDocument document) {
+        if (document == null || hasText(document.getFileKey()) || !hasText(document.getContent())) {
+            return;
+        }
+        Map<String, Object> fileInfo = fileServiceClient.createGeneratedKnowledgeMarkdown(
+                userId,
+                document.getId(),
+                document.getTitle(),
+                document.getContent());
+        if (fileInfo != null && fileInfo.get("fileKey") != null) {
+            document.setFileKey(String.valueOf(fileInfo.get("fileKey")));
+            knowledgeDocumentMapper.updateById(document);
+        }
     }
 }

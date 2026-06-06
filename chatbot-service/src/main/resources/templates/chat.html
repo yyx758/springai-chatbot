@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Studio</title>
-    <link href="https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" rel="stylesheet">
@@ -15,224 +15,1304 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
         :root {
-            --primary-black: #111827;
-            --primary-white: #ffffff;
-            --bg-color: #f8f9fa;
-            --border-light: rgba(0, 0, 0, 0.06);
-            --glass-bg: rgba(255, 255, 255, 0.95);
-            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
-            --transition-smooth: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            --warm-50: #faf9f7;
+            --warm-100: #f5f3f0;
+            --warm-200: #eae7e2;
+            --warm-300: #d6d1ca;
+            --warm-400: #a8a196;
+            --warm-500: #7c756a;
+            --warm-600: #5c564d;
+            --warm-700: #3d3832;
+            --warm-800: #2a2520;
+            --warm-900: #1a1613;
+            --accent: #c4a882;
+            --accent-light: #d4c4a8;
+            --accent-dim: rgba(196, 168, 130, 0.12);
+            --card-bg: rgba(250, 248, 243, 0.92);
+            --card-border: rgba(120, 104, 82, 0.10);
+            --input-bg: rgba(250, 248, 243, 0.6);
+            --input-border: rgba(120, 104, 82, 0.12);
+            --input-focus: #3d3832;
+            --shadow-sm: 0 1px 4px rgba(80,60,40,0.04);
+            --shadow-md: 0 4px 24px rgba(80,60,40,0.06);
+            --shadow-lg: 0 12px 48px rgba(80,60,40,0.08);
+            --shadow-xl: 0 8px 16px rgba(80,60,40,0.06), 0 24px 56px rgba(80,60,40,0.08);
+            --radius-sm: 10px;
+            --radius-md: 16px;
+            --radius-lg: 24px;
+            --radius-xl: 32px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         body {
-            font-family: 'Inter', 'Noto Sans SC', sans-serif;
-            background-color: var(--bg-color);
+            font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
             height: 100vh;
             margin: 0;
             overflow: hidden;
-            color: #333;
+            color: var(--warm-800);
+            -webkit-font-smoothing: antialiased;
         }
 
-        .animated-bg {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;
-            background: linear-gradient(120deg, #ffffff, #f1f5f9, #ffffff, #e2e8f0);
-            background-size: 300% 300%;
-            animation: gradientMove 15s ease infinite;
-        }
-        @keyframes gradientMove { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        /* ═══════════════════════════════════════════════
+           BACKGROUND SYSTEM — 4 layers
+           ═══════════════════════════════════════════════ */
 
-        .main-app { display: flex; height: 100vh; max-width: 1600px; margin: 0 auto; background: transparent; }
+        .bg-base {
+            position: fixed; inset: 0; z-index: 0;
+            background:
+                radial-gradient(ellipse 120% 80% at 50% 0%, rgba(250,249,247,1) 0%, transparent 70%),
+                radial-gradient(ellipse 80% 60% at 20% 15%, rgba(244,238,228,0.6) 0%, transparent 55%),
+                radial-gradient(ellipse 70% 50% at 85% 80%, rgba(234,231,226,0.4) 0%, transparent 50%),
+                linear-gradient(168deg, #faf9f7 0%, #f5f3f0 35%, #f0ece6 65%, #ede8e0 100%);
+        }
+
+        .bg-noise {
+            position: fixed; inset: 0; z-index: 1;
+            opacity: 0.25;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+            background-size: 200px 200px;
+            pointer-events: none;
+        }
+
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 1;
+            opacity: 0.03;
+            background-image:
+                linear-gradient(var(--warm-300) 1px, transparent 1px),
+                linear-gradient(90deg, var(--warm-300) 1px, transparent 1px);
+            background-size: 64px 64px;
+            pointer-events: none;
+        }
+
+        /* ═══════════════════════════════════════════════
+           AMBIENT DECORATIONS — abstract shapes
+           ═══════════════════════════════════════════════ */
+
+        .ambient-circle {
+            position: fixed;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .ambient-circle.c1 {
+            width: 500px; height: 500px;
+            top: -120px; right: -100px;
+            background: radial-gradient(circle, rgba(196,168,130,0.08) 0%, transparent 70%);
+        }
+        .ambient-circle.c2 {
+            width: 350px; height: 350px;
+            bottom: -80px; left: -60px;
+            background: radial-gradient(circle, rgba(196,168,130,0.06) 0%, transparent 70%);
+        }
+        .ambient-circle.c3 {
+            width: 200px; height: 200px;
+            top: 40%; left: 30%;
+            background: radial-gradient(circle, rgba(212,196,168,0.06) 0%, transparent 70%);
+        }
+
+        .ambient-text {
+            position: fixed;
+            font-size: 120px;
+            font-weight: 700;
+            letter-spacing: -0.04em;
+            color: rgba(196,168,130,0.04);
+            pointer-events: none;
+            z-index: 1;
+            user-select: none;
+        }
+        .ambient-text.t1 {
+            top: 8%; right: 5%;
+            transform: rotate(-8deg);
+        }
+        .ambient-text.t2 {
+            bottom: 12%; left: 3%;
+            transform: rotate(5deg);
+        }
+
+        .ambient-line {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .ambient-line.l1 {
+            width: 180px; height: 1px;
+            top: 25%; left: 8%;
+            background: linear-gradient(90deg, transparent, rgba(196,168,130,0.15), transparent);
+            transform: rotate(-12deg);
+        }
+        .ambient-line.l2 {
+            width: 120px; height: 1px;
+            bottom: 20%; right: 12%;
+            background: linear-gradient(90deg, transparent, rgba(196,168,130,0.10), transparent);
+            transform: rotate(8deg);
+        }
+
+        /* ═══════════════════════════════════════════════
+           LAYOUT — sidebar + main
+           ═══════════════════════════════════════════════ */
+
+        .main-app {
+            display: flex;
+            height: 100vh;
+            max-width: 1600px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* ═══════════════════════════════════════════════
+           SIDEBAR
+           ═══════════════════════════════════════════════ */
 
         .sidebar {
-            width: 280px; background: var(--glass-bg); backdrop-filter: blur(20px);
-            border-right: 1px solid var(--border-light); display: flex; flex-direction: column; padding: 2.5rem 1.5rem; z-index: 10;
+            width: 280px;
+            background: rgba(250, 248, 243, 0.85);
+            backdrop-filter: blur(24px) saturate(1.2);
+            -webkit-backdrop-filter: blur(24px) saturate(1.2);
+            border-right: 1px solid var(--card-border);
+            display: flex;
+            flex-direction: column;
+            padding: 1.75rem 1.25rem 1.5rem;
+            z-index: 20;
+            position: relative;
+            overflow-y: auto;
+        }
+        .sidebar::-webkit-scrollbar { width: 3px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
+        .sidebar::-webkit-scrollbar-thumb { background: var(--warm-300); border-radius: 10px; }
+        .sidebar::before {
+            content: '';
+            position: absolute; inset: 0;
+            opacity: 0.18;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+            background-size: 180px 180px;
+            pointer-events: none;
+            border-radius: inherit;
         }
 
-        .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 3rem; padding: 0 0.5rem; }
-        .brand i { background: var(--primary-black); color: var(--primary-white); padding: 10px; border-radius: 12px; font-size: 1.2rem; }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 2rem;
+            padding: 0 0.5rem;
+            position: relative;
+        }
+        .brand-icon {
+            width: 42px; height: 42px;
+            background: linear-gradient(135deg, var(--warm-900) 0%, var(--warm-700) 100%);
+            color: var(--warm-50);
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 12px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.92rem;
+            font-weight: 700;
+            letter-spacing: -0.06em;
+            position: relative;
+            overflow: hidden;
+        }
+        .brand-icon::after {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background: linear-gradient(135deg, transparent 40%, rgba(196,168,130,0.15) 50%, transparent 60%);
+            pointer-events: none;
+        }
+        .brand-text {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--warm-900);
+            letter-spacing: -0.02em;
+        }
+        .brand-dot {
+            width: 6px; height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            margin-left: -4px;
+            opacity: 0.7;
+        }
+
+        .nav-section {
+            margin-bottom: 1.25rem;
+        }
+        .nav-label {
+            font-size: 0.62rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--warm-400);
+            padding: 0 0.75rem;
+            margin-bottom: 0.6rem;
+        }
 
         .nav-card {
-            background: transparent; border: 1px solid transparent; border-radius: 16px; padding: 1rem 1.2rem; margin-bottom: 0.8rem;
-            cursor: pointer; transition: var(--transition-smooth); display: flex; align-items: center; gap: 14px; color: #475569;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: var(--radius-sm);
+            padding: 0.65rem 0.75rem;
+            margin-bottom: 2px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--warm-600);
+            position: relative;
+            font-size: 0.88rem;
         }
-        .nav-card:hover { background: var(--primary-white); border-color: var(--border-light); transform: translateX(5px); box-shadow: var(--glass-shadow); color: var(--primary-black); }
+        .nav-card:hover {
+            background: rgba(255,255,255,0.7);
+            border-color: var(--card-border);
+            color: var(--warm-900);
+            transform: translateX(3px);
+            box-shadow: var(--shadow-sm);
+        }
+        .nav-card i {
+            font-size: 1rem;
+            width: 20px;
+            text-align: center;
+            opacity: 0.7;
+        }
+        .nav-card:hover i { opacity: 1; }
+        .nav-card .nav-sub {
+            font-size: 0.68rem;
+            color: var(--warm-400);
+            font-weight: 400;
+        }
 
-        .chat-container { flex: 1; display: flex; flex-direction: column; position: relative; height: 100vh; }
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 0.85rem 1rem;
+            border-radius: var(--radius-md);
+            background: rgba(255,255,255,0.45);
+            border: 1px solid var(--card-border);
+            position: relative;
+        }
+        .sidebar-footer-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .user-name {
+            font-size: 0.82rem;
+            color: var(--warm-500);
+            font-weight: 500;
+        }
+        .logout-btn {
+            background: transparent;
+            border: 1px solid var(--warm-300);
+            color: var(--warm-600);
+            font-size: 0.7rem;
+            padding: 2px 10px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .logout-btn:hover {
+            background: var(--warm-900);
+            color: var(--warm-50);
+            border-color: var(--warm-900);
+        }
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--warm-400);
+        }
+        .stats-num {
+            font-weight: 600;
+            color: var(--warm-800);
+        }
 
+        /* Recent sessions in sidebar */
+        .recent-sessions {
+            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .recent-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0.5rem 0.75rem;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: var(--transition);
+            font-size: 0.78rem;
+            color: var(--warm-500);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .recent-item:hover {
+            background: rgba(255,255,255,0.6);
+            color: var(--warm-800);
+        }
+        .recent-item .ri-dot {
+            width: 5px; height: 5px;
+            border-radius: 50%;
+            background: var(--warm-300);
+            flex-shrink: 0;
+        }
+        .recent-item .ri-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .recent-empty {
+            font-size: 0.72rem;
+            color: var(--warm-400);
+            padding: 0.4rem 0.75rem;
+            opacity: 0.7;
+        }
+
+        /* ═══════════════════════════════════════════════
+           MAIN CHAT AREA
+           ═══════════════════════════════════════════════ */
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            height: 100vh;
+        }
+
+        /* Workspace stage — subtle backdrop behind empty state */
+        .workspace-stage {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -55%);
+            width: 600px; height: 400px;
+            border-radius: 32px;
+            background: radial-gradient(ellipse at center, rgba(250,248,243,0.6) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .workspace-stage::before {
+            content: '';
+            position: absolute; inset: 0;
+            border: 1px solid rgba(196,168,130,0.06);
+            border-radius: 32px;
+        }
+        /* Decorative floating panels — abstract workspace shapes */
+        .ws-panel {
+            position: absolute;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(196,168,130,0.08);
+            background: rgba(255,255,255,0.25);
+            pointer-events: none;
+        }
+        .ws-panel.p1 {
+            width: 180px; height: 120px;
+            top: 15%; right: 8%;
+            transform: rotate(2deg);
+        }
+        .ws-panel.p1::before {
+            content: '';
+            position: absolute; top: 14px; left: 14px;
+            width: 60%; height: 8px;
+            background: var(--warm-200);
+            border-radius: 4px;
+        }
+        .ws-panel.p1::after {
+            content: '';
+            position: absolute; top: 30px; left: 14px;
+            width: 40%; height: 6px;
+            background: var(--warm-200);
+            border-radius: 3px;
+            opacity: 0.6;
+        }
+        .ws-panel.p2 {
+            width: 140px; height: 90px;
+            bottom: 20%; right: 5%;
+            transform: rotate(-1deg);
+        }
+        .ws-panel.p2::before {
+            content: '';
+            position: absolute; top: 12px; left: 12px;
+            width: 50%; height: 6px;
+            background: var(--accent-light);
+            border-radius: 3px;
+            opacity: 0.5;
+        }
+        .ws-panel.p3 {
+            width: 100px; height: 100px;
+            top: 12%; left: 5%;
+            border-radius: 50%;
+            transform: rotate(3deg);
+        }
+        .ws-panel.p3::before {
+            content: '';
+            position: absolute; inset: 20%;
+            border: 1px solid var(--warm-200);
+            border-radius: 50%;
+        }
+
+        /* Header */
         .chat-header {
-            padding: 1rem 3rem; background: var(--glass-bg); backdrop-filter: blur(10px);
-            border-bottom: 1px solid var(--border-light);
-            display: flex; justify-content: space-between; align-items: center; z-index: 20;
+            padding: 0.75rem 2.5rem;
+            background: rgba(250, 248, 243, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 20;
+            min-height: 52px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.78rem;
+            color: var(--warm-500);
+            font-weight: 500;
+        }
+        .status-dot {
+            width: 7px; height: 7px;
+            background: #4ade80;
+            border-radius: 50%;
+            box-shadow: 0 0 6px rgba(74,222,128,0.4);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .rag-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.78rem;
+            color: var(--warm-500);
+            cursor: pointer;
+        }
+        .rag-toggle input[type="checkbox"] {
+            appearance: none;
+            width: 36px; height: 20px;
+            background: var(--warm-300);
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+            transition: var(--transition);
+            outline: none;
+        }
+        .rag-toggle input[type="checkbox"]::after {
+            content: '';
+            width: 16px; height: 16px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 2px; left: 2px;
+            transition: var(--transition);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+        .rag-toggle input[type="checkbox"]:checked {
+            background: var(--warm-900);
+        }
+        .rag-toggle input[type="checkbox"]:checked::after {
+            left: 18px;
         }
 
         .custom-select {
             appearance: none;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%237c756a' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
             background-repeat: no-repeat;
-            background-position: right 0.75rem center;
-            background-size: 16px 12px;
-            padding-right: 2.5rem !important;
+            background-position: right 0.6rem center;
+            background-size: 14px 10px;
+            padding-right: 2rem !important;
             border-radius: 20px;
-            border: 1px solid var(--border-light);
-            font-size: 0.85rem;
-            background-color: var(--primary-white);
-            min-width: 140px;
+            border: 1px solid var(--card-border);
+            font-size: 0.78rem;
+            background-color: rgba(250,248,243,0.8);
+            color: var(--warm-700);
+            min-width: 100px;
+            height: 32px;
+            padding-left: 0.75rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .custom-select:hover {
+            border-color: var(--warm-400);
+        }
+        .custom-select:focus {
+            outline: none;
+            border-color: var(--warm-700);
         }
 
-        .chat-messages { flex: 1; overflow-y: auto; padding: 2rem 15% 10rem; scroll-behavior: smooth; }
-        .message { margin-bottom: 2rem; display: flex; animation: springUp 0.4s forwards; opacity: 0; }
-        @keyframes springUp { to { opacity: 1; transform: translateY(0); } from { transform: translateY(15px); } }
+        /* Chat messages area */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem 15% 10rem;
+            scroll-behavior: smooth;
+        }
+        .chat-messages::-webkit-scrollbar { width: 5px; }
+        .chat-messages::-webkit-scrollbar-track { background: transparent; }
+        .chat-messages::-webkit-scrollbar-thumb { background: var(--warm-300); border-radius: 10px; }
 
-        .bubble { max-width: 85%; padding: 1rem 1.4rem; border-radius: 20px; font-size: 0.95rem; line-height: 1.6; word-wrap: break-word; }
-        .message.bot .bubble { background: var(--primary-white); border: 1px solid var(--border-light); box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
-        .message.user { flex-direction: row-reverse; }
-        .message.user .bubble { background: var(--primary-black); color: var(--primary-white); }
+        .message {
+            margin-bottom: 1.5rem;
+            display: flex;
+            animation: msgIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+        }
+        @keyframes msgIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
-        .input-area { position: absolute; bottom: 0; left: 0; right: 0; padding: 2rem 15% 2.5rem; background: linear-gradient(to top, var(--bg-color) 80%, transparent); z-index: 15; }
+        .bubble {
+            max-width: 82%;
+            padding: 0.85rem 1.2rem;
+            border-radius: var(--radius-lg);
+            font-size: 0.92rem;
+            line-height: 1.65;
+            word-wrap: break-word;
+        }
+
+        /* Bot messages — warm white cards */
+        .message.bot .bubble {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            box-shadow: var(--shadow-sm);
+            color: var(--warm-800);
+        }
+
+        /* User messages — warm dark bubbles */
+        .message.user {
+            flex-direction: row-reverse;
+        }
+        .message.user .bubble {
+            background: var(--warm-900);
+            color: var(--warm-100);
+            border: none;
+            box-shadow: 0 4px 20px rgba(26,22,19,0.15);
+        }
+
+        /* Thinking animation */
+        .thinking-wave {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            height: 18px;
+        }
+        .thinking-wave .line {
+            width: 3px;
+            height: 100%;
+            background: var(--warm-500);
+            border-radius: 4px;
+            animation: thinkWave 1s infinite alternate;
+        }
+        @keyframes thinkWave {
+            from { height: 20%; opacity: 0.3; }
+            to { height: 100%; opacity: 1; }
+        }
+
+        /* Empty state — workspace stage */
+        .empty-view {
+            text-align: center;
+            padding-top: 10vh;
+            position: relative;
+        }
+        .empty-stage {
+            position: relative;
+            max-width: 560px;
+            margin: 0 auto;
+        }
+        /* Abstract AI workspace visual — CSS only, no icons */
+        .stage-visual {
+            position: relative;
+            width: 88px; height: 88px;
+            margin: 0 auto 2rem;
+        }
+        .stage-visual .ring {
+            position: absolute; inset: 0;
+            border: 1.5px solid var(--warm-300);
+            border-radius: 50%;
+            animation: ringPulse 3s ease-in-out infinite;
+        }
+        .stage-visual .ring:nth-child(2) {
+            inset: 8px;
+            border-color: var(--accent-light);
+            animation-delay: 0.5s;
+        }
+        .stage-visual .ring:nth-child(3) {
+            inset: 16px;
+            border-color: var(--warm-200);
+            animation-delay: 1s;
+        }
+        .stage-visual .core {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--warm-700) 100%);
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(196,168,130,0.25);
+        }
+        .stage-visual .core::after {
+            content: '';
+            position: absolute; inset: 6px;
+            border: 1.5px solid rgba(255,255,255,0.3);
+            border-radius: 6px;
+        }
+        @keyframes ringPulse {
+            0%, 100% { opacity: 0.4; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.03); }
+        }
+
+        .empty-view h4 {
+            font-size: 1.6rem;
+            font-weight: 600;
+            color: var(--warm-800);
+            margin-bottom: 0.4rem;
+            letter-spacing: -0.02em;
+        }
+        .empty-view p {
+            color: var(--warm-400);
+            font-size: 0.88rem;
+            margin-bottom: 2.5rem;
+        }
+        .empty-hints {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+        .empty-hint {
+            background: rgba(255,255,255,0.55);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-md);
+            padding: 16px 18px;
+            text-align: left;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+        .empty-hint::before {
+            content: '';
+            position: absolute; top: 0; left: 0;
+            width: 3px; height: 100%;
+            background: var(--accent);
+            border-radius: 0 2px 2px 0;
+            opacity: 0;
+            transition: var(--transition);
+        }
+        .empty-hint:hover {
+            background: rgba(255,255,255,0.85);
+            border-color: var(--accent-light);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(80,60,40,0.06);
+        }
+        .empty-hint:hover::before { opacity: 1; }
+        .empty-hint-title {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--warm-800);
+            margin-bottom: 3px;
+        }
+        .empty-hint-desc {
+            font-size: 0.72rem;
+            color: var(--warm-400);
+            line-height: 1.4;
+        }
+
+        /* Input area */
+        .input-area {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            padding: 1.5rem 15% 2rem;
+            background: linear-gradient(to top, var(--warm-100) 50%, rgba(245,243,240,0.6) 75%, transparent);
+            z-index: 15;
+        }
+        /* Vertical light beam connecting content to input */
+        .input-area::before {
+            content: '';
+            position: absolute;
+            top: -80px; left: 50%;
+            transform: translateX(-50%);
+            width: 1px; height: 80px;
+            background: linear-gradient(to bottom, transparent, var(--warm-300));
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
         .input-box {
-            background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--border-light);
-            border-radius: 24px; padding: 10px 14px 10px 24px; display: flex; align-items: center; box-shadow: var(--glass-shadow);
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            padding: 8px 10px 8px 20px;
+            display: flex;
+            align-items: center;
+            box-shadow: var(--shadow-md);
+            transition: var(--transition);
         }
-        #messageInput { flex: 1; border: none; background: transparent; outline: none; font-size: 0.95rem; }
-        .send-btn { background: var(--primary-black); color: var(--primary-white); border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: 0.2s; }
-        .upload-btn { background: none; border: none; color: #6b7280; cursor: pointer; padding: 6px; border-radius: 50%; transition: 0.2s; margin-right: 4px; }
-        .upload-btn:hover { background: rgba(0,0,0,0.06); color: var(--primary-black); }
+        .input-box:focus-within {
+            border-color: var(--warm-700);
+            box-shadow: var(--shadow-lg), 0 0 0 4px rgba(196,168,130,0.10);
+        }
+
+        #messageInput {
+            flex: 1;
+            border: none;
+            background: transparent;
+            outline: none;
+            font-size: 0.92rem;
+            color: var(--warm-800);
+            font-family: inherit;
+        }
+        #messageInput::placeholder {
+            color: var(--warm-400);
+        }
+
+        .upload-btn {
+            background: none;
+            border: none;
+            color: var(--warm-400);
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 50%;
+            transition: var(--transition);
+            margin-right: 4px;
+            font-size: 1rem;
+        }
+        .upload-btn:hover {
+            background: var(--warm-200);
+            color: var(--warm-700);
+        }
+
+        .send-btn {
+            background: var(--warm-900);
+            color: var(--warm-50);
+            border: none;
+            width: 38px; height: 38px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.95rem;
+            flex-shrink: 0;
+        }
+        .send-btn:hover {
+            background: var(--warm-700);
+            transform: scale(1.05);
+        }
+
+        /* Image preview bar */
         .image-preview-bar {
-            display: none; padding: 8px 15%; position: absolute; bottom: 80px; left: 0; right: 0;
-            background: linear-gradient(to top, var(--bg-color) 90%, transparent); z-index: 15;
+            display: none;
+            padding: 8px 0;
+            margin-bottom: 8px;
         }
         .image-preview-bar.active { display: flex; align-items: center; gap: 10px; }
         .image-preview-thumb {
-            position: relative; width: 64px; height: 64px; border-radius: 12px; overflow: hidden;
-            border: 2px solid var(--border-light); flex-shrink: 0;
+            position: relative;
+            width: 60px; height: 60px;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            border: 2px solid var(--card-border);
+            flex-shrink: 0;
         }
         .image-preview-thumb img { width: 100%; height: 100%; object-fit: cover; }
         .image-preview-thumb .remove-img {
-            position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%;
+            position: absolute; top: 2px; right: 2px;
+            width: 20px; height: 20px; border-radius: 50%;
             background: rgba(0,0,0,0.6); color: #fff; border: none; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; line-height: 1;
         }
         .msg-image { max-width: 240px; border-radius: 12px; margin-bottom: 6px; }
 
-        .history-item { position: relative; cursor: pointer; transition: var(--transition-smooth); border: 1px solid var(--border-light); }
-        .history-item:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.05); border-color: var(--primary-black); }
+        /* RAG reference bar */
+        .rag-ref-bar {
+            background: rgba(250,248,243,0.9);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            margin-bottom: 1rem;
+            backdrop-filter: blur(10px);
+        }
+        .rag-ref-item {
+            border-left: 3px solid var(--accent);
+            padding-left: 10px;
+            margin-bottom: 8px;
+        }
 
-        /* 删除按钮样式 */
+        .agent-tool-panel {
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
+            background: rgba(250,248,243,0.72);
+            padding: 8px 10px;
+            margin-bottom: 10px;
+        }
+        .agent-tool-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 4px 0;
+            font-size: 0.78rem;
+            color: var(--warm-600);
+        }
+        .agent-tool-name {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+        }
+        .agent-tool-name span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .agent-confirm-btn {
+            border: 1px solid var(--accent);
+            background: var(--accent);
+            color: white;
+            border-radius: 999px;
+            padding: 2px 10px;
+            font-size: 0.72rem;
+            white-space: nowrap;
+        }
+        .agent-confirm-btn:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+        .index-status {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 0.7rem;
+            border: 1px solid var(--card-border);
+            color: var(--warm-600);
+            background: rgba(255,255,255,0.5);
+        }
+        .agent-doc-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
+            background: rgba(255,255,255,0.72);
+            padding: 12px 14px;
+            margin: 8px 0 10px;
+        }
+        .agent-doc-main {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+        .agent-doc-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: rgba(92,86,77,0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--warm-700);
+            flex-shrink: 0;
+        }
+        .agent-doc-title {
+            font-weight: 600;
+            color: var(--warm-900);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .agent-doc-meta {
+            color: var(--warm-500);
+            font-size: 0.78rem;
+        }
+        .agent-doc-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .agent-doc-btn {
+            border: 1px solid var(--card-border);
+            background: rgba(255,255,255,0.8);
+            color: var(--warm-800);
+            border-radius: 999px;
+            padding: 5px 12px;
+            font-size: 0.78rem;
+            white-space: nowrap;
+        }
+        .doc-viewer-content {
+            max-height: 62vh;
+            overflow: auto;
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
+            background: rgba(255,255,255,0.65);
+            padding: 18px;
+            color: var(--warm-800);
+        }
+
+        /* Code blocks */
+        pre {
+            background: #282c34;
+            padding: 1rem;
+            border-radius: var(--radius-sm);
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+        code { font-family: 'Fira Code', monospace; font-size: 0.85rem; }
+
+        /* History items in modal */
+        .history-item {
+            position: relative;
+            cursor: pointer;
+            transition: var(--transition);
+            border: 1px solid var(--card-border) !important;
+            background: rgba(250,248,243,0.7) !important;
+        }
+        .history-item:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--accent) !important;
+        }
+
         .delete-btn {
             position: absolute; top: 10px; right: 10px;
             width: 28px; height: 28px; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            background: rgba(255, 68, 68, 0.1); color: #ff4444;
-            border: none; opacity: 0; transition: 0.2s;
+            background: rgba(220,80,60,0.08); color: #dc503c;
+            border: none; opacity: 0; transition: var(--transition);
         }
         .history-item:hover .delete-btn { opacity: 1; }
-        .delete-btn:hover { background: #ff4444; color: #fff; }
+        .delete-btn:hover { background: #dc503c; color: #fff; }
 
-        .thinking-wave { display: flex; align-items: center; gap: 4px; height: 16px; }
-        .thinking-wave .line { width: 3px; height: 100%; background: var(--primary-black); border-radius: 4px; animation: thinkWave 1s infinite alternate; }
-        @keyframes thinkWave { from { height: 20%; opacity: 0.3; } to { height: 100%; opacity: 1; } }
-
-        pre { background: #282c34; padding: 1rem; border-radius: 12px; margin: 1rem 0; overflow-x: auto; }
-        code { font-family: 'Fira Code', monospace; }
-        .rag-ref-bar {
-            background: rgba(255, 255, 255, 0.8);
-            border: 1px solid var(--border-light);
-            border-radius: 14px;
-            padding: 10px 14px;
-            margin-bottom: 1rem;
-        }
-        .rag-ref-item {
-            border-left: 3px solid #111827;
-            padding-left: 10px;
-            margin-bottom: 8px;
-        }
+        /* Knowledge items */
         .knowledge-item {
-            border: 1px solid var(--border-light);
-            border-radius: 12px;
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
             padding: 10px 12px;
             margin-bottom: 10px;
-            background: #fff;
+            background: rgba(250,248,243,0.6);
+            transition: var(--transition);
+        }
+        .knowledge-item:hover {
+            border-color: var(--warm-400);
+        }
+
+        /* ═══════════════════════════════════════════════
+           MODALS — warm white glass
+           ═══════════════════════════════════════════════ */
+
+        .modal-content {
+            background: rgba(250, 248, 243, 0.96) !important;
+            backdrop-filter: blur(30px) saturate(1.3);
+            -webkit-backdrop-filter: blur(30px) saturate(1.3);
+            border: 1px solid var(--card-border) !important;
+            border-radius: var(--radius-xl) !important;
+            box-shadow: var(--shadow-xl) !important;
+        }
+        .modal-content::before {
+            content: '';
+            position: absolute; inset: 0;
+            opacity: 0.12;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+            background-size: 180px 180px;
+            pointer-events: none;
+            border-radius: inherit;
+        }
+        .modal-header {
+            border-bottom: 1px solid var(--card-border) !important;
+        }
+        .modal-header h4 {
+            color: var(--warm-900);
+            font-weight: 600;
+        }
+        .modal-body {
+            position: relative;
+        }
+        .modal-body .form-control,
+        .modal-body .form-select {
+            background: rgba(255,255,255,0.6);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
+            color: var(--warm-800);
+            font-size: 0.85rem;
+            transition: var(--transition);
+        }
+        .modal-body .form-control:focus,
+        .modal-body .form-select:focus {
+            border-color: var(--warm-700);
+            box-shadow: 0 0 0 3px rgba(61,56,50,0.08);
+        }
+        .modal-body .form-control::placeholder {
+            color: var(--warm-400);
+        }
+
+        .btn-dark {
+            background: var(--warm-900) !important;
+            border-color: var(--warm-900) !important;
+            border-radius: var(--radius-sm) !important;
+            font-weight: 500;
+            transition: var(--transition);
+        }
+        .btn-dark:hover {
+            background: var(--warm-700) !important;
+        }
+        .btn-outline-dark {
+            border-color: var(--warm-400) !important;
+            color: var(--warm-700) !important;
+            border-radius: var(--radius-sm) !important;
+            transition: var(--transition);
+        }
+        .btn-outline-dark:hover {
+            background: var(--warm-900) !important;
+            color: var(--warm-50) !important;
+            border-color: var(--warm-900) !important;
+        }
+
+        .pagination .page-link {
+            border-color: var(--card-border) !important;
+            color: var(--warm-700) !important;
+            border-radius: 8px !important;
+            margin: 0 2px;
+            transition: var(--transition);
+        }
+        .pagination .page-item.active .page-link {
+            background: var(--warm-900) !important;
+            border-color: var(--warm-900) !important;
+            color: var(--warm-50) !important;
+        }
+
+        .btn-close {
+            filter: invert(0.6) sepia(0.3) saturate(0) hue-rotate(0deg);
+        }
+
+        /* ═══════════════════════════════════════════════
+           RESPONSIVE — sidebar collapse
+           ═══════════════════════════════════════════════ */
+
+        .sidebar-toggle {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            color: var(--warm-700);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: var(--transition);
+        }
+        .sidebar-toggle:hover { background: var(--warm-200); }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -300px;
+                top: 0; bottom: 0;
+                z-index: 100;
+                width: 280px;
+                transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: none;
+            }
+            .sidebar.open {
+                left: 0;
+                box-shadow: 20px 0 60px rgba(0,0,0,0.1);
+            }
+            .sidebar-toggle { display: block; }
+            .chat-messages { padding: 1.5rem 1rem 10rem; }
+            .input-area { padding: 1rem 1rem 1.5rem; }
+            .chat-header { padding: 0.75rem 1rem; }
+            .workspace-stage { display: none; }
+            .ws-panel { display: none; }
+            .empty-view { padding-top: 8vh; }
+        }
+
+        @media (max-width: 480px) {
+            .chat-messages { padding: 1rem 0.75rem 10rem; }
+            .input-area { padding: 0.75rem 0.75rem 1.25rem; }
+            .bubble { max-width: 92%; }
+            .empty-hints { grid-template-columns: 1fr; max-width: 100%; }
+            .stage-visual { width: 64px; height: 64px; }
+            .stage-visual .core { width: 24px; height: 24px; }
+        }
+
+        /* ═══════════════════════════════════════════════
+           UTILITIES
+           ═══════════════════════════════════════════════ */
+
+        .d-none { display: none !important; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
         }
     </style>
 </head>
 <body>
 
-<div class="animated-bg"></div>
+<!-- Background layers -->
+<div class="bg-base"></div>
+<div class="bg-noise"></div>
+<div class="bg-grid"></div>
+
+<!-- Ambient decorations -->
+<div class="ambient-circle c1"></div>
+<div class="ambient-circle c2"></div>
+<div class="ambient-circle c3"></div>
+<div class="ambient-text t1">AI</div>
+<div class="ambient-text t2">STUDIO</div>
+<div class="ambient-line l1"></div>
+<div class="ambient-line l2"></div>
 
 <div class="main-app">
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
         <div class="brand">
-            <i class="bi bi-robot"></i>
-            <h5 class="mb-0 fw-bold">AI Studio</h5>
+            <div class="brand-icon">Ai</div>
+            <span class="brand-text">AI Studio</span>
+            <span class="brand-dot"></span>
         </div>
-        <div class="nav-card" onclick="startNewChat()">
-            <i class="bi bi-plus-circle"></i>
-            <div>
-                <div class="fw-bold small">开启新对话</div>
-                <div class="text-muted" style="font-size: 0.7rem;">创建全新聊天窗口</div>
+
+        <div class="nav-section">
+            <div class="nav-label">对话</div>
+            <div class="nav-card" onclick="startNewChat()">
+                <i class="bi bi-plus-circle"></i>
+                <div>
+                    <div style="font-weight:500;">开启新对话</div>
+                    <div class="nav-sub">创建全新聊天窗口</div>
+                </div>
+            </div>
+            <div class="nav-card" onclick="openRecordsModal()">
+                <i class="bi bi-clock-history"></i>
+                <div>
+                    <div style="font-weight:500;">所有记录</div>
+                    <div class="nav-sub">管理云端归档</div>
+                </div>
             </div>
         </div>
-        <div class="nav-card" onclick="openRecordsModal()">
-            <i class="bi bi-archive"></i>
-            <div>
-                <div class="fw-bold small">所有记录</div>
-                <div class="text-muted" style="font-size: 0.7rem;">管理云端归档</div>
+
+        <div class="nav-section">
+            <div class="nav-label">资源</div>
+            <div class="nav-card" onclick="openKnowledgeModal()">
+                <i class="bi bi-book"></i>
+                <div>
+                    <div style="font-weight:500;">知识库</div>
+                    <div class="nav-sub">管理 RAG 检索文档</div>
+                </div>
+            </div>
+            <div class="nav-card" onclick="openFileManager()">
+                <i class="bi bi-folder"></i>
+                <div>
+                    <div style="font-weight:500;">文件管理</div>
+                    <div class="nav-sub">管理上传的文件</div>
+                </div>
             </div>
         </div>
-        <div class="nav-card" onclick="openKnowledgeModal()">
-            <i class="bi bi-database"></i>
-            <div>
-                <div class="fw-bold small">知识库</div>
-                <div class="text-muted" style="font-size: 0.7rem;">管理 RAG 检索文档</div>
-            </div>
+
+        <div class="recent-sessions" id="recentSessions">
+            <div class="nav-label">最近对话</div>
+            <div class="recent-empty" id="recentEmpty">暂无最近对话</div>
         </div>
-        <div class="nav-card" onclick="openFileManager()">
-            <i class="bi bi-folder-fill"></i>
-            <div>
-                <div class="fw-bold small">文件管理</div>
-                <div class="text-muted" style="font-size: 0.7rem;">管理上传的文件</div>
+
+        <div class="sidebar-footer">
+            <div class="sidebar-footer-row">
+                <span id="currentUserDisplay" class="user-name">未登录</span>
+                <button class="logout-btn" onclick="logout()">退出</button>
             </div>
-        </div>
-        <div class="mt-auto p-3 rounded-4" style="background: rgba(255,255,255,0.4); border: 1px solid rgba(0,0,0,0.03);">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <span id="currentUserDisplay" class="small text-muted">未登录</span>
-                <button class="btn btn-sm btn-outline-dark py-0 px-2" onclick="logout()">退出</button>
-            </div>
-            <div class="d-flex justify-content-between small text-muted">
+            <div class="stats-row">
                 <span>总对话</span>
-                <span id="totalChats" class="fw-bold text-dark">-</span>
+                <span id="totalChats" class="stats-num">-</span>
             </div>
         </div>
     </aside>
 
     <main class="chat-container">
         <header class="chat-header">
-            <div class="d-flex align-items-center">
-                <span class="small fw-medium text-muted"><i class="bi bi-circle-fill text-success me-2" style="font-size: 8px;"></i>服务已连接</span>
-            </div>
             <div class="d-flex align-items-center gap-2">
-                <div class="form-check form-switch m-0">
-                    <input class="form-check-input" type="checkbox" role="switch" id="ragSwitch">
-                    <label class="form-check-label small text-muted" for="ragSwitch">RAG增强</label>
+                <button class="sidebar-toggle" id="sidebarToggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                    <i class="bi bi-list"></i>
+                </button>
+                <div class="status-badge">
+                    <span class="status-dot"></span>
+                    <span>服务已连接</span>
                 </div>
-                <select class="form-select custom-select w-auto" id="ragTopKSelect" style="min-width:90px;">
-                    <option value="1">Top1</option>
-                    <option value="3">Top3</option>
-                    <option value="5">Top5</option>
+            </div>
+            <div class="header-controls">
+                <label class="rag-toggle">
+                    <input type="checkbox" role="switch" id="ragSwitch">
+                    <span>RAG</span>
+                </label>
+                <select class="custom-select" id="ragTopKSelect">
+                    <option value="1">Top 1</option>
+                    <option value="3">Top 3</option>
+                    <option value="5">Top 5</option>
                 </select>
-                <select class="form-select custom-select w-auto" id="modelSelect">
+                <select class="custom-select" id="modelSelect">
                     <option value="deepseek">DeepSeek v3</option>
                     <option value="ollama">Ollama Local</option>
+                    <option value="agent">AI Agent</option>
                 </select>
             </div>
         </header>
 
         <section class="chat-messages" id="chatMessages">
             <div class="rag-ref-bar d-none" id="ragReferenceBar"></div>
-            <div class="empty-view text-center mt-5" id="emptyState">
-                <h4 class="fw-bold">您好</h4>
-                <p class="text-muted">输入任何问题，让我们开始探索。</p>
+            <div class="empty-view" id="emptyState">
+                <!-- Workspace stage backdrop -->
+                <div class="workspace-stage">
+                    <div class="ws-panel p1"></div>
+                    <div class="ws-panel p2"></div>
+                    <div class="ws-panel p3"></div>
+                </div>
+                <div class="empty-stage">
+                    <div class="stage-visual">
+                        <div class="ring"></div>
+                        <div class="ring"></div>
+                        <div class="ring"></div>
+                        <div class="core"></div>
+                    </div>
+                    <h4>您好，有什么可以帮您？</h4>
+                    <p>AI 助手工作台 — 输入问题或选择下方场景快速开始</p>
+                    <div class="empty-hints">
+                        <div class="empty-hint" onclick="document.getElementById('messageInput').value='帮我分析并总结这份知识库文档的核心要点';document.getElementById('messageInput').focus();">
+                            <div class="empty-hint-title">分析知识库文档</div>
+                            <div class="empty-hint-desc">检索并总结文档核心要点</div>
+                        </div>
+                        <div class="empty-hint" onclick="document.getElementById('messageInput').value='帮我整理最近上传的文件，列出关键信息';document.getElementById('messageInput').focus();">
+                            <div class="empty-hint-title">整理上传文件</div>
+                            <div class="empty-hint-desc">提取文件关键信息并归类</div>
+                        </div>
+                        <div class="empty-hint" onclick="document.getElementById('messageInput').value='根据以下需求，帮我生成一份项目实施计划';document.getElementById('messageInput').focus();">
+                            <div class="empty-hint-title">生成项目计划</div>
+                            <div class="empty-hint-desc">根据需求自动规划步骤</div>
+                        </div>
+                        <div class="empty-hint" onclick="document.getElementById('messageInput').value='请帮我解释以下代码的逻辑和设计思路';document.getElementById('messageInput').focus();">
+                            <div class="empty-hint-title">解释代码逻辑</div>
+                            <div class="empty-hint-desc">逐行解读代码设计思路</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -242,23 +1322,24 @@
                     <img id="imagePreviewImg" src="" alt="preview">
                     <button class="remove-img" id="removeImageBtn" title="移除图片">&times;</button>
                 </div>
-                <span class="small text-muted" id="imageName"></span>
+                <span class="small" id="imageName" style="color:var(--warm-500);"></span>
             </div>
             <div class="input-box">
                 <input type="file" id="imageFileInput" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none">
                 <button class="upload-btn" id="uploadBtn" title="上传图片"><i class="bi bi-paperclip"></i></button>
-                <input type="text" id="messageInput" placeholder="输入消息并发射..." autocomplete="off">
+                <input type="text" id="messageInput" placeholder="输入消息并发送..." autocomplete="off">
                 <button class="send-btn" id="sendButton"><i class="bi bi-arrow-up"></i></button>
             </div>
         </footer>
     </main>
 </div>
 
+<!-- Records Modal -->
 <div class="modal fade" id="recordsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content border-0 rounded-5 shadow-lg">
+        <div class="modal-content border-0">
             <div class="modal-header border-0 px-5 pt-5 pb-3">
-                <h4 class="fw-bold mb-0">云端归档</h4>
+                <h4 class="mb-0">云端归档</h4>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body px-5 py-4">
@@ -271,12 +1352,12 @@
     </div>
 </div>
 
-
+<!-- Knowledge Modal -->
 <div class="modal fade" id="knowledgeModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content border-0 rounded-5 shadow-lg">
+        <div class="modal-content border-0">
             <div class="modal-header border-0 px-5 pt-5 pb-3">
-                <h4 class="fw-bold mb-0">知识库（RAG）</h4>
+                <h4 class="mb-0">知识库（RAG）</h4>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body px-5 py-3">
@@ -302,11 +1383,11 @@
                 </div>
                 <div class="row g-3">
                     <div class="col-md-7">
-                        <h6 class="fw-bold">我的知识文档</h6>
+                        <h6 class="fw-bold" style="color:var(--warm-800);">我的知识文档</h6>
                         <div id="knowledgeList"></div>
                     </div>
                     <div class="col-md-5">
-                        <h6 class="fw-bold">检索测试</h6>
+                        <h6 class="fw-bold" style="color:var(--warm-800);">检索测试</h6>
                         <div class="d-flex gap-2 mb-2">
                             <input class="form-control" id="knowledgeSearchQuery" placeholder="输入问题测试召回">
                             <button class="btn btn-outline-dark" onclick="searchKnowledge()">检索</button>
@@ -319,11 +1400,36 @@
     </div>
 </div>
 
+<!-- Document Viewer Modal -->
+<div class="modal fade" id="documentViewerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0">
+            <div class="modal-header border-0 px-5 pt-5 pb-3">
+                <div>
+                    <h4 class="mb-1" id="documentViewerTitle">Document</h4>
+                    <div class="small" style="color:var(--warm-500);" id="documentViewerMeta"></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-5 py-3">
+                <div class="doc-viewer-content" id="documentViewerContent"></div>
+            </div>
+            <div class="modal-footer border-0 px-5 pb-5 pt-2 justify-content-between">
+                <button class="btn btn-outline-dark" id="documentViewerDownload" style="display:none;">Download</button>
+                <button class="btn btn-dark" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-    const FILE_SERVICE_BASE = 'http://' + window.location.hostname + ':8081';
+    const FILE_SERVICE_BASE = '/api/files';
 
     function getFileAuthHeaders(extra = {}) {
         const headers = Object.assign({}, extra);
+        if (authToken) {
+            headers['Authorization'] = `Bearer ${authToken}`;
+        }
         if (currentUser && currentUser.userId) {
             headers['X-Auth-UserId'] = currentUser.userId;
         }
@@ -353,6 +1459,7 @@
     const ragTopKSelect = document.getElementById('ragTopKSelect');
     const ragReferenceBar = document.getElementById('ragReferenceBar');
     let knowledgeModal;
+    let documentViewerModal;
     let isStreaming = false;
     let currentAbortController = null;
     let hasStreamContent = false;
@@ -394,8 +1501,8 @@
             formData.append('file', file);
             formData.append('bizType', 'CHAT_IMAGE');
 
-            // 直接调用 file-service（8081端口）
-            const response = await fileServiceFetch('' + FILE_SERVICE_BASE + '/api/files/upload', {
+            // 通过 Gateway 统一入口调用 file-service
+            const response = await fileServiceFetch(`${FILE_SERVICE_BASE}/upload`, {
                 method: 'POST',
                 body: formData
             });
@@ -478,7 +1585,8 @@
                 response = await fetch(url, mergedOptions);
                 if (response.status !== 401) return response;
             }
-            window.location.href = '/login';
+            clearAuthState();
+            window.location.replace('/login');
             throw new Error('未登录或登录已过期');
         }
         return response;
@@ -507,8 +1615,12 @@
         const refreshToken = localStorage.getItem('ai_studio_refresh_token');
         if (!refreshToken) return false;
         if (refreshPromise) {
-            await refreshPromise;
-            return true;
+            try {
+                await refreshPromise;
+                return true;
+            } catch {
+                return false;
+            }
         }
         try {
             refreshPromise = (async () => {
@@ -518,7 +1630,7 @@
                     body: JSON.stringify({ refreshToken })
                 });
                 if (!resp.ok) {
-                    logout();
+                    clearAuthState();
                     throw new Error('refresh failed');
                 }
                 const data = await resp.json();
@@ -533,30 +1645,40 @@
         }
     }
 
-    function logout() {
+    function clearAuthState() {
         localStorage.removeItem('ai_studio_token');
         localStorage.removeItem('ai_studio_refresh_token');
         localStorage.removeItem('ai_studio_user');
         authToken = '';
         currentUser = null;
-        window.location.href = '/login';
+    }
+
+    function logout() {
+        clearAuthState();
+        window.location.replace('/login');
     }
 
     async function initAuth() {
         if (!authToken) {
-            window.location.href = '/login';
+            clearAuthState();
+            window.location.replace('/login');
             return false;
         }
         try {
             const response = await authFetch('/api/auth/me');
             if (!response.ok) {
-                window.location.href = '/login';
+                clearAuthState();
+                window.location.replace('/login');
                 return false;
             }
             const me = await response.json();
             persistAuth(me);
             return true;
         } catch (e) {
+            if (!authToken) {
+                clearAuthState();
+                window.location.replace('/login');
+            }
             return false;
         }
     }
@@ -568,6 +1690,7 @@
         activeSessionId = buildSessionId();
         loadStats();
         loadSessionHistory();
+        loadRecentSessions();
     }
 
     function clearReferences() {
@@ -588,19 +1711,199 @@
         }
         ragReferenceBar.classList.remove('d-none');
         ragReferenceBar.innerHTML = `
-            <div class="small fw-bold mb-2"><i class="bi bi-bookmark-check me-1"></i>RAG 命中知识片段（${references.length}）</div>
+            <div class="small fw-bold mb-2" style="color:var(--warm-700);"><i class="bi bi-bookmark-check me-1"></i>RAG 命中知识片段（${references.length}）</div>
             ${references.map(ref => `
                 <div class="rag-ref-item">
-                    <div class="small fw-semibold">${escapeHtml(ref.title || '未命名文档')} <span class="text-muted">score:${ref.score ?? '-'}</span></div>
-                    <div class="small text-muted">${escapeHtml(ref.snippet || '')}</div>
+                    <div class="small fw-semibold" style="color:var(--warm-800);">${escapeHtml(ref.title || '未命名文档')} <span style="color:var(--warm-400);">score:${ref.score ?? '-'}</span></div>
+                    <div class="small" style="color:var(--warm-500);">${escapeHtml(ref.snippet || '')}</div>
                 </div>
             `).join('')}
         `;
     }
 
+    function formatToolName(toolName) {
+        return toolName ? `使用 ${toolName}` : '使用 Agent 工具';
+    }
+
+    function formatToolStatus(status) {
+        const statuses = {
+            started: '开始',
+            running: '执行中',
+            completed: '完成',
+            failed: '失败'
+        };
+        return statuses[status] || status || '';
+    }
+
+    function renderAgentToolPanel(toolEvents, pendingActions, documentCards) {
+        if ((!toolEvents || toolEvents.length === 0) && (!pendingActions || pendingActions.length === 0) && (!documentCards || documentCards.length === 0)) {
+            return '';
+        }
+        const rows = [];
+        (documentCards || []).forEach(doc => {
+            const download = doc.downloadUrl ? `<button class="agent-doc-btn" onclick="event.stopPropagation();downloadKnowledgeFile('${doc.fileKey || ''}')"><i class="bi bi-download"></i></button>` : '';
+            rows.push(`<div class="agent-doc-card" onclick="openKnowledgeDocument(${doc.documentId})" style="cursor:pointer;">
+                <div class="agent-doc-main">
+                    <div class="agent-doc-icon"><i class="bi bi-file-earmark-text"></i></div>
+                    <div style="min-width:0;">
+                        <div class="agent-doc-title">${escapeHtml(doc.title || 'Knowledge document')}</div>
+                        <div class="agent-doc-meta">Document · MD${doc.fileKey ? ' · saved to file manager' : ''}</div>
+                    </div>
+                </div>
+                <div class="agent-doc-actions">
+                    <button class="agent-doc-btn" onclick="event.stopPropagation();openKnowledgeDocument(${doc.documentId})">Open</button>
+                    ${download}
+                </div>
+            </div>`);
+        });
+        (toolEvents || []).slice(-6).forEach(item => {
+            const icon = item.type === 'error' ? 'bi-exclamation-triangle' :
+                item.type === 'done' ? 'bi-check2-circle' : 'bi-tools';
+            const color = item.type === 'error' ? '#dc503c' :
+                item.type === 'done' ? '#2f8f5b' : 'var(--accent)';
+            rows.push(`<div class="agent-tool-row">
+                <div class="agent-tool-name" style="color:${color};"><i class="bi ${icon}"></i><span>${escapeHtml(item.label || formatToolName(item.toolName))}</span></div>
+                <span>${escapeHtml(formatToolStatus(item.status))}</span>
+            </div>`);
+        });
+        (pendingActions || []).forEach(action => {
+            rows.push(`<div class="agent-tool-row">
+                <div class="agent-tool-name" style="color:var(--warm-700);"><i class="bi bi-shield-check"></i><span>${escapeHtml(action.label || 'Need confirmation')}</span></div>
+                <button class="agent-confirm-btn" onclick="confirmAgentAction('${action.actionId}', this)">Confirm</button>
+            </div>`);
+        });
+        return `<div class="agent-tool-panel">${rows.join('')}</div>`;
+    }
+
+    function renderAssistantBubble(targetBubble, fullText, toolEvents, pendingActions, fallbackHtml, documentCards) {
+        const toolHtml = renderAgentToolPanel(toolEvents, pendingActions, documentCards);
+        const contentHtml = fullText ? marked.parse(fullText) : (fallbackHtml || '');
+        targetBubble.innerHTML = toolHtml + contentHtml;
+        targetBubble.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+        scrollToBottom();
+    }
+
+    function handleAgentStreamEvent(eventName, json, state, targetBubble, loadingHtml) {
+        const name = eventName || 'message';
+        if (name === 'agent_status') {
+            return true;
+        }
+        if (name === 'tool_call_started') {
+            state.toolEvents.push({ type: 'running', toolName: json.toolName, label: formatToolName(json.toolName), status: 'running' });
+            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards);
+            return true;
+        }
+        if (name === 'tool_call_result') {
+            state.toolEvents.push({ type: 'done', toolName: json.toolName, label: formatToolName(json.toolName), status: 'completed' });
+            if (json.requiresConfirmation && json.actionId) {
+                const exists = state.pendingActions.some(action => String(action.actionId) === String(json.actionId));
+                if (!exists) {
+                    state.pendingActions.push({
+                        actionId: json.actionId,
+                        label: `${json.actionType || 'Action'} #${json.actionId}`
+                    });
+                }
+            }
+            if (json.documentId) {
+                const exists = state.documentCards.some(doc => String(doc.documentId) === String(json.documentId));
+                if (!exists) {
+                    state.documentCards.push({
+                        documentId: json.documentId,
+                        title: json.title,
+                        fileKey: json.fileKey,
+                        downloadUrl: json.downloadUrl
+                    });
+                }
+            }
+            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards);
+            return true;
+        }
+        if (name === 'knowledge_document_created') {
+            const toolExists = state.toolEvents.some(item => item.toolName === 'createKnowledgeDocument' && item.status === 'completed');
+            if (!toolExists) {
+                state.toolEvents.push({ type: 'done', toolName: 'createKnowledgeDocument', label: formatToolName('createKnowledgeDocument'), status: 'completed' });
+            }
+            if (json.documentId) {
+                const exists = state.documentCards.some(doc => String(doc.documentId) === String(json.documentId));
+                if (!exists) {
+                    state.documentCards.push({
+                        documentId: json.documentId,
+                        title: json.title,
+                        fileKey: json.fileKey,
+                        downloadUrl: json.downloadUrl
+                    });
+                }
+            }
+            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards);
+            return true;
+        }
+        if (name === 'tool_call_error') {
+            state.toolEvents.push({ type: 'error', toolName: json.toolName, label: formatToolName(json.toolName), status: json.error || 'failed' });
+            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards);
+            return true;
+        }
+        return false;
+    }
+
+    function downloadKnowledgeFile(fileKey) {
+        if (!fileKey) return;
+        const userId = currentUser && currentUser.userId ? currentUser.userId : 0;
+        window.open(`${FILE_SERVICE_BASE}/download/${fileKey}?userId=${userId}`, '_blank');
+    }
+
+    async function openKnowledgeDocument(documentId) {
+        if (!documentId) return;
+        const titleEl = document.getElementById('documentViewerTitle');
+        const metaEl = document.getElementById('documentViewerMeta');
+        const contentEl = document.getElementById('documentViewerContent');
+        const downloadBtn = document.getElementById('documentViewerDownload');
+        titleEl.textContent = 'Loading...';
+        metaEl.textContent = '';
+        contentEl.innerHTML = '<span style="color:var(--warm-500);">Loading document...</span>';
+        downloadBtn.style.display = 'none';
+        if (!documentViewerModal) {
+            documentViewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
+        }
+        documentViewerModal.show();
+
+        try {
+            const response = await authFetch(`/api/knowledge/documents/${encodeURIComponent(documentId)}`);
+            const doc = await response.json();
+            titleEl.textContent = doc.title || 'Knowledge document';
+            metaEl.textContent = `Document #${doc.id || documentId} · ${doc.indexStatus || 'UNKNOWN'}`;
+            contentEl.innerHTML = marked.parse(doc.content || '');
+            contentEl.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+            if (doc.fileKey) {
+                downloadBtn.style.display = 'inline-flex';
+                downloadBtn.onclick = () => downloadKnowledgeFile(doc.fileKey);
+            }
+        } catch (e) {
+            titleEl.textContent = 'Open failed';
+            contentEl.innerHTML = `<span style="color:#dc503c;">${e && e.message ? e.message : 'Unable to open document.'}</span>`;
+        }
+    }
+
+    async function confirmAgentAction(actionId, button) {
+        if (!actionId || !button) return;
+        button.disabled = true;
+        button.textContent = 'Confirming...';
+        try {
+            const response = await authFetch(`/api/chat/agent/actions/${encodeURIComponent(actionId)}/confirm`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const result = await response.json();
+            button.textContent = result.success ? 'Confirmed' : 'Failed';
+        } catch (e) {
+            button.disabled = false;
+            button.textContent = 'Retry';
+        }
+    }
+
     async function sendMessage() {
         if (!currentUser) {
-            window.location.href = '/login';
+            clearAuthState();
+            window.location.replace('/login');
             return;
         }
         if (isStreaming) {
@@ -621,13 +1924,13 @@
             userHtml += `<img src="${previewUrl}" class="msg-image" alt="uploaded image"><br>`;
         }
         if (msg) userHtml += escapeHtml(msg);
-        else userHtml += '<span class="text-muted small">[图片]</span>';
+        else userHtml += '<span style="color:var(--warm-400);" class="small">[图片]</span>';
 
         messageInput.value = '';
         addMessage(userHtml, 'user', '', true);
 
         const messageId = 'ai_' + Date.now();
-        const loadingHtml = `<div class="d-flex align-items-center gap-3"><div class="thinking-wave"><div class="line"></div><div class="line"></div><div class="line"></div></div><span class="text-muted small">AI 正在思考中...</span></div>`;
+        const loadingHtml = `<div class="d-flex align-items-center gap-3"><div class="thinking-wave"><div class="line"></div><div class="line"></div><div class="line"></div></div><span class="small" style="color:var(--warm-400);">AI 正在思考中...</span></div>`;
         addMessage(loadingHtml, 'bot', messageId);
 
         const targetBubble = document.getElementById(messageId);
@@ -640,6 +1943,8 @@
         try {
             let fetchOptions;
             const modelVal = document.getElementById('modelSelect').value;
+            const agentMode = modelVal === 'agent' && !hasImage;
+            const requestModel = modelVal === 'agent' ? 'deepseek' : modelVal;
 
             if (hasImage) {
                 // 新方式：先上传图片到 file-service，再用 fileKey 调用聊天接口
@@ -656,7 +1961,7 @@
                         message: msg || '请描述这张图片',
                         imageFileKey: imageFileKey,
                         sessionId: activeSessionId,
-                        model: modelVal,
+                        model: requestModel,
                         useRag: ragEnabled,
                         ragTopK: ragTopK
                     })
@@ -669,14 +1974,14 @@
                     body: JSON.stringify({
                         message: msg,
                         sessionId: activeSessionId,
-                        model: modelVal,
+                        model: requestModel,
                         useRag: ragEnabled,
                         ragTopK: ragTopK
                     })
                 };
             }
 
-            const endpoint = hasImage ? '/api/chat/stream/filekey' : '/api/chat/stream';
+            const endpoint = hasImage ? '/api/chat/stream/filekey' : (agentMode ? '/api/chat/agent/stream' : '/api/chat/stream');
             const response = await authFetch(endpoint, fetchOptions);
 
             const contentType = response.headers.get('content-type') || '';
@@ -687,8 +1992,9 @@
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
-            let fullText = '';
+            const streamState = { fullText: '', toolEvents: [], pendingActions: [], documentCards: [] };
             let buffer = '';
+            let currentEventName = 'message';
 
             while (true) {
                 const { value, done } = await reader.read();
@@ -700,43 +2006,68 @@
 
                 for (const line of lines) {
                     const trimmedLine = line.trim();
+                    if (trimmedLine.startsWith('event:')) {
+                        currentEventName = trimmedLine.substring(6).trim() || 'message';
+                        continue;
+                    }
                     if (!trimmedLine.startsWith('data:')) continue;
                     const data = trimmedLine.substring(5).trim();
                     if (data === "[DONE]") continue;
 
                     try {
                         const json = JSON.parse(data);
+                        if (handleAgentStreamEvent(currentEventName, json, streamState, targetBubble, loadingHtml)) {
+                            currentEventName = 'message';
+                            continue;
+                        }
                         // RAG 引用
                         if (Array.isArray(json.references)) {
                             renderReferences(json.references);
+                            currentEventName = 'message';
                             continue;
                         }
+                        if (json.status === 'queued') {
+                            renderAssistantBubble(targetBubble, streamState.fullText, streamState.toolEvents, streamState.pendingActions, `<div class="d-flex align-items-center gap-3">
+                                <div class="thinking-wave"><div class="line"></div><div class="line"></div><div class="line"></div></div>
+                                <span class="small" style="color:var(--warm-400);">${json.message || 'Queued...'}</span></div>`, streamState.documentCards);
+                            currentEventName = 'message';
+                            continue;
+                        }
+                        if (json.status === 'processing') {
+                            renderAssistantBubble(targetBubble, streamState.fullText, streamState.toolEvents, streamState.pendingActions, `<div class="d-flex align-items-center gap-3">
+                                <div class="thinking-wave"><div class="line"></div><div class="line"></div><div class="line"></div></div>
+                                <span class="small" style="color:var(--warm-400);">AI is thinking...</span></div>`, streamState.documentCards);
+                            currentEventName = 'message';
+                            continue;
+                        }
+                        /*
                         // 排队状态
                         if (json.status === 'queued') {
                             targetBubble.innerHTML = `<div class="d-flex align-items-center gap-3">
                                 <div class="thinking-wave"><div class="line"></div><div class="line"></div><div class="line"></div></div>
-                                <span class="text-muted small">${json.message || 'AI 正忙，排队等待中…'}</span></div>`;
+                                <span class="small" style="color:var(--warm-400);">${json.message || 'AI 正忙，排队等待中…'}</span></div>`;
                             continue;
                         }
                         if (json.status === 'processing') {
                             targetBubble.innerHTML = `<div class="d-flex align-items-center gap-3">
                                 <div class="thinking-wave"><div class="line"></div><div class="line"></div><div class="line"></div></div>
-                                <span class="text-muted small">AI 正在思考中...</span></div>`;
+                                <span class="small" style="color:var(--warm-400);">AI 正在思考中...</span></div>`;
                             continue;
                         }
                         // 错误
+                        */
                         if (json.error) {
-                            targetBubble.innerHTML = `<div class='d-flex align-items-center gap-2 text-danger'>
+                            targetBubble.innerHTML = `<div class='d-flex align-items-center gap-2' style='color:#dc503c;'>
                                 <i class="bi bi-exclamation-triangle"></i>${json.error}</div>`;
+                            currentEventName = 'message';
                             continue;
                         }
                         // 正常内容
                         if (json.content && json.content !== "[DONE]") {
                             hasStreamContent = true;
-                            fullText += json.content;
-                            targetBubble.innerHTML = marked.parse(fullText);
-                            targetBubble.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
-                            scrollToBottom();
+                            streamState.fullText += json.content;
+                            renderAssistantBubble(targetBubble, streamState.fullText, streamState.toolEvents, streamState.pendingActions, loadingHtml, streamState.documentCards);
+                            currentEventName = 'message';
                         }
                     } catch (e) { }
                 }
@@ -746,12 +2077,12 @@
             if (e && e.name === 'AbortError') {
                 if (!hasStreamContent && currentTargetBubble) {
                     // User stopped before the first chunk arrived (thinking state).
-                    currentTargetBubble.innerHTML = "<span class='text-muted'>已停止输出。</span>";
+                    currentTargetBubble.innerHTML = "<span style='color:var(--warm-400);'>已停止输出。</span>";
                 } else if (!targetBubble.innerText.trim()) {
-                    targetBubble.innerHTML = "<span class='text-muted'>已停止输出。</span>";
+                    targetBubble.innerHTML = "<span style='color:var(--warm-400);'>已停止输出。</span>";
                 }
             } else {
-                targetBubble.innerHTML = `<span class='text-danger'>${e && e.message ? e.message : '连接中断，请检查状态。'}</span>`;
+                targetBubble.innerHTML = `<span style='color:#dc503c;'>${e && e.message ? e.message : '连接中断，请检查状态。'}</span>`;
             }
         } finally {
             isStreaming = false;
@@ -797,12 +2128,12 @@
                             let imgSrc = r.imageData;
                             if (r.imageData.startsWith('filekey:')) {
                                 const fileKey = r.imageData.substring(8); // 去掉 'filekey:' 前缀
-                                imgSrc = '' + FILE_SERVICE_BASE + '/api/files/download/' + fileKey + '?userId=' + (currentUser ? currentUser.userId : 0);
+                                imgSrc = FILE_SERVICE_BASE + '/download/' + fileKey + '?userId=' + (currentUser ? currentUser.userId : 0);
                             }
                             userHtml += `<img src="${imgSrc}" class="msg-image" alt="uploaded image"><br>`;
                         }
                         if (r.userMessage) userHtml += escapeHtml(r.userMessage);
-                        else if (r.imageData) userHtml += '<span class="text-muted small">[图片]</span>';
+                        else if (r.imageData) userHtml += '<span style="color:var(--warm-400);" class="small">[图片]</span>';
                         addMessage(userHtml || escapeHtml(r.userMessage || ''), 'user', '', true);
                         addMessage(r.botResponse, 'bot');
                     });
@@ -817,16 +2148,16 @@
                 const container = document.getElementById('recordsContent');
                 container.innerHTML = data.records.map(r => `
                     <div class="col-md-6 mb-4">
-                        <div class="p-4 rounded-4 h-100 border history-item bg-white" onclick="switchToSession('${r.sessionId}')">
+                        <div class="p-4 rounded-4 h-100 history-item" onclick="switchToSession('${r.sessionId}')">
                             <button class="delete-btn" onclick="deleteSession(event, '${r.sessionId}', ${page})">
                                 <i class="bi bi-trash3"></i>
                             </button>
                             <div class="d-flex justify-content-between mb-2 pe-4">
-                                <span class="badge bg-light text-dark border">会话: ${r.sessionId.split('_')[1] || '默认'}</span>
-                                <small class="text-muted" style="font-size:0.7rem;">${r.createdTime}</small>
+                                <span class="badge border" style="background:var(--warm-100);color:var(--warm-800);border-color:var(--card-border) !important;">会话: ${r.sessionId.split('_')[1] || '默认'}</span>
+                                <small style="color:var(--warm-400);font-size:0.7rem;">${r.createdTime}</small>
                             </div>
-                            <div class="small text-truncate"><b>问：</b>${r.imageData ? '🖼️ ' : ''}${r.userMessage}</div>
-                            <div class="small text-muted text-truncate mt-1"><b>答：</b>${r.botResponse}</div>
+                            <div class="small text-truncate" style="color:var(--warm-700);"><b>问：</b>${r.imageData ? '🖼️ ' : ''}${r.userMessage}</div>
+                            <div class="small text-truncate mt-1" style="color:var(--warm-500);"><b>答：</b>${r.botResponse}</div>
                         </div>
                     </div>
                 `).join('');
@@ -863,7 +2194,7 @@
         const list = document.getElementById('paginationList');
         list.innerHTML = '';
         for(let i=1; i<=total; i++) {
-            list.innerHTML += `<li class="page-item ${i===curr?'active':''}"><a class="page-link text-dark ${i===curr?'bg-light':''}" href="javascript:fetchRecords(${i})">${i}</a></li>`;
+            list.innerHTML += `<li class="page-item ${i===curr?'active':''}"><a class="page-link" href="javascript:fetchRecords(${i})">${i}</a></li>`;
         }
     }
 
@@ -884,6 +2215,33 @@
         });
     }
 
+    function loadRecentSessions() {
+        authFetch('/api/chat/records?page=1&size=5')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('recentSessions');
+                const emptyEl = document.getElementById('recentEmpty');
+                const records = data.records || [];
+                if (records.length === 0) {
+                    if (emptyEl) emptyEl.style.display = 'block';
+                    return;
+                }
+                if (emptyEl) emptyEl.style.display = 'none';
+                // Remove old items but keep the label
+                container.querySelectorAll('.recent-item').forEach(el => el.remove());
+                records.forEach(r => {
+                    const sessionId = r.sessionId || '';
+                    const chatId = sessionId.split('_')[1] || '';
+                    const preview = (r.userMessage || '').slice(0, 24);
+                    const item = document.createElement('div');
+                    item.className = 'recent-item';
+                    item.onclick = function() { switchToSession(sessionId); };
+                    item.innerHTML = '<span class="ri-dot"></span><span class="ri-text">' + escapeHtml(preview) + '</span>';
+                    container.appendChild(item);
+                });
+            });
+    }
+
     let recordsModal;
     function openRecordsModal() {
         if (!recordsModal) recordsModal = new bootstrap.Modal(document.getElementById('recordsModal'));
@@ -900,7 +2258,13 @@
 
     // 打开文件管理页面（新窗口）
     function openFileManager() {
-        window.open('' + FILE_SERVICE_BASE + '/admin/files?userId=' + (currentUser ? currentUser.userId : 0), '_blank');
+        window.open('/admin/files?userId=' + (currentUser ? currentUser.userId : 0), '_blank');
+    }
+
+    function renderIndexStatus(status, error) {
+        const value = status || 'UNKNOWN';
+        const title = error ? ` title="${escapeHtml(error)}"` : '';
+        return `<span class="index-status"${title}>${escapeHtml(value)}</span>`;
     }
 
     function loadKnowledgeDocs(page = 1) {
@@ -910,17 +2274,21 @@
                 const records = data.records || [];
                 const container = document.getElementById('knowledgeList');
                 if (records.length === 0) {
-                    container.innerHTML = `<div class="small text-muted">暂无知识文档，请先新增。</div>`;
+                    container.innerHTML = `<div class="small" style="color:var(--warm-400);">暂无知识文档，请先新增。</div>`;
                     return;
                 }
                 container.innerHTML = records.map(r => `
                     <div class="knowledge-item">
                         <div class="d-flex justify-content-between align-items-start mb-1">
-                            <div class="fw-semibold small">${escapeHtml(r.title)}</div>
-                            <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteKnowledgeDoc(${r.id})">删除</button>
+                            <div class="fw-semibold small" style="color:var(--warm-800);">${escapeHtml(r.title)} ${renderIndexStatus(r.indexStatus, r.indexError)}</div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-dark py-0 px-2" onclick="openKnowledgeDocument(${r.id})">Open</button>
+                                ${r.fileKey ? `<button class="btn btn-sm btn-outline-dark py-0 px-2" onclick="downloadKnowledgeFile('${r.fileKey}')"><i class="bi bi-download"></i></button>` : ''}
+                                <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteKnowledgeDoc(${r.id})">Delete</button>
+                            </div>
                         </div>
-                        <div class="small text-muted mb-1">标签：${escapeHtml(r.tags || '无')}</div>
-                        <div class="small">${escapeHtml((r.content || '').slice(0, 120))}${(r.content || '').length > 120 ? '...' : ''}</div>
+                        <div class="small mb-1" style="color:var(--warm-500);">标签：${escapeHtml(r.tags || '无')}</div>
+                        <div class="small" style="color:var(--warm-600);">${escapeHtml((r.content || '').slice(0, 120))}${(r.content || '').length > 120 ? '...' : ''}</div>
                     </div>
                 `).join('');
             });
@@ -954,12 +2322,12 @@
 
         const statusEl = document.getElementById('knowledgeParseStatus');
         statusEl.style.display = 'block';
-        statusEl.innerHTML = '<span class="text-info small">正在解析文件...</span>';
+        statusEl.innerHTML = '<span class="small" style="color:var(--accent);">正在解析文件...</span>';
 
         try {
             const formData = new FormData();
             formData.append('file', file);
-            const resp = await fileServiceFetch('' + FILE_SERVICE_BASE + '/api/files/upload/knowledge', {
+            const resp = await fileServiceFetch(`${FILE_SERVICE_BASE}/upload/knowledge`, {
                 method: 'POST',
                 body: formData
             });
@@ -971,14 +2339,14 @@
                     document.getElementById('knowledgeTitle').value = result.data.originalName
                         .replace(/\.(pdf|docx|txt|md)$/i, '');
                 }
-                statusEl.innerHTML = '<span class="text-success small">解析成功! ' +
+                statusEl.innerHTML = '<span class="small" style="color:#4ade80;">解析成功! ' +
                     result.data.originalName + ' (' + result.data.charCount + ' 字符)</span>';
             } else {
-                statusEl.innerHTML = '<span class="text-danger small">解析失败: ' +
+                statusEl.innerHTML = '<span class="small" style="color:#dc503c;">解析失败: ' +
                     (result.error || '未知错误') + '</span>';
             }
         } catch (e) {
-            statusEl.innerHTML = '<span class="text-danger small">网络错误，请重试</span>';
+            statusEl.innerHTML = '<span class="small" style="color:#dc503c;">网络错误，请重试</span>';
             console.error('文档上传失败:', e);
         }
     }
@@ -1009,13 +2377,13 @@
         }).then(r => r.json()).then(list => {
             const box = document.getElementById('knowledgeSearchResult');
             if (!Array.isArray(list) || list.length === 0) {
-                box.innerHTML = `<div class="small text-muted">未命中知识片段</div>`;
+                box.innerHTML = `<div class="small" style="color:var(--warm-400);">未命中知识片段</div>`;
                 return;
             }
             box.innerHTML = list.map(ref => `
                 <div class="knowledge-item">
-                    <div class="small fw-semibold">${escapeHtml(ref.title || '未命名文档')} <span class="text-muted">score:${ref.score ?? '-'}</span></div>
-                    <div class="small text-muted">${escapeHtml(ref.snippet || '')}</div>
+                    <div class="small fw-semibold" style="color:var(--warm-800);">${escapeHtml(ref.title || '未命名文档')} <span style="color:var(--warm-400);">score:${ref.score ?? '-'}</span></div>
+                    <div class="small" style="color:var(--warm-500);">${escapeHtml(ref.snippet || '')}</div>
                 </div>
             `).join('');
         });

@@ -1,0 +1,284 @@
+package com.example.chatbot.agent;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.chatbot.agent.tool.ChatHistoryTools;
+import com.example.chatbot.agent.tool.FileReadTools;
+import com.example.chatbot.agent.tool.KnowledgeReadTools;
+import com.example.chatbot.agent.tool.KnowledgeWriteTools;
+import com.example.chatbot.agent.tool.TimeTools;
+import com.example.chatbot.dto.ChatRequest;
+import com.example.chatbot.entity.ChatRecord;
+import com.example.chatbot.entity.KnowledgeDocument;
+import com.example.chatbot.mapper.ChatRecordMapper;
+import com.example.chatbot.mapper.KnowledgeDocumentMapper;
+import com.example.chatbot.service.ChatbotService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+@Service
+@Slf4j
+public class AgentService {
+
+    private final OpenAiChatModel openAiChatModel;
+    private final OllamaChatModel ollamaChatModel;
+    private final ChatRecordMapper chatRecordMapper;
+    private final KnowledgeDocumentMapper knowledgeDocumentMapper;
+    private final ChatbotService chatbotService;
+    private final KnowledgeReadTools knowledgeReadTools;
+    private final KnowledgeWriteTools knowledgeWriteTools;
+    private final FileReadTools fileReadTools;
+    private final ChatHistoryTools chatHistoryTools;
+    private final TimeTools timeTools;
+    private final AgentToolNotifier toolNotifier;
+
+    @Value("${app.agent.enabled:true}")
+    private boolean agentEnabled;
+
+    @Value("${app.agent.max-history:5}")
+    private int maxHistory;
+
+    @Value("${spring.ai.openai.api-key:}")
+    private String openAiApiKey;
+
+    public AgentService(
+            ObjectProvider<OpenAiChatModel> openAiChatModelProvider,
+            ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
+            ChatRecordMapper chatRecordMapper,
+            KnowledgeDocumentMapper knowledgeDocumentMapper,
+            ChatbotService chatbotService,
+            KnowledgeReadTools knowledgeReadTools,
+            KnowledgeWriteTools knowledgeWriteTools,
+            FileReadTools fileReadTools,
+            ChatHistoryTools chatHistoryTools,
+            TimeTools timeTools,
+            AgentToolNotifier toolNotifier
+    ) {
+        this.openAiChatModel = getIfAvailable(openAiChatModelProvider, "OpenAI/DeepSeek");
+        this.ollamaChatModel = getIfAvailable(ollamaChatModelProvider, "Ollama");
+        this.chatRecordMapper = chatRecordMapper;
+        this.knowledgeDocumentMapper = knowledgeDocumentMapper;
+        this.chatbotService = chatbotService;
+        this.knowledgeReadTools = knowledgeReadTools;
+        this.knowledgeWriteTools = knowledgeWriteTools;
+        this.fileReadTools = fileReadTools;
+        this.chatHistoryTools = chatHistoryTools;
+        this.timeTools = timeTools;
+        this.toolNotifier = toolNotifier;
+    }
+
+    public void streamAgent(ChatRequest request, SseEmitter emitter, String userId) {
+        if (!agentEnabled) {
+            sendStreamError(emitter, "Agent is disabled");
+            return;
+        }
+        ensureSessionOwnedByUser(request.getSessionId(), userId);
+
+        ChatModel model = getChatModel(request.getModel());
+        if (model == null) {
+            sendStreamError(emitter, "No available chat model");
+            return;
+        }
+        if (model == openAiChatModel && (openAiApiKey == null || openAiApiKey.isBlank())) {
+            sendStreamError(emitter, "AI API key is missing");
+            return;
+        }
+
+        List<Message> messages = buildMessages(request, userId);
+        Map<String, Object> toolContext = new LinkedHashMap<>();
+        toolContext.put(AgentToolContextKeys.USER_ID, userId);
+        toolContext.put(AgentToolContextKeys.SESSION_ID, request.getSessionId());
+
+        Long userIdValue = Long.valueOf(userId);
+        Long baselineKnowledgeDocumentId = latestKnowledgeDocumentId(userIdValue);
+        StringBuilder fullResponse = new StringBuilder();
+        toolNotifier.bind(emitter);
+        try {
+            emitter.send(SseEmitter.event().name("agent_status")
+                    .data(Map.of("status", "started")));
+
+            ChatClient.create(model)
+                    .prompt()
+                    .messages(messages)
+                    .tools(knowledgeReadTools, knowledgeWriteTools, fileReadTools, chatHistoryTools, timeTools)
+                    .toolContext(toolContext)
+                    .stream()
+                    .content()
+                    .subscribe(
+                            chunk -> {
+                                try {
+                                    if (chunk != null) {
+                                        fullResponse.append(chunk);
+                                        emitter.send(Map.of("content", chunk));
+                                    }
+                                } catch (Exception e) {
+                                    log.warn("Agent SSE chunk send failed: {}", e.getMessage());
+                                }
+                            },
+                            error -> {
+                                log.error("Agent stream failed: {}", error.getMessage(), error);
+                                String savedResponse = fullResponse.length() > 0
+                                        ? fullResponse + "\n\n[Agent response interrupted]"
+                                        : "";
+                                chatbotService.asyncSaveChatRecord(request.getSessionId(), request.getMessage(), savedResponse);
+                                sendStreamError(emitter, resolveErrorMessage(error));
+                                toolNotifier.clear();
+                            },
+                            () -> {
+                                chatbotService.asyncSaveChatRecord(request.getSessionId(), request.getMessage(), fullResponse.toString());
+                                try {
+                                    emitNewKnowledgeDocuments(emitter, userIdValue, baselineKnowledgeDocumentId);
+                                    emitter.send(SseEmitter.event().name("agent_status")
+                                            .data(Map.of("status", "completed")));
+                                } catch (Exception e) {
+                                    log.warn("Agent completion event send failed: {}", e.getMessage());
+                                }
+                                emitter.complete();
+                                toolNotifier.clear();
+                            }
+                    );
+        } catch (Exception e) {
+            log.error("Agent initialization failed: {}", e.getMessage(), e);
+            sendStreamError(emitter, resolveErrorMessage(e));
+            toolNotifier.clear();
+        }
+    }
+
+    private List<Message> buildMessages(ChatRequest request, String userId) {
+        List<Message> messages = new ArrayList<>();
+        messages.add(new SystemMessage(buildSystemPrompt()));
+
+        List<ChatRecord> history = chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
+                .eq(ChatRecord::getSessionId, request.getSessionId())
+                .orderByDesc(ChatRecord::getCreatedTime)
+                .last("LIMIT " + Math.max(0, maxHistory)));
+
+        history.stream()
+                .sorted(Comparator.comparing(ChatRecord::getCreatedTime))
+                .forEach(record -> {
+                    messages.add(new UserMessage(record.getUserMessage()));
+                    messages.add(new AssistantMessage(record.getBotResponse()));
+                });
+
+        messages.add(new UserMessage(request.getMessage()));
+        return messages;
+    }
+
+    private String buildSystemPrompt() {
+        return """
+                You are AI Studio's customer service agent.
+                You can answer directly, read current-user data, and perform only the explicitly available low-risk tools.
+                When the user asks to create, save, store, or put a document into the knowledge base, you MUST call createKnowledgeDocument.
+                Never say a document was saved into the knowledge base unless createKnowledgeDocument succeeded.
+                You must not delete anything directly. For deletion, call the request-delete tool and tell the user to confirm the pending action.
+                Never claim that you deleted, sent, purchased, or executed a sensitive action unless the tool result confirms it.
+                Use tools to get real project or user data instead of guessing.
+                If a tool returns no useful data, say that clearly and continue with a conservative answer.
+                Do not ask for or expose internal tokens, passwords, API keys, or secrets.
+                Reply in concise, natural Chinese unless the user asks for another language.
+                """;
+    }
+
+    private Long latestKnowledgeDocumentId(Long userId) {
+        KnowledgeDocument latest = knowledgeDocumentMapper.selectOne(new LambdaQueryWrapper<KnowledgeDocument>()
+                .eq(KnowledgeDocument::getUserId, userId)
+                .orderByDesc(KnowledgeDocument::getId)
+                .last("LIMIT 1"));
+        return latest == null || latest.getId() == null ? 0L : latest.getId();
+    }
+
+    private void emitNewKnowledgeDocuments(SseEmitter emitter, Long userId, Long baselineId) {
+        List<KnowledgeDocument> documents = knowledgeDocumentMapper.selectList(new LambdaQueryWrapper<KnowledgeDocument>()
+                .eq(KnowledgeDocument::getUserId, userId)
+                .gt(KnowledgeDocument::getId, baselineId == null ? 0L : baselineId)
+                .orderByAsc(KnowledgeDocument::getId));
+        for (KnowledgeDocument document : documents) {
+            try {
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("success", true);
+                payload.put("documentId", document.getId());
+                payload.put("title", document.getTitle());
+                payload.put("enabled", document.getEnabled());
+                payload.put("fileKey", document.getFileKey());
+                payload.put("openPath", "/api/knowledge/documents/" + document.getId());
+                if (document.getFileKey() != null && !document.getFileKey().isBlank()) {
+                    payload.put("downloadUrl", "/api/files/download/" + document.getFileKey());
+                }
+                emitter.send(SseEmitter.event().name("knowledge_document_created").data(payload));
+            } catch (Exception e) {
+                log.warn("Agent knowledge document card event send failed: documentId={}, error={}",
+                        document.getId(), e.getMessage());
+            }
+        }
+    }
+
+    private ChatModel getChatModel(String preferredModel) {
+        if ("ollama".equalsIgnoreCase(preferredModel)) {
+            return ollamaChatModel != null ? ollamaChatModel : openAiChatModel;
+        }
+        return openAiChatModel != null ? openAiChatModel : ollamaChatModel;
+    }
+
+    private <T> T getIfAvailable(ObjectProvider<T> provider, String name) {
+        try {
+            return provider.getIfAvailable();
+        } catch (Exception e) {
+            log.warn("{} model is unavailable: {}", name, e.getMessage());
+            return null;
+        }
+    }
+
+    private void ensureSessionOwnedByUser(String sessionId, String userId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new IllegalArgumentException("sessionId is required");
+        }
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        if (!sessionId.startsWith(userId + "_")) {
+            throw new IllegalArgumentException("session does not belong to current user");
+        }
+    }
+
+    private String resolveErrorMessage(Throwable error) {
+        String message = error.getMessage();
+        if (message == null) {
+            return "Agent service failed";
+        }
+        if (message.contains("401") || message.contains("Unauthorized") || message.contains("Incorrect API key")) {
+            return "AI API authentication failed";
+        }
+        if (message.contains("429") || message.contains("Rate limit") || message.contains("Too Many Requests")) {
+            return "AI service is rate limited, please retry later";
+        }
+        if (message.contains("timeout") || message.contains("Timeout") || message.contains("timed out")) {
+            return "AI service timed out, please retry";
+        }
+        return "Agent service failed, please retry";
+    }
+
+    private void sendStreamError(SseEmitter emitter, String message) {
+        try {
+            emitter.send(SseEmitter.event().name("error").data(Map.of("error", message)));
+        } catch (Exception e) {
+            log.warn("Agent SSE error send failed: {}", e.getMessage());
+        }
+        emitter.complete();
+    }
+}

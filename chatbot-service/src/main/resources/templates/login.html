@@ -4,371 +4,1441 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Studio | 登录</title>
-    <link href="https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
 
     <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
         :root {
-            --primary-black: #111827;
-            --primary-white: #ffffff;
-            --bg-color: #f8f9fa;
-            --border-light: rgba(0, 0, 0, 0.08);
+            --warm-50: #faf9f7;
+            --warm-100: #f5f3f0;
+            --warm-200: #eae7e2;
+            --warm-300: #d6d1ca;
+            --warm-400: #a8a196;
+            --warm-500: #7c756a;
+            --warm-600: #5c564d;
+            --warm-700: #3d3832;
+            --warm-800: #2a2520;
+            --warm-900: #1a1613;
+            --accent: #c4a882;
+            --accent-light: #d4c4a8;
+            --accent-dim: rgba(196, 168, 130, 0.12);
+            --card-bg: rgba(250, 248, 243, 0.88);
+            --card-border: rgba(120, 104, 82, 0.12);
+            --input-bg: rgba(250, 248, 243, 0.5);
+            --input-border: rgba(120, 104, 82, 0.14);
+            --input-focus: #3d3832;
+            --shadow-sm: 0 1px 4px rgba(80,60,40,0.04);
+            --shadow-md: 0 4px 24px rgba(80,60,40,0.07);
+            --shadow-lg: 0 12px 48px rgba(80,60,40,0.09);
+            --shadow-xl: 0 8px 16px rgba(80,60,40,0.06), 0 24px 56px rgba(80,60,40,0.08);
+            --radius-sm: 10px;
+            --radius-md: 16px;
+            --radius-lg: 24px;
+            --radius-xl: 32px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         body {
-            font-family: 'Inter', 'Noto Sans SC', sans-serif;
-            background-color: var(--bg-color);
+            font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
             min-height: 100vh;
             margin: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #333;
+            color: var(--warm-800);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden;
         }
 
-        .animated-bg {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;
-            background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 25%, #e2e8f0 50%, #f8fafc 75%, #ffffff 100%);
-            background-size: 400% 400%;
-            animation: gradientMove 12s ease infinite;
-        }
-        @keyframes gradientMove {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+        /* ═══════════════════════════════════════════════
+           BACKGROUND SYSTEM — 4 layers
+           ═══════════════════════════════════════════════ */
+
+        /* Layer 1: Base gradient */
+        .bg-base {
+            position: fixed; inset: 0; z-index: 0;
+            background:
+                radial-gradient(ellipse 120% 80% at 50% 0%, rgba(250,249,247,1) 0%, transparent 70%),
+                radial-gradient(ellipse 80% 60% at 20% 15%, rgba(244,238,228,0.6) 0%, transparent 55%),
+                radial-gradient(ellipse 70% 50% at 85% 80%, rgba(234,231,226,0.4) 0%, transparent 50%),
+                linear-gradient(168deg, #faf9f7 0%, #f5f3f0 35%, #f0ece6 65%, #ede8e0 100%);
         }
 
-        .auth-wrapper {
-            width: 440px;
-            max-width: 94vw;
-            position: relative;
+        /* Layer 2: Paper noise texture */
+        .bg-noise {
+            position: fixed; inset: 0; z-index: 1;
+            opacity: 0.32;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+            background-size: 200px 200px;
+            pointer-events: none;
+        }
+
+        /* Layer 3: Vignette — subtle darkening at edges */
+        .bg-vignette {
+            position: fixed; inset: 0; z-index: 1;
+            background: radial-gradient(ellipse 75% 65% at 50% 50%, transparent 35%, rgba(0,0,0,0.03) 100%);
+            pointer-events: none;
+        }
+
+        /* Layer 4: Ambient stage glow — the "stage light" behind the card */
+        .bg-stage-glow {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(1400px, 95vw);
+            height: min(900px, 90vh);
             z-index: 1;
+            background:
+                radial-gradient(ellipse 100% 100% at 50% 45%, rgba(252,250,246,0.85) 0%, rgba(248,245,240,0.5) 35%, rgba(240,236,230,0.2) 60%, transparent 80%);
+            pointer-events: none;
         }
 
-        .auth-card {
-            background: rgba(255,255,255,0.85);
-            backdrop-filter: blur(24px);
-            border: 1px solid var(--border-light);
-            border-radius: 28px;
-            padding: 3rem 2.5rem;
-            box-shadow: 0 8px 40px rgba(0,0,0,0.05);
-            position: relative;
+        /* ═══════════════════════════════════════════════
+           AMBIENT DECORATIONS — Desktop only
+           ═══════════════════════════════════════════════ */
+        .ambient-layer {
+            position: fixed; inset: 0; z-index: 1;
+            pointer-events: none;
             overflow: hidden;
         }
 
-        .brand-header {
-            text-align: center;
-            margin-bottom: 2rem;
+        /* Floating brand text — large, low-contrast but perceptible */
+        .ambient-brand-text {
+            position: absolute;
+            font-size: clamp(3rem, 7vw, 7.5rem);
+            font-weight: 700;
+            color: rgba(60,50,40,0.06);
+            letter-spacing: -2px;
+            user-select: none;
+            white-space: nowrap;
         }
-        .brand-icon {
-            width: 56px; height: 56px;
-            background: var(--primary-black);
+        .ambient-brand-text.above {
+            top: 7%;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: brandDrift 30s ease-in-out infinite alternate;
+        }
+        .ambient-brand-text.below {
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: brandDrift 35s ease-in-out infinite alternate-reverse;
+        }
+        @keyframes brandDrift {
+            from { transform: translateX(-50%) translateX(0); }
+            to { transform: translateX(-50%) translateX(12px); }
+        }
+
+        /* Chat message bubbles — left side, clearly "chat" shaped */
+        .deco-bubble {
+            position: absolute;
+            border-radius: 18px 18px 18px 4px;
+            border: 1px solid rgba(120,104,82,0.1);
+            background: rgba(250,248,243,0.55);
+        }
+        .deco-bubble.b1 {
+            width: 200px; height: 50px;
+            top: 22%; left: 7%;
+            animation: decoDrift1 18s ease-in-out infinite alternate;
+        }
+        .deco-bubble.b2 {
+            width: 160px; height: 46px;
+            top: 32%; left: 11%;
+            border-radius: 18px 18px 4px 18px;
+            animation: decoDrift2 22s ease-in-out infinite alternate;
+        }
+        .deco-bubble.b3 {
+            width: 220px; height: 52px;
+            bottom: 28%; left: 5%;
+            animation: decoDrift3 20s ease-in-out infinite alternate;
+        }
+        .deco-bubble.b4 {
+            width: 170px; height: 46px;
+            top: 40%; left: 8%;
+            border-radius: 18px 18px 4px 18px;
+            animation: decoDrift1 24s ease-in-out infinite alternate-reverse;
+        }
+        @keyframes decoDrift1 {
+            from { transform: translate(0, 0) rotate(-1deg); }
+            to { transform: translate(4px, -6px) rotate(0.5deg); }
+        }
+        @keyframes decoDrift2 {
+            from { transform: translate(0, 0) rotate(0.5deg); }
+            to { transform: translate(-3px, 5px) rotate(-0.8deg); }
+        }
+        @keyframes decoDrift3 {
+            from { transform: translate(0, 0) rotate(-0.5deg); }
+            to { transform: translate(5px, -4px) rotate(0.8deg); }
+        }
+
+        /* Abstract terminal / code window — right side */
+        .deco-terminal {
+            position: absolute;
+            right: 6%;
+            top: 16%;
+            width: 240px;
+            border-radius: 14px;
+            border: 1px solid rgba(120,104,82,0.07);
+            background: rgba(250,248,243,0.4);
+            overflow: hidden;
+            backdrop-filter: blur(4px);
+            animation: decoTerminalDrift 24s ease-in-out infinite alternate;
+        }
+        @keyframes decoTerminalDrift {
+            from { transform: translate(0, 0) rotate(0deg); }
+            to { transform: translate(-6px, 8px) rotate(0.5deg); }
+        }
+        .deco-terminal-bar {
+            height: 30px;
+            background: rgba(120,104,82,0.04);
+            border-bottom: 1px solid rgba(120,104,82,0.06);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 10px;
+        }
+        .deco-terminal-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: rgba(120,104,82,0.1);
+        }
+        .deco-terminal-line {
+            height: 8px;
+            margin: 10px 12px;
+            border-radius: 4px;
+            background: rgba(120,104,82,0.05);
+        }
+        .deco-terminal-line.short { width: 55%; }
+        .deco-terminal-line.medium { width: 75%; }
+        .deco-terminal-line.long { width: 90%; }
+
+        /* Abstract grid dots — scattered */
+        .deco-grid {
+            position: absolute;
+            width: 160px; height: 160px;
+            background-image:
+                radial-gradient(circle, rgba(120,104,82,0.08) 1px, transparent 1px);
+            background-size: 16px 16px;
+        }
+        .deco-grid.g1 { top: 12%; right: 12%; opacity: 0.8; animation: gridDrift 28s ease-in-out infinite alternate; }
+        .deco-grid.g2 { bottom: 14%; left: 11%; opacity: 0.6; transform: rotate(15deg); animation: gridDrift 32s ease-in-out infinite alternate-reverse; }
+        .deco-grid.g3 { top: 55%; right: 8%; opacity: 0.5; width: 120px; height: 120px; animation: gridDrift 26s ease-in-out infinite alternate; }
+        @keyframes gridDrift {
+            from { transform: rotate(15deg) translate(0, 0); }
+            to { transform: rotate(15deg) translate(-4px, 4px); }
+        }
+
+        /* Data flow lines — subtle connecting arcs from card outward */
+        .deco-flow {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 800px; height: 600px;
+            pointer-events: none;
+        }
+        .deco-flow svg {
+            width: 100%; height: 100%;
+            overflow: visible;
+        }
+        .deco-flow line {
+            stroke: rgba(120,104,82,0.06);
+            stroke-width: 1;
+            stroke-dasharray: 4 8;
+        }
+        .deco-flow circle {
+            fill: rgba(196,168,130,0.15);
+        }
+
+        /* Soft floating circles */
+        .deco-circle {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(196,168,130,0.08);
+        }
+        .deco-circle.c1 {
+            width: 240px; height: 240px;
+            top: 6%; left: 16%;
+            animation: circleBreath 20s ease-in-out infinite alternate;
+        }
+        .deco-circle.c2 {
+            width: 200px; height: 200px;
+            bottom: 8%; right: 14%;
+            animation: circleBreath 25s ease-in-out infinite alternate-reverse;
+        }
+        .deco-circle.c3 {
+            width: 140px; height: 140px;
+            top: 56%; left: 6%;
+            background: rgba(120,104,82,0.05);
+            animation: circleBreath 18s ease-in-out infinite alternate;
+        }
+        .deco-circle.c4 {
+            width: 100px; height: 100px;
+            top: 15%; right: 20%;
+            background: rgba(196,168,130,0.06);
+            animation: circleBreath 22s ease-in-out infinite alternate-reverse;
+        }
+        @keyframes circleBreath {
+            from { transform: scale(1) translate(0, 0); }
+            to { transform: scale(1.05) translate(4px, -4px); }
+        }
+
+        /* Left-side code panel */
+        .deco-panel-left {
+            position: absolute;
+            left: 6%;
+            top: 52%;
+            width: 200px;
+            border-radius: 12px;
+            border: 1px solid rgba(120,104,82,0.06);
+            background: rgba(250,248,243,0.35);
+            overflow: hidden;
+            backdrop-filter: blur(4px);
+            animation: decoPanelDrift 26s ease-in-out infinite alternate;
+        }
+        @keyframes decoPanelDrift {
+            from { transform: translate(0, 0) rotate(0deg); }
+            to { transform: translate(5px, -6px) rotate(-0.4deg); }
+        }
+        .deco-panel-bar {
+            height: 26px;
+            background: rgba(120,104,82,0.03);
+            border-bottom: 1px solid rgba(120,104,82,0.05);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 0 8px;
+        }
+
+        /* Abstract wave lines */
+        .deco-wave {
+            position: absolute;
+            bottom: 20%;
+            right: 7%;
+            width: 200px;
+            height: 65px;
+        }
+        .deco-wave svg {
+            width: 100%; height: 100%;
+            stroke: rgba(120,104,82,0.06);
+            stroke-width: 1.2;
+            fill: none;
+        }
+
+        /* Left-side chat conversation panel */
+        .deco-chat-panel {
+            position: absolute;
+            left: 5%;
+            top: 18%;
+            width: 260px;
             border-radius: 16px;
+            border: 1px solid rgba(120,104,82,0.08);
+            background: rgba(250,248,243,0.4);
+            backdrop-filter: blur(6px);
+            padding: 16px;
+            animation: decoPanelDrift 28s ease-in-out infinite alternate;
+        }
+        .deco-chat-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(120,104,82,0.06);
+        }
+        .deco-avatar {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(196,168,130,0.2), rgba(120,104,82,0.12));
+            flex-shrink: 0;
+        }
+        .deco-avatar.user-avatar {
+            background: linear-gradient(135deg, rgba(120,104,82,0.15), rgba(92,86,77,0.1));
+        }
+        .deco-chat-name {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: rgba(60,50,40,0.25);
+        }
+        .deco-chat-msg {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+            align-items: flex-start;
+        }
+        .deco-chat-msg.user-msg {
+            flex-direction: row-reverse;
+        }
+        .deco-chat-bubble {
+            padding: 8px 14px;
+            border-radius: 14px 14px 14px 4px;
+            background: rgba(250,248,243,0.6);
+            border: 1px solid rgba(120,104,82,0.06);
+            max-width: 180px;
+        }
+        .deco-chat-msg.user-msg .deco-chat-bubble {
+            border-radius: 14px 14px 4px 14px;
+            background: rgba(196,168,130,0.1);
+            border-color: rgba(196,168,130,0.12);
+        }
+        .deco-chat-line {
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(120,104,82,0.08);
+            margin-bottom: 5px;
+        }
+        .deco-chat-line:last-child { margin-bottom: 0; }
+        .deco-chat-line.w60 { width: 60%; }
+        .deco-chat-line.w80 { width: 80%; }
+        .deco-chat-line.w45 { width: 45%; }
+        .deco-chat-line.w70 { width: 70%; }
+
+        /* Right-side AI workspace panel */
+        .deco-workspace {
+            position: absolute;
+            right: 5%;
+            bottom: 18%;
+            width: 250px;
+            border-radius: 16px;
+            border: 1px solid rgba(120,104,82,0.08);
+            background: rgba(250,248,243,0.38);
+            backdrop-filter: blur(6px);
+            overflow: hidden;
+            animation: decoTerminalDrift 26s ease-in-out infinite alternate;
+        }
+        .deco-workspace-bar {
+            height: 28px;
+            background: rgba(120,104,82,0.04);
+            border-bottom: 1px solid rgba(120,104,82,0.06);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 0 10px;
+        }
+        .deco-workspace-body {
+            padding: 14px;
+        }
+        .deco-workspace-title {
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: rgba(60,50,40,0.2);
+            margin-bottom: 10px;
+            letter-spacing: 0.3px;
+        }
+        .deco-workspace-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .deco-workspace-icon {
+            width: 24px; height: 24px;
+            border-radius: 6px;
+            background: rgba(120,104,82,0.06);
+            flex-shrink: 0;
+        }
+        .deco-workspace-text {
+            flex: 1;
+        }
+        .deco-workspace-text .deco-chat-line {
+            height: 5px;
+            background: rgba(120,104,82,0.07);
+        }
+
+        /* Bottom prompt bar outline */
+        .deco-prompt-bar {
+            position: absolute;
+            bottom: 6%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: min(560px, 40vw);
+            height: 48px;
+            border-radius: 24px;
+            border: 1px solid rgba(120,104,82,0.07);
+            background: rgba(250,248,243,0.3);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 12px;
+            animation: decoPanelDrift 30s ease-in-out infinite alternate-reverse;
+        }
+        .deco-prompt-icon {
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            background: rgba(120,104,82,0.08);
+            flex-shrink: 0;
+        }
+        .deco-prompt-line {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(120,104,82,0.06);
+        }
+        .deco-prompt-send {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            background: rgba(120,104,82,0.06);
+            flex-shrink: 0;
+        }
+
+        /* ═══════════════════════════════════════════════
+           AUTH STAGE & CARD
+           ═══════════════════════════════════════════════ */
+        .auth-stage {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .auth-wrapper {
+            width: 480px;
+            max-width: 94vw;
+            position: relative;
+            animation: cardEntrance 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+        }
+
+        @keyframes cardEntrance {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.97);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* Card backplate — larger translucent panel behind the card */
+        .auth-backplate {
+            position: absolute;
+            inset: -40px;
+            border-radius: 48px;
+            background:
+                radial-gradient(ellipse 80% 70% at 50% 40%, rgba(252,250,246,0.65) 0%, transparent 70%),
+                rgba(248,246,242,0.5);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(120,104,82,0.07);
+            box-shadow: 0 16px 64px rgba(80,60,40,0.08), 0 0 0 1px rgba(255,255,255,0.35) inset;
+            z-index: -1;
+        }
+
+        .auth-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(40px) saturate(1.2);
+            -webkit-backdrop-filter: blur(40px) saturate(1.2);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-xl);
+            padding: 3rem 2.75rem 2.5rem;
+            box-shadow:
+                var(--shadow-xl),
+                0 0 0 1px rgba(255,255,255,0.4) inset;
+            position: relative;
+            overflow: hidden;
+        }
+        .auth-card::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(245,242,237,0.1) 60%, rgba(238,234,228,0.15) 100%);
+            pointer-events: none;
+        }
+
+        /* ═══════════════════════════════════════════════
+           BRAND HEADER
+           ═══════════════════════════════════════════════ */
+        .brand-header { text-align: center; margin-bottom: 2rem; }
+        .brand-mark {
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            width: 54px; height: 54px;
+            border-radius: 16px;
+            background: #1f1915;
+            margin-bottom: 1.25rem;
+            position: relative;
+            box-shadow:
+                0 2px 12px rgba(31,25,21,0.2),
+                0 0 0 1px rgba(255,255,255,0.06) inset,
+                0 0 24px rgba(196,168,130,0.1);
+        }
+        .brand-mark::after {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, rgba(196,168,130,0.25), transparent 60%);
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        .brand-mark:hover::after { opacity: 1; }
+        .brand-letter {
+            font-size: 1.35rem;
+            font-weight: 700;
             color: #fff;
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
+            letter-spacing: -0.5px;
+            line-height: 1;
+            user-select: none;
+        }
+        .brand-letter span {
+            color: var(--accent);
         }
 
+        .view-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--warm-900);
+            margin-bottom: 0.35rem;
+            letter-spacing: -0.3px;
+            line-height: 1.3;
+        }
+        .view-subtitle {
+            font-size: 0.88rem;
+            color: var(--warm-400);
+            margin: 0;
+            font-weight: 400;
+            letter-spacing: 0.1px;
+        }
+
+        /* ═══════════════════════════════════════════════
+           VIEW TRANSITIONS
+           ═══════════════════════════════════════════════ */
         .form-view {
             display: none;
-            animation: fadeSlideIn 0.35s ease;
         }
-        .form-view.active { display: block; }
+        .form-view.active {
+            display: block;
+            animation: viewEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        .form-view.exit {
+            animation: viewExit 0.25s cubic-bezier(0.4, 0, 1, 1) forwards;
+        }
+        @keyframes viewEnter {
+            from { opacity: 0; transform: translateY(12px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes viewExit {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(-8px) scale(0.99); }
+        }
 
-        @keyframes fadeSlideIn {
-            from { opacity: 0; transform: translateX(20px); }
-            to { opacity: 1; transform: translateX(0); }
+        /* ═══════════════════════════════════════════════
+           ROLE TABS — Segmented Control
+           ═══════════════════════════════════════════════ */
+        .role-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 1.75rem;
+            padding: 4px;
+            background: rgba(238,234,228,0.6);
+            border-radius: var(--radius-md);
+            position: relative;
+        }
+        .role-tab {
+            flex: 1;
+            padding: 0.65rem 0.5rem;
+            border-radius: 12px;
+            border: none;
+            text-align: center;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            font-family: inherit;
+            color: var(--warm-500);
+            background: transparent;
+            transition: all var(--transition);
+            position: relative;
+            z-index: 1;
+            user-select: none;
+            letter-spacing: 0.15px;
+        }
+        .role-tab:hover:not(.active) {
+            color: var(--warm-700);
+            background: rgba(250,248,243,0.5);
+        }
+        .role-tab.active {
+            color: var(--warm-900);
+            background: rgba(250,248,243,0.9);
+            box-shadow: 0 1px 4px rgba(80,60,40,0.06), 0 0 0 1px rgba(120,104,82,0.06);
+            font-weight: 600;
+        }
+        .role-tab-indicator {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: calc(50% - 4px);
+            height: calc(100% - 8px);
+            background: rgba(250,248,243,0.9);
+            border-radius: 12px;
+            box-shadow: 0 1px 4px rgba(80,60,40,0.06), 0 0 0 1px rgba(120,104,82,0.06);
+            transition: transform var(--transition);
+            z-index: 0;
+        }
+        .role-tab-indicator[data-pos="admin"] {
+            transform: translateX(100%);
         }
 
-        .form-control-custom {
-            border: 1.5px solid var(--border-light);
-            border-radius: 14px;
-            padding: 0.75rem 1rem;
-            font-size: 0.92rem;
-            transition: all 0.2s;
-            background: rgba(255,255,255,0.6);
+        /* ═══════════════════════════════════════════════
+           INPUTS
+           ═══════════════════════════════════════════════ */
+        .field-group {
+            margin-bottom: 1rem;
         }
-        .form-control-custom:focus {
-            border-color: var(--primary-black);
-            box-shadow: 0 0 0 3px rgba(17,24,39,0.08);
-            background: #fff;
+        .field-label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--warm-600);
+            margin-bottom: 0.45rem;
+            letter-spacing: 0.2px;
+        }
+        .field-input {
+            width: 100%;
+            border: 1.5px solid var(--input-border);
+            border-radius: var(--radius-sm);
+            padding: 0.72rem 0.9rem;
+            font-size: 0.9rem;
+            font-family: inherit;
+            color: var(--warm-800);
+            background: var(--input-bg);
+            transition: all var(--transition);
             outline: none;
         }
-
-        .btn-primary-custom {
-            width: 100%;
-            padding: 0.85rem;
-            border-radius: 14px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            letter-spacing: 0.3px;
-            border: none;
-            transition: all 0.25s;
-            cursor: pointer;
+        .field-input::placeholder {
+            color: var(--warm-300);
+            font-weight: 400;
         }
-        .btn-login {
-            background: var(--primary-black);
-            color: #fff;
+        .field-input:hover {
+            border-color: rgba(120,104,82,0.22);
+            background: rgba(250,248,243,0.7);
         }
-        .btn-login:hover {
-            background: #1f2937;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        .field-input:focus {
+            border-color: var(--input-focus);
+            background: rgba(252,250,246,0.95);
+            box-shadow: 0 0 0 3px rgba(61,56,50,0.06);
+            outline: none;
         }
-        .btn-register {
-            background: #fff;
-            color: var(--primary-black);
-            border: 2px solid var(--primary-black);
-        }
-        .btn-register:hover {
-            background: var(--primary-black);
-            color: #fff;
+        .field-input:focus-visible {
+            outline: 2px solid var(--input-focus);
+            outline-offset: 2px;
         }
 
-        .send-code-btn {
+        /* Inline validation states */
+        .field-input.valid {
+            border-color: #5a8a5e;
+        }
+        .field-input.invalid {
+            border-color: #a04030;
+            background: rgba(160,64,48,0.03);
+        }
+        .field-error.visible {
+            animation: errorShake 0.4s ease;
+        }
+        @keyframes errorShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-4px); }
+            40% { transform: translateX(4px); }
+            60% { transform: translateX(-2px); }
+            80% { transform: translateX(2px); }
+        }
+
+        /* Button loading state */
+        .btn-submit.loading {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        .btn-submit.loading::before {
+            content: '';
             position: absolute;
-            right: 4px; top: 50%;
-            transform: translateY(-50%);
-            background: var(--primary-black);
+            left: 50%; top: 50%;
+            width: 18px; height: 18px;
+            margin: -9px 0 0 -9px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: btnSpin 0.6s linear infinite;
+        }
+        .btn-submit.loading span { visibility: hidden; }
+        @keyframes btnSpin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ═══════════════════════════════════════════════
+           INPUT ACTION GROUP — email + send code button
+           ═══════════════════════════════════════════════ */
+        .input-action-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .input-action-group .field-input {
+            flex: 1;
+            min-width: 0;
+        }
+        .send-code-btn {
+            flex: 0 0 auto;
+            width: 108px;
+            height: 46px;
+            background: #1f1915;
             color: #fff;
             border: none;
-            border-radius: 10px;
-            padding: 0.4rem 0.9rem;
+            border-radius: var(--radius-sm);
+            padding: 0 0.75rem;
             font-size: 0.78rem;
             font-weight: 500;
+            font-family: inherit;
             cursor: pointer;
-            z-index: 2;
             white-space: nowrap;
-            transition: all 0.2s;
+            transition: all var(--transition);
+            letter-spacing: 0.1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .send-code-btn:hover { background: #1f2937; }
+        .send-code-btn:hover:not(:disabled) {
+            background: #2a2320;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(31,25,21,0.2);
+        }
+        .send-code-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
         .send-code-btn:disabled {
-            background: #94a3b8;
+            background: var(--warm-300);
             cursor: not-allowed;
         }
-        .email-input { padding-right: 5.5rem !important; }
-
-        .switch-link {
-            color: #64748b;
-            font-size: 0.88rem;
-            cursor: pointer;
-            transition: color 0.2s;
+        .send-code-btn:focus-visible {
+            outline: 2px solid var(--input-focus);
+            outline-offset: 2px;
         }
-        .switch-link:hover { color: var(--primary-black); }
-        .switch-link span { font-weight: 600; color: var(--primary-black); text-decoration: underline; }
+
+        /* Password toggle button */
+        .password-wrap {
+            position: relative;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 8px; top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            color: var(--warm-400);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color var(--transition);
+            z-index: 2;
+        }
+        .password-toggle:hover {
+            color: var(--warm-700);
+        }
+        .password-toggle svg {
+            width: 18px; height: 18px;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            fill: none;
+        }
+        .password-wrap .field-input.has-toggle {
+            padding-right: 2.5rem;
+        }
+
+        /* ═══════════════════════════════════════════════
+           ERROR
+           ═══════════════════════════════════════════════ */
+        .field-error {
+            font-size: 0.8rem;
+            color: #a04030;
+            min-height: 0;
+            margin-top: 0.35rem;
+            line-height: 1.4;
+            transition: all 0.2s;
+        }
+        .field-error:empty {
+            min-height: 0;
+            margin-top: 0;
+        }
+
+        /* ═══════════════════════════════════════════════
+           BUTTONS
+           ═══════════════════════════════════════════════ */
+        .btn-submit {
+            width: 100%;
+            padding: 0.82rem;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 0.92rem;
+            font-family: inherit;
+            letter-spacing: 0.2px;
+            border: none;
+            cursor: pointer;
+            transition: all var(--transition);
+            margin-top: 0.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-submit::after {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%);
+            pointer-events: none;
+        }
+        .btn-primary {
+            background: #1f1915;
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(31,25,21,0.2);
+        }
+        .btn-primary:hover {
+            background: #2a2320;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(31,25,21,0.25);
+        }
+        .btn-primary:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(31,25,21,0.15);
+        }
+        .btn-outline {
+            background: rgba(250,248,243,0.6);
+            color: var(--warm-800);
+            border: 1.5px solid rgba(120,104,82,0.15);
+            box-shadow: var(--shadow-sm);
+        }
+        .btn-outline:hover {
+            border-color: rgba(120,104,82,0.3);
+            background: rgba(250,248,243,0.9);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        .btn-outline:active {
+            transform: translateY(0);
+        }
+
+        /* Focus-visible for all interactive elements */
+        .btn-submit:focus-visible,
+        .role-tab:focus-visible,
+        .send-code-btn:focus-visible,
+        .switch-link a:focus-visible,
+        .back-link:focus-visible {
+            outline: 2px solid var(--input-focus);
+            outline-offset: 2px;
+        }
+        .role-tab:focus-visible {
+            outline-offset: 1px;
+        }
+
+        /* Press scale feedback (scale-feedback rule) */
+        .btn-submit:active:not(.loading) {
+            transform: scale(0.98);
+        }
+        .send-code-btn:active:not(:disabled) {
+            transform: scale(0.97);
+        }
+
+        /* Reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+            .ambient-layer { display: none; }
+            .bg-stage-glow { animation: none; }
+            .auth-wrapper { animation: none; opacity: 1; }
+        }
+
+        /* ═══════════════════════════════════════════════
+           LINKS
+           ═══════════════════════════════════════════════ */
+        .switch-link {
+            display: block;
+            text-align: center;
+            margin-top: 1.25rem;
+            font-size: 0.85rem;
+            color: var(--warm-500);
+        }
+        .switch-link a {
+            color: var(--warm-700);
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: color var(--transition);
+            border-bottom: 1px solid transparent;
+            padding-bottom: 1px;
+        }
+        .switch-link a:hover {
+            color: var(--warm-900);
+            border-bottom-color: var(--warm-900);
+        }
+        .switch-link-secondary {
+            display: block;
+            text-align: center;
+            margin-top: 0.6rem;
+            font-size: 0.8rem;
+        }
 
         .back-link {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            color: #64748b;
-            font-size: 0.85rem;
+            gap: 5px;
+            color: var(--warm-500);
+            font-size: 0.84rem;
             cursor: pointer;
             margin-bottom: 1.5rem;
-            transition: color 0.2s;
+            transition: color var(--transition);
+            font-weight: 400;
         }
-        .back-link:hover { color: var(--primary-black); }
+        .back-link:hover { color: var(--warm-700); }
+        .back-link svg {
+            width: 14px; height: 14px;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+            transition: transform 0.2s;
+        }
+        .back-link:hover svg { transform: translateX(-2px); }
 
-        .role-selector {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 1.5rem;
+        /* ═══════════════════════════════════════════════
+           SECTION BADGE
+           ═══════════════════════════════════════════════ */
+        .section-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0.45rem 1.1rem;
+            border-radius: 100px;
+            background: var(--warm-100);
+            color: var(--warm-600);
+            font-size: 0.82rem;
+            font-weight: 500;
+            margin-bottom: 1.25rem;
+            letter-spacing: 0.15px;
         }
-        .role-option {
-            flex: 1;
-            padding: 0.7rem 0.5rem;
-            border-radius: 14px;
-            border: 2px solid var(--border-light);
-            text-align: center;
-            cursor: pointer;
+
+        /* ═══════════════════════════════════════════════
+           TOAST
+           ═══════════════════════════════════════════════ */
+        .toast-msg {
+            position: fixed;
+            bottom: 2rem; left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            z-index: 9999;
+            background: #1f1915;
+            color: #fff;
+            padding: 0.75rem 1.5rem;
+            border-radius: 100px;
             font-size: 0.85rem;
             font-weight: 500;
-            transition: all 0.2s;
-            background: rgba(255,255,255,0.5);
+            box-shadow: 0 8px 32px rgba(31,25,21,0.2);
+            opacity: 0;
+            transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+            pointer-events: none;
+            white-space: nowrap;
+            letter-spacing: 0.1px;
         }
-        .role-option:hover { border-color: #94a3b8; }
-        .role-option.active {
-            border-color: var(--primary-black);
-            background: var(--primary-black);
-            color: #fff;
+        .toast-msg.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
         }
-        .role-option i { display: block; font-size: 1.2rem; margin-bottom: 4px; }
-
-        .error-msg {
-            font-size: 0.82rem;
-            min-height: 1.2rem;
-            margin-top: 0.5rem;
+        .toast-msg.error {
+            background: #922b21;
         }
 
-        .field-icon {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #94a3b8;
-            z-index: 2;
+        /* ═══════════════════════════════════════════════
+           FOOTER — Subtle bottom brand
+           ═══════════════════════════════════════════════ */
+        .page-footer {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            text-align: center;
+            font-size: 0.72rem;
+            color: var(--warm-400);
+            letter-spacing: 0.8px;
+            user-select: none;
+            font-weight: 400;
         }
-        .input-with-icon { padding-left: 2.5rem !important; }
 
-        .toast-custom {
-            position: fixed; bottom: 2rem; right: 2rem; z-index: 9999;
-            background: var(--primary-black); color: #fff;
-            padding: 0.8rem 1.5rem; border-radius: 14px; font-size: 0.9rem;
-            opacity: 0; transform: translateY(20px);
-            transition: all 0.3s ease;
+        /* ═══════════════════════════════════════════════
+           DIVIDER
+           ═══════════════════════════════════════════════ */
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 1.25rem 0;
+            color: var(--warm-300);
+            font-size: 0.78rem;
         }
-        .toast-custom.show { opacity: 1; transform: translateY(0); }
-        .toast-custom.error { background: #dc3545; }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--warm-200);
+        }
+
+        /* ═══════════════════════════════════════════════
+           MOBILE RESPONSIVE
+           ═══════════════════════════════════════════════ */
+        @media (max-width: 768px) {
+            .ambient-layer { display: none; }
+            .bg-stage-glow { opacity: 0.5; }
+            .auth-backplate { display: none; }
+            .page-footer { display: none; }
+        }
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .deco-chat-panel { display: none; }
+            .deco-workspace { display: none; }
+            .deco-prompt-bar { display: none; }
+        }
+        @media (max-width: 480px) {
+            .auth-wrapper { width: 100%; max-width: 94vw; }
+            .auth-card {
+                padding: 2rem 1.5rem 1.75rem;
+                border-radius: var(--radius-lg);
+            }
+            .view-title { font-size: 1.25rem; }
+            .brand-mark { width: 46px; height: 46px; border-radius: 13px; }
+            .brand-letter { font-size: 1.15rem; }
+            .input-action-group { gap: 6px; }
+            .send-code-btn { width: 80px; font-size: 0.72rem; }
+        }
+        @media (max-width: 360px) {
+            .auth-card { padding: 1.5rem 1.25rem 1.5rem; }
+        }
+
+        /* ═══════════════════════════════════════════════
+           LOAD ANIMATION — Ambient layers fade in
+           ═══════════════════════════════════════════════ */
+        .ambient-layer,
+        .bg-stage-glow,
+        .page-footer {
+            animation: ambientFadeIn 1.2s ease 0.3s both;
+        }
+        @keyframes ambientFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
     </style>
 </head>
 <body>
 
-<div class="animated-bg"></div>
+<!-- ═══════════════════════════════════════════════
+     BACKGROUND LAYERS
+     ═══════════════════════════════════════════════ -->
+<div class="bg-base"></div>
+<div class="bg-noise"></div>
+<div class="bg-vignette"></div>
+<div class="bg-stage-glow"></div>
 
-<div class="auth-wrapper">
-    <div class="auth-card">
+<!-- ═══════════════════════════════════════════════
+     AMBIENT DECORATIONS
+     ═══════════════════════════════════════════════ -->
+<div class="ambient-layer">
+    <!-- Large faint brand text -->
+    <div class="ambient-brand-text above">AI Studio</div>
+    <div class="ambient-brand-text below">Intelligent Assistant</div>
 
-        <div class="brand-header">
-            <div class="brand-icon"><i class="bi bi-robot"></i></div>
-            <h4 class="fw-bold mb-1" id="viewTitle">欢迎回来</h4>
-            <p class="text-muted small mb-0" id="viewSubtitle">登录您的账号以继续</p>
+    <!-- Abstract chat bubbles — left side -->
+    <div class="deco-bubble b1"></div>
+    <div class="deco-bubble b2"></div>
+    <div class="deco-bubble b3"></div>
+    <div class="deco-bubble b4"></div>
+
+    <!-- Left-side chat conversation panel -->
+    <div class="deco-chat-panel">
+        <div class="deco-chat-header">
+            <div class="deco-avatar"></div>
+            <div class="deco-chat-name">AI Assistant</div>
         </div>
+        <div class="deco-chat-msg">
+            <div class="deco-avatar" style="width:24px;height:24px;"></div>
+            <div class="deco-chat-bubble">
+                <div class="deco-chat-line w80"></div>
+                <div class="deco-chat-line w60"></div>
+            </div>
+        </div>
+        <div class="deco-chat-msg user-msg">
+            <div class="deco-avatar user-avatar" style="width:24px;height:24px;"></div>
+            <div class="deco-chat-bubble">
+                <div class="deco-chat-line w70"></div>
+            </div>
+        </div>
+        <div class="deco-chat-msg">
+            <div class="deco-avatar" style="width:24px;height:24px;"></div>
+            <div class="deco-chat-bubble">
+                <div class="deco-chat-line w60"></div>
+                <div class="deco-chat-line w80"></div>
+                <div class="deco-chat-line w45"></div>
+            </div>
+        </div>
+    </div>
 
-        <!-- ========== 登录视图 ========== -->
-        <div class="form-view active" id="loginView">
-            <div class="role-selector">
-                <div class="role-option active" data-role="user" onclick="switchRole('user')">
-                    <i class="bi bi-person"></i>普通用户
+    <!-- Left-side code panel -->
+    <div class="deco-panel-left">
+        <div class="deco-panel-bar">
+            <div class="deco-terminal-dot"></div>
+            <div class="deco-terminal-dot"></div>
+            <div class="deco-terminal-dot"></div>
+        </div>
+        <div class="deco-terminal-line long"></div>
+        <div class="deco-terminal-line short"></div>
+        <div class="deco-terminal-line medium"></div>
+    </div>
+
+    <!-- Terminal / code window — right side -->
+    <div class="deco-terminal">
+        <div class="deco-terminal-bar">
+            <div class="deco-terminal-dot"></div>
+            <div class="deco-terminal-dot"></div>
+            <div class="deco-terminal-dot"></div>
+        </div>
+        <div class="deco-terminal-line short"></div>
+        <div class="deco-terminal-line long"></div>
+        <div class="deco-terminal-line medium"></div>
+        <div class="deco-terminal-line short"></div>
+        <div class="deco-terminal-line long"></div>
+    </div>
+
+    <!-- Right-side AI workspace panel -->
+    <div class="deco-workspace">
+        <div class="deco-workspace-bar">
+            <div class="deco-terminal-dot"></div>
+            <div class="deco-terminal-dot"></div>
+            <div class="deco-terminal-dot"></div>
+        </div>
+        <div class="deco-workspace-body">
+            <div class="deco-workspace-title">Recent Tasks</div>
+            <div class="deco-workspace-row">
+                <div class="deco-workspace-icon"></div>
+                <div class="deco-workspace-text">
+                    <div class="deco-chat-line w80"></div>
+                    <div class="deco-chat-line w50" style="width:50%"></div>
                 </div>
-                <div class="role-option" data-role="admin" onclick="switchRole('admin')">
-                    <i class="bi bi-shield-lock"></i>管理员
+            </div>
+            <div class="deco-workspace-row">
+                <div class="deco-workspace-icon"></div>
+                <div class="deco-workspace-text">
+                    <div class="deco-chat-line w60"></div>
+                    <div class="deco-chat-line w70"></div>
                 </div>
             </div>
-
-            <div class="mb-3 position-relative">
-                <i class="bi bi-person field-icon"></i>
-                <input class="form-control form-control-custom input-with-icon"
-                       id="loginUsername" autocomplete="username" placeholder="用户名">
+            <div class="deco-workspace-row">
+                <div class="deco-workspace-icon"></div>
+                <div class="deco-workspace-text">
+                    <div class="deco-chat-line w80"></div>
+                    <div class="deco-chat-line w45"></div>
+                </div>
             </div>
-            <div class="mb-3 position-relative">
-                <i class="bi bi-lock field-icon"></i>
-                <input type="password" class="form-control form-control-custom input-with-icon"
-                       id="loginPassword" autocomplete="current-password" placeholder="密码">
-            </div>
-            <div class="error-msg text-danger" id="loginError"></div>
-            <button class="btn btn-primary-custom btn-login mt-2" onclick="doLogin()">
-                <i class="bi bi-box-arrow-in-right me-2"></i>登录
-            </button>
-
-            <p class="text-center mt-3 mb-0">
-                <span class="switch-link">
-                    没有账号？<span onclick="showRegister()">立即注册</span>
-                </span>
-                <br>
-                <span class="switch-link" style="font-size:0.8rem;">
-                    <span onclick="showForgot()">忘记密码？</span>
-                </span>
-            </p>
         </div>
+    </div>
 
-        <!-- ========== 忘记密码视图 ========== -->
-        <div class="form-view" id="forgotView">
-            <div class="back-link" onclick="showLogin()">
-                <i class="bi bi-arrow-left"></i> 返回登录
-            </div>
+    <!-- Grid dots -->
+    <div class="deco-grid g1"></div>
+    <div class="deco-grid g2"></div>
+    <div class="deco-grid g3"></div>
 
-            <div class="text-center mb-3">
-                <span class="badge rounded-pill py-2 px-4" style="background: #f1f5f9; color: #475569; font-weight: 500; font-size: 0.85rem;">
-                    <i class="bi bi-key me-1"></i>重置密码
-                </span>
-            </div>
+    <!-- Data flow lines — connecting card to ambient space -->
+    <div class="deco-flow">
+        <svg viewBox="0 0 800 600">
+            <line x1="400" y1="300" x2="80" y2="120" />
+            <line x1="400" y1="300" x2="720" y2="100" />
+            <line x1="400" y1="300" x2="60" y2="480" />
+            <line x1="400" y1="300" x2="740" y2="500" />
+            <line x1="400" y1="300" x2="200" y2="60" />
+            <line x1="400" y1="300" x2="600" y2="540" />
+            <line x1="400" y1="300" x2="120" y2="300" />
+            <line x1="400" y1="300" x2="680" y2="300" />
+            <circle cx="80" cy="120" r="3.5" />
+            <circle cx="720" cy="100" r="3.5" />
+            <circle cx="60" cy="480" r="3.5" />
+            <circle cx="740" cy="500" r="3.5" />
+            <circle cx="200" cy="60" r="3" />
+            <circle cx="600" cy="540" r="3" />
+            <circle cx="120" cy="300" r="2.5" />
+            <circle cx="680" cy="300" r="2.5" />
+        </svg>
+    </div>
 
-            <div class="mb-3 position-relative">
-                <i class="bi bi-envelope field-icon"></i>
-                <input type="email" class="form-control form-control-custom input-with-icon email-input"
-                       id="forgotEmail" autocomplete="off" placeholder="注册时使用的邮箱">
-                <button class="send-code-btn" id="forgotSendBtn" onclick="sendForgotCode()">发送验证码</button>
-            </div>
-            <div class="mb-3 position-relative">
-                <i class="bi bi-shield-check field-icon"></i>
-                <input class="form-control form-control-custom input-with-icon"
-                       id="forgotCode" autocomplete="off" placeholder="邮箱验证码">
-            </div>
-            <div class="mb-3 position-relative">
-                <i class="bi bi-lock field-icon"></i>
-                <input type="password" class="form-control form-control-custom input-with-icon"
-                       id="forgotNewPassword" autocomplete="off" placeholder="新密码（至少6位）">
-            </div>
-            <div class="mb-3 position-relative">
-                <i class="bi bi-lock-fill field-icon"></i>
-                <input type="password" class="form-control form-control-custom input-with-icon"
-                       id="forgotConfirmPassword" autocomplete="off" placeholder="确认新密码">
-            </div>
-            <div class="error-msg text-danger" id="forgotError"></div>
-            <button class="btn btn-primary-custom btn-login" onclick="doResetPassword()">
-                <i class="bi bi-check-circle me-2"></i>重置密码
-            </button>
-        </div>
+    <!-- Soft floating circles -->
+    <div class="deco-circle c1"></div>
+    <div class="deco-circle c2"></div>
+    <div class="deco-circle c3"></div>
+    <div class="deco-circle c4"></div>
 
-        <!-- ========== 注册视图 ========== -->
-        <div class="form-view" id="registerView">
-            <div class="back-link" onclick="showLogin()">
-                <i class="bi bi-arrow-left"></i> 返回登录
-            </div>
+    <!-- Wave lines -->
+    <div class="deco-wave">
+        <svg viewBox="0 0 180 60">
+            <path d="M0 30 Q30 10 60 30 T120 30 T180 30" />
+            <path d="M0 40 Q30 20 60 40 T120 40 T180 40" opacity="0.6" />
+            <path d="M0 50 Q30 30 60 50 T120 50 T180 50" opacity="0.3" />
+        </svg>
+    </div>
 
-            <div class="text-center mb-3">
-                <span class="badge rounded-pill py-2 px-4" style="background: #f1f5f9; color: #475569; font-weight: 500; font-size: 0.85rem;">
-                    <i class="bi bi-person me-1"></i>普通用户注册
-                </span>
-            </div>
-
-            <div class="mb-3 position-relative">
-                <i class="bi bi-person field-icon"></i>
-                <input class="form-control form-control-custom input-with-icon"
-                       id="regUsername" autocomplete="off" placeholder="用户名">
-            </div>
-            <div class="mb-3 position-relative">
-                <i class="bi bi-envelope field-icon"></i>
-                <input type="email" class="form-control form-control-custom input-with-icon email-input"
-                       id="regEmail" autocomplete="off" placeholder="邮箱（必填）">
-                <button class="send-code-btn" id="sendCodeBtn" onclick="sendCode()">发送验证码</button>
-            </div>
-            <div class="mb-3 position-relative">
-                <i class="bi bi-shield-check field-icon"></i>
-                <input class="form-control form-control-custom input-with-icon"
-                       id="regCode" autocomplete="off" placeholder="邮箱验证码">
-            </div>
-            <div class="mb-3 position-relative">
-                <i class="bi bi-lock field-icon"></i>
-                <input type="password" class="form-control form-control-custom input-with-icon"
-                       id="regPassword" autocomplete="off" placeholder="密码（至少6位）">
-            </div>
-            <div class="mb-3 position-relative">
-                <i class="bi bi-pencil field-icon"></i>
-                <input class="form-control form-control-custom input-with-icon"
-                       id="regDisplayName" autocomplete="off" placeholder="昵称（选填）">
-            </div>
-            <div class="error-msg text-danger" id="regError"></div>
-            <button class="btn btn-primary-custom btn-register" onclick="doRegister()">
-                <i class="bi bi-person-plus me-2"></i>注册新账号
-            </button>
-
-            <p class="text-center mt-3 mb-0">
-                <span class="switch-link">
-                    已有账号？<span onclick="showLogin()">立即登录</span>
-                </span>
-            </p>
-        </div>
-
+    <!-- Bottom prompt bar outline -->
+    <div class="deco-prompt-bar">
+        <div class="deco-prompt-icon"></div>
+        <div class="deco-prompt-line"></div>
+        <div class="deco-prompt-send"></div>
     </div>
 </div>
 
-<div class="toast-custom" id="toast"></div>
+<!-- ═══════════════════════════════════════════════
+     AUTH STAGE
+     ═══════════════════════════════════════════════ -->
+<div class="auth-stage">
+    <div class="auth-wrapper">
+        <div class="auth-backplate"></div>
+        <div class="auth-card">
+
+            <!-- Brand -->
+            <div class="brand-header">
+                <div class="brand-mark">
+                    <span class="brand-letter">A<span>i</span></span>
+                </div>
+                <h2 class="view-title" id="viewTitle">欢迎回来</h2>
+                <p class="view-subtitle" id="viewSubtitle">登录你的智能助手工作台</p>
+            </div>
+
+            <!-- Login View -->
+            <div class="form-view active" id="loginView">
+                <div class="role-tabs" role="tablist" aria-label="选择角色">
+                    <div class="role-tab-indicator" id="roleIndicator"></div>
+                    <div class="role-tab active" data-role="user" role="tab" aria-selected="true" tabindex="0" onclick="switchRole('user')" onkeydown="if(event.key==='ArrowRight')switchRole('admin')">用户</div>
+                    <div class="role-tab" data-role="admin" role="tab" aria-selected="false" tabindex="-1" onclick="switchRole('admin')" onkeydown="if(event.key==='ArrowLeft')switchRole('user')">管理员</div>
+                </div>
+
+                <div class="field-group">
+                    <label class="field-label" for="loginUsername">用户名</label>
+                    <input class="field-input" id="loginUsername" autocomplete="username" placeholder="请输入用户名" aria-required="true">
+                </div>
+                <div class="field-group">
+                    <label class="field-label" for="loginPassword">密码</label>
+                    <div class="password-wrap">
+                        <input type="password" class="field-input has-toggle" id="loginPassword" autocomplete="current-password" placeholder="请输入密码" aria-required="true">
+                        <button type="button" class="password-toggle" aria-label="显示密码" onclick="togglePassword('loginPassword', this)">
+                            <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="field-error" id="loginError" role="alert" aria-live="polite"></div>
+                <button class="btn-submit btn-primary" onclick="doLogin()" type="button"><span>登录</span></button>
+
+                <p class="switch-link">
+                    还没有账号？<a onclick="showRegister()">立即注册</a>
+                </p>
+                <p class="switch-link switch-link-secondary">
+                    <a onclick="showForgot()">忘记密码？</a>
+                </p>
+            </div>
+
+            <!-- Forgot Password View -->
+            <div class="form-view" id="forgotView">
+                <div class="back-link" onclick="showLogin()">
+                    <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                    返回登录
+                </div>
+
+                <div class="section-badge">重置密码</div>
+
+                <div class="field-group">
+                    <label class="field-label" for="forgotEmail">邮箱</label>
+                    <div class="input-action-group">
+                        <input type="email" class="field-input" id="forgotEmail" autocomplete="off" placeholder="注册时使用的邮箱" aria-required="true">
+                        <button class="send-code-btn" id="forgotSendBtn" onclick="sendForgotCode()" type="button">发送验证码</button>
+                    </div>
+                </div>
+                <div class="field-group">
+                    <label class="field-label" for="forgotCode">验证码</label>
+                    <input class="field-input" id="forgotCode" autocomplete="off" placeholder="请输入邮箱验证码" aria-required="true">
+                </div>
+                <div class="field-group">
+                    <label class="field-label" for="forgotNewPassword">新密码</label>
+                    <div class="password-wrap">
+                        <input type="password" class="field-input has-toggle" id="forgotNewPassword" autocomplete="off" placeholder="至少6位" aria-required="true">
+                        <button type="button" class="password-toggle" aria-label="显示密码" onclick="togglePassword('forgotNewPassword', this)">
+                            <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="field-group">
+                    <label class="field-label" id="forgotConfirmLabel" for="forgotConfirmPassword">确认新密码</label>
+                    <div class="password-wrap">
+                        <input type="password" class="field-input has-toggle" id="forgotConfirmPassword" autocomplete="off" placeholder="再次输入新密码" aria-required="true">
+                        <button type="button" class="password-toggle" aria-label="显示密码" onclick="togglePassword('forgotConfirmPassword', this)">
+                            <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="field-error" id="forgotError" role="alert" aria-live="polite"></div>
+                <button class="btn-submit btn-primary" onclick="doResetPassword()" type="button"><span>重置密码</span></button>
+            </div>
+
+            <!-- Register View -->
+            <div class="form-view" id="registerView">
+                <div class="back-link" onclick="showLogin()">
+                    <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                    返回登录
+                </div>
+
+                <div class="section-badge">创建新账号</div>
+
+                <div class="field-group">
+                    <label class="field-label" for="regUsername">用户名</label>
+                    <input class="field-input" id="regUsername" autocomplete="off" placeholder="请输入用户名" aria-required="true">
+                </div>
+                <div class="field-group">
+                    <label class="field-label" for="regEmail">邮箱</label>
+                    <div class="input-action-group">
+                        <input type="email" class="field-input" id="regEmail" autocomplete="off" placeholder="必填，用于接收验证码" aria-required="true">
+                        <button class="send-code-btn" id="sendCodeBtn" onclick="sendCode()" type="button">发送验证码</button>
+                    </div>
+                </div>
+                <div class="field-group">
+                    <label class="field-label" for="regCode">验证码</label>
+                    <input class="field-input" id="regCode" autocomplete="off" placeholder="请输入邮箱验证码" aria-required="true">
+                </div>
+                <div class="field-group">
+                    <label class="field-label" for="regPassword">密码</label>
+                    <div class="password-wrap">
+                        <input type="password" class="field-input has-toggle" id="regPassword" autocomplete="off" placeholder="至少6位" aria-required="true">
+                        <button type="button" class="password-toggle" aria-label="显示密码" onclick="togglePassword('regPassword', this)">
+                            <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="field-group">
+                    <label class="field-label" for="regDisplayName">昵称</label>
+                    <input class="field-input" id="regDisplayName" autocomplete="off" placeholder="选填">
+                </div>
+                <div class="field-error" id="regError" role="alert" aria-live="polite"></div>
+                <button class="btn-submit btn-outline" onclick="doRegister()" type="button"><span>注册新账号</span></button>
+
+                <p class="switch-link">
+                    已有账号？<a onclick="showLogin()">立即登录</a>
+                </p>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<div class="page-footer">AI Studio &mdash; Intelligent Assistant Platform</div>
+
+<!-- Toast -->
+<div class="toast-msg" id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
@@ -376,60 +1446,93 @@
 
     function switchRole(role) {
         selectedRole = role;
-        document.querySelectorAll('.role-option').forEach(el => {
-            el.classList.toggle('active', el.dataset.role === role);
+        document.querySelectorAll('.role-tab').forEach(function(el) {
+            var isActive = el.dataset.role === role;
+            el.classList.toggle('active', isActive);
+            el.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            el.setAttribute('tabindex', isActive ? '0' : '-1');
         });
+        var indicator = document.getElementById('roleIndicator');
+        if (indicator) {
+            indicator.setAttribute('data-pos', role === 'admin' ? 'admin' : 'user');
+        }
+    }
+
+    function togglePassword(inputId, btn) {
+        var input = document.getElementById(inputId);
+        var isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+        btn.setAttribute('aria-label', isPassword ? '隐藏密码' : '显示密码');
+        btn.innerHTML = isPassword
+            ? '<svg viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+            : '<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
     }
 
     function showRegister() {
         selectedRole = 'user';
-        document.getElementById('loginView').classList.remove('active');
-        document.getElementById('registerView').classList.add('active');
-        document.getElementById('viewTitle').textContent = '创建账号';
-        document.getElementById('viewSubtitle').textContent = '注册后即可使用 AI Studio';
-        document.getElementById('loginError').textContent = '';
-        document.getElementById('regUsername').focus();
+        var loginView = document.getElementById('loginView');
+        var registerView = document.getElementById('registerView');
+        loginView.classList.add('exit');
+        setTimeout(function() {
+            loginView.classList.remove('active', 'exit');
+            registerView.classList.add('active');
+            document.getElementById('viewTitle').textContent = '创建账号';
+            document.getElementById('viewSubtitle').textContent = '开启你的 AI 助手体验';
+            document.getElementById('loginError').textContent = '';
+            document.getElementById('regUsername').focus();
+        }, 200);
     }
 
     function showLogin() {
-        document.getElementById('registerView').classList.remove('active');
-        document.getElementById('forgotView').classList.remove('active');
-        document.getElementById('loginView').classList.add('active');
-        document.getElementById('viewTitle').textContent = '欢迎回来';
-        document.getElementById('viewSubtitle').textContent = '登录您的账号以继续';
-        document.getElementById('regError').textContent = '';
-        document.getElementById('forgotError').textContent = '';
-        document.getElementById('loginUsername').focus();
+        var registerView = document.getElementById('registerView');
+        var forgotView = document.getElementById('forgotView');
+        var loginView = document.getElementById('loginView');
+        var from = registerView.classList.contains('active') ? registerView : forgotView;
+        from.classList.add('exit');
+        setTimeout(function() {
+            registerView.classList.remove('active', 'exit');
+            forgotView.classList.remove('active', 'exit');
+            loginView.classList.add('active');
+            document.getElementById('viewTitle').textContent = '欢迎回来';
+            document.getElementById('viewSubtitle').textContent = '登录你的智能助手工作台';
+            document.getElementById('regError').textContent = '';
+            document.getElementById('forgotError').textContent = '';
+            document.getElementById('loginUsername').focus();
+        }, 200);
     }
 
     function showForgot() {
-        document.getElementById('loginView').classList.remove('active');
-        document.getElementById('registerView').classList.remove('active');
-        document.getElementById('forgotView').classList.add('active');
-        document.getElementById('viewTitle').textContent = '重置密码';
-        document.getElementById('viewSubtitle').textContent = '通过注册邮箱重置您的密码';
-        document.getElementById('loginError').textContent = '';
-        document.getElementById('forgotError').textContent = '';
-        document.getElementById('forgotEmail').focus();
+        var loginView = document.getElementById('loginView');
+        var forgotView = document.getElementById('forgotView');
+        loginView.classList.add('exit');
+        setTimeout(function() {
+            loginView.classList.remove('active', 'exit');
+            forgotView.classList.add('active');
+            document.getElementById('viewTitle').textContent = '重置密码';
+            document.getElementById('viewSubtitle').textContent = '通过注册邮箱找回访问权限';
+            document.getElementById('loginError').textContent = '';
+            document.getElementById('forgotError').textContent = '';
+            document.getElementById('forgotEmail').focus();
+        }, 200);
     }
 
-    let forgotCodeCountdown = 0;
+    var forgotCodeCountdown = 0;
 
     async function sendForgotCode() {
-        const email = document.getElementById('forgotEmail').value.trim();
-        const errEl = document.getElementById('forgotError');
+        var email = document.getElementById('forgotEmail').value.trim();
+        var errEl = document.getElementById('forgotError');
         if (!email) { errEl.textContent = '请输入注册时使用的邮箱'; return; }
         if (forgotCodeCountdown > 0) return;
 
-        const btn = document.getElementById('forgotSendBtn');
+        var btn = document.getElementById('forgotSendBtn');
         btn.disabled = true;
         try {
-            const resp = await fetch('/api/auth/forgot-password', {
+            var resp = await fetch('/api/auth/forgot-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: email })
             });
-            const data = await resp.json();
+            var data = await resp.json();
             if (!resp.ok) { errEl.textContent = data.error || '发送失败'; btn.disabled = false; return; }
             errEl.textContent = '';
             showToast('重置密码验证码已发送至 ' + email, false);
@@ -445,23 +1548,39 @@
     }
 
     async function doResetPassword() {
-        const email = document.getElementById('forgotEmail').value.trim();
-        const code = document.getElementById('forgotCode').value.trim();
-        const newPassword = document.getElementById('forgotNewPassword').value;
-        const confirmPassword = document.getElementById('forgotConfirmPassword').value;
-        const errEl = document.getElementById('forgotError');
+        var email = document.getElementById('forgotEmail').value.trim();
+        var code = document.getElementById('forgotCode').value.trim();
+        var newPassword = document.getElementById('forgotNewPassword').value;
+        var confirmPassword = document.getElementById('forgotConfirmPassword').value;
+        var errEl = document.getElementById('forgotError');
+        var btn = document.querySelector('#forgotView .btn-submit');
 
-        if (!email || !code || !newPassword) { errEl.textContent = '请填写所有必填项'; return; }
-        if (newPassword.length < 6) { errEl.textContent = '密码至少需要6位'; return; }
-        if (newPassword !== confirmPassword) { errEl.textContent = '两次密码不一致'; return; }
+        if (!email || !code || !newPassword) {
+            errEl.textContent = '请填写所有必填项';
+            if (!email) document.getElementById('forgotEmail').focus();
+            else if (!code) document.getElementById('forgotCode').focus();
+            else document.getElementById('forgotNewPassword').focus();
+            return;
+        }
+        if (newPassword.length < 6) {
+            errEl.textContent = '密码至少需要6位';
+            document.getElementById('forgotNewPassword').focus();
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            errEl.textContent = '两次密码不一致';
+            document.getElementById('forgotConfirmPassword').focus();
+            return;
+        }
 
+        btn.classList.add('loading');
         try {
-            const resp = await fetch('/api/auth/reset-password', {
+            var resp = await fetch('/api/auth/reset-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: email, code: code, newPassword: newPassword })
             });
-            const data = await resp.json();
+            var data = await resp.json();
             if (!resp.ok) { errEl.textContent = data.error || '重置失败'; return; }
             showToast('密码已重置，请登录', false);
             showLogin();
@@ -469,13 +1588,17 @@
             document.getElementById('forgotCode').value = '';
             document.getElementById('forgotNewPassword').value = '';
             document.getElementById('forgotConfirmPassword').value = '';
-        } catch (e) { errEl.textContent = '网络错误，请稍后重试'; }
+        } catch (e) {
+            errEl.textContent = '网络错误，请稍后重试';
+        } finally {
+            btn.classList.remove('loading');
+        }
     }
 
     function showToast(msg, isError) {
-        const el = document.getElementById('toast');
+        var el = document.getElementById('toast');
         el.textContent = msg;
-        el.className = 'toast-custom' + (isError ? ' error' : '') + ' show';
+        el.className = 'toast-msg' + (isError ? ' error' : '') + ' show';
         clearTimeout(el._timeout);
         el._timeout = setTimeout(function() { el.classList.remove('show'); }, 3000);
     }
@@ -494,61 +1617,74 @@
     }
 
     function redirectByRole() {
-        if (selectedRole === 'admin') {
-            window.location.href = '/admin';
+        var user = JSON.parse(localStorage.getItem('ai_studio_user') || 'null');
+        var role = user && user.role ? user.role : selectedRole;
+        if (role === 'admin') {
+            window.location.replace('/admin');
         } else {
-            window.location.href = '/chat';
+            window.location.replace('/chat');
         }
     }
 
+    var authFormSubmitting = false;
+
     async function doLogin() {
-        const username = document.getElementById('loginUsername').value.trim();
-        const password = document.getElementById('loginPassword').value;
-        const errEl = document.getElementById('loginError');
+        var username = document.getElementById('loginUsername').value.trim();
+        var password = document.getElementById('loginPassword').value;
+        var errEl = document.getElementById('loginError');
+        var btn = document.querySelector('#loginView .btn-submit');
 
         if (!username || !password) {
             errEl.textContent = '请输入用户名和密码';
+            if (!username) document.getElementById('loginUsername').focus();
+            else document.getElementById('loginPassword').focus();
             return;
         }
 
+        authFormSubmitting = true;
+        btn.classList.add('loading');
         try {
-            const resp = await fetch('/api/auth/login', {
+            var resp = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: username, password: password })
             });
-            const data = await resp.json();
+            var data = await resp.json();
             if (!resp.ok || !data.token) {
                 errEl.textContent = data.error || '登录失败';
+                document.getElementById('loginUsername').focus();
                 return;
             }
             persistAuth(data);
             redirectByRole();
         } catch (e) {
             errEl.textContent = '网络错误，请稍后重试';
+        } finally {
+            btn.classList.remove('loading');
+            authFormSubmitting = false;
         }
     }
 
-    let codeCountdown = 0;
+    var codeCountdown = 0;
 
     async function sendCode() {
-        const email = document.getElementById('regEmail').value.trim();
-        const errEl = document.getElementById('regError');
+        var email = document.getElementById('regEmail').value.trim();
+        var errEl = document.getElementById('regError');
         if (!email) {
             errEl.textContent = '请先输入邮箱';
             return;
         }
         if (codeCountdown > 0) return;
 
-        const btn = document.getElementById('sendCodeBtn');
+        var btn = document.getElementById('sendCodeBtn');
         btn.disabled = true;
         try {
-            const resp = await fetch('/api/auth/send-code', {
+            var resp = await fetch('/api/auth/send-code', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: email })
             });
-            const data = await resp.json();
+            var data = await resp.json();
             if (!resp.ok) {
                 errEl.textContent = data.error || '发送失败';
                 btn.disabled = false;
@@ -575,33 +1711,41 @@
     }
 
     async function doRegister() {
-        const username = document.getElementById('regUsername').value.trim();
-        const email = document.getElementById('regEmail').value.trim();
-        const code = document.getElementById('regCode').value.trim();
-        const password = document.getElementById('regPassword').value;
-        const displayName = document.getElementById('regDisplayName').value.trim();
-        const errEl = document.getElementById('regError');
+        var username = document.getElementById('regUsername').value.trim();
+        var email = document.getElementById('regEmail').value.trim();
+        var code = document.getElementById('regCode').value.trim();
+        var password = document.getElementById('regPassword').value;
+        var displayName = document.getElementById('regDisplayName').value.trim();
+        var errEl = document.getElementById('regError');
+        var btn = document.querySelector('#registerView .btn-submit');
 
         if (!username || !email || !password) {
             errEl.textContent = '请填写所有必填项';
+            if (!username) document.getElementById('regUsername').focus();
+            else if (!email) document.getElementById('regEmail').focus();
+            else document.getElementById('regPassword').focus();
             return;
         }
         if (!code) {
             errEl.textContent = '请输入邮箱验证码';
+            document.getElementById('regCode').focus();
             return;
         }
         if (password.length < 6) {
             errEl.textContent = '密码至少需要6位';
+            document.getElementById('regPassword').focus();
             return;
         }
 
+        authFormSubmitting = true;
+        btn.classList.add('loading');
         try {
-            const resp = await fetch('/api/auth/register', {
+            var resp = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: username, email: email, code: code, password: password, displayName: displayName })
             });
-            const data = await resp.json();
+            var data = await resp.json();
             if (!resp.ok || !data.token) {
                 errEl.textContent = data.error || '注册失败';
                 return;
@@ -612,35 +1756,120 @@
             setTimeout(function() { redirectByRole(); }, 600);
         } catch (e) {
             errEl.textContent = '网络错误，请稍后重试';
+        } finally {
+            btn.classList.remove('loading');
+            authFormSubmitting = false;
         }
     }
 
-    // 回车登录
+    // ── Keyboard Shortcuts ──────────────────────────
     document.getElementById('loginPassword').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') doLogin();
     });
     document.getElementById('loginUsername').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') document.getElementById('loginPassword').focus();
     });
-
-    // 注册回车 - 验证码输入框回车触发注册
     document.getElementById('regCode').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') doRegister();
     });
     document.getElementById('regDisplayName').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') doRegister();
     });
+    document.getElementById('forgotConfirmPassword').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') doResetPassword();
+    });
+    document.getElementById('regPassword').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('regDisplayName').focus();
+    });
+    document.getElementById('forgotNewPassword').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('forgotConfirmPassword').focus();
+    });
+    document.getElementById('forgotCode').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('forgotNewPassword').focus();
+    });
 
-    // 已登录则自动跳转
-    (function autoRedirect() {
+    // ── Inline Validation (on blur) ──────────────────
+    function validateField(input, check) {
+        var errEl = input.closest('.form-view').querySelector('.field-error');
+        var val = input.value.trim();
+        if (!val && input.getAttribute('aria-required') === 'true') {
+            input.classList.remove('valid');
+            return false;
+        }
+        if (check && !check(val)) {
+            input.classList.add('invalid');
+            input.classList.remove('valid');
+            return false;
+        }
+        input.classList.remove('invalid');
+        if (val) input.classList.add('valid');
+        return true;
+    }
+
+    function addBlurValidation(id, checkFn) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('blur', function() {
+            if (el.value.trim()) validateField(el, checkFn);
+        });
+    }
+    addBlurValidation('loginUsername');
+    addBlurValidation('loginPassword');
+    addBlurValidation('regUsername');
+    addBlurValidation('regEmail', function(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); });
+    addBlurValidation('regPassword', function(v) { return v.length >= 6; });
+    addBlurValidation('forgotEmail', function(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); });
+    addBlurValidation('forgotNewPassword', function(v) { return v.length >= 6; });
+
+    function clearAuthState() {
+        localStorage.removeItem('ai_studio_token');
+        localStorage.removeItem('ai_studio_refresh_token');
+        localStorage.removeItem('ai_studio_user');
+    }
+
+    async function refreshLoginToken() {
+        var refreshToken = localStorage.getItem('ai_studio_refresh_token');
+        if (!refreshToken) return false;
+        try {
+            var resp = await fetch('/api/auth/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refreshToken: refreshToken })
+            });
+            if (!resp.ok) return false;
+            var data = await resp.json();
+            if (!data.token) return false;
+            persistAuth(data);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // ── Auto Redirect ───────────────────────────────
+    (async function autoRedirect() {
         var token = localStorage.getItem('ai_studio_token');
         if (!token) return;
-        var user = JSON.parse(localStorage.getItem('ai_studio_user') || 'null');
-        var role = user ? user.role : 'user';
-        if (role === 'admin') {
-            window.location.href = '/admin';
-        } else {
-            window.location.href = '/chat';
+        try {
+            var resp = await fetch('/api/auth/me', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (resp.ok) {
+                var data = await resp.json();
+                if (!authFormSubmitting && localStorage.getItem('ai_studio_token') === token) {
+                    persistAuth(data);
+                    redirectByRole();
+                }
+                return;
+            }
+            if (!authFormSubmitting && localStorage.getItem('ai_studio_token') === token && await refreshLoginToken()) {
+                redirectByRole();
+                return;
+            }
+        } catch (e) {
+            // Stay on the login page and let the user sign in again.
+        }
+        if (!authFormSubmitting && localStorage.getItem('ai_studio_token') === token) {
+            clearAuthState();
         }
     })();
 </script>

@@ -35,6 +35,15 @@ public class KnowledgeDocument {
 
     private Boolean enabled;
 
+    @TableField("index_status")
+    private String indexStatus;
+
+    @TableField("index_error")
+    private String indexError;
+
+    @TableField("indexed_time")
+    private LocalDateTime indexedTime;
+
     @TableField("created_time")
     private LocalDateTime createdTime;
 

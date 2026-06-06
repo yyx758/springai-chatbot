@@ -58,6 +58,14 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- PostgreSQL (optional PGVector connection, only used when app.rag.vector.enabled=true) -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.6.0</version>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- JSON -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

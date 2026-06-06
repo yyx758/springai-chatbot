@@ -1,6 +1,7 @@
 package com.example.file.controller;
 
 import com.example.file.entity.FileRecord;
+import com.example.file.dto.GeneratedKnowledgeFileRequest;
 import com.example.file.service.FileService;
 import com.example.file.storage.FileStorage;
 import jakarta.servlet.http.HttpServletResponse;
@@ -168,6 +169,37 @@ public class FileController {
             );
         } catch (Exception e) {
             log.error("【FileController】知识库文档上传失败", e);
+            return Map.of("success", false, "error", e.getMessage());
+        }
+    }
+
+    @PostMapping("/generated/knowledge")
+    public Map<String, Object> createGeneratedKnowledgeFile(
+            @RequestBody GeneratedKnowledgeFileRequest request,
+            @RequestHeader(value = "X-Auth-UserId", defaultValue = "0") Long uploaderId) {
+        try {
+            if (request == null || request.getContent() == null || request.getContent().isBlank()) {
+                return Map.of("success", false, "error", "content 涓嶈兘涓虹┖");
+            }
+            FileRecord record = fileService.uploadGeneratedKnowledgeMarkdown(
+                    request.getTitle(),
+                    request.getContent(),
+                    request.getBizId(),
+                    uploaderId);
+            return Map.of(
+                    "success", true,
+                    "data", Map.of(
+                            "fileKey", record.getFileKey(),
+                            "url", "/api/files/download/" + record.getFileKey(),
+                            "originalName", record.getOriginalName(),
+                            "fileSize", record.getFileSize(),
+                            "contentType", record.getContentType(),
+                            "bizType", record.getBizType(),
+                            "bizId", record.getBizId() == null ? "" : record.getBizId()
+                    )
+            );
+        } catch (Exception e) {
+            log.error("銆怓ileController銆慉gent鐢熸垚鐭ヨ瘑鏂囨。鍏ュ簱澶辫触", e);
             return Map.of("success", false, "error", e.getMessage());
         }
     }

@@ -147,6 +147,7 @@ public class ChatbotService {
         String key = "chat:history:" + sessionId;
         List<ChatRecord> history = Collections.emptyList();
         boolean cacheHit = false;
+        int historyLimit = Math.max(1, maxHistory);
 
         // --- 1. 尝试从 Redis 读取并计时 ---
         try {
@@ -170,14 +171,20 @@ public class ChatbotService {
         } catch (Exception e) {
             // Redis 不可用时不要阻塞对话流程，直接降级到数据库
             log.warn("Redis 不可用，已降级到 MySQL 查询: {}", e.getMessage());
+            try {
+                redisTemplate.delete(key);
+            } catch (Exception deleteException) {
+                log.warn("Redis 聊天历史缓存删除失败，SessionId: {}, Error: {}", sessionId, deleteException.getMessage());
+            }
         }
 
         if (!cacheHit) {
             long dbStart = System.nanoTime();
             history = chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
                     .eq(ChatRecord::getSessionId, sessionId)
-                    .orderByAsc(ChatRecord::getCreatedTime)
-                    .last("LIMIT " + maxHistory));
+                    .orderByDesc(ChatRecord::getCreatedTime)
+                    .last("LIMIT " + historyLimit));
+            Collections.reverse(history);
             long dbEnd = System.nanoTime();
 
             long dbTimeUs = (dbEnd - dbStart) / 1000; // 转换为微秒
@@ -190,6 +197,7 @@ public class ChatbotService {
                 final List<ChatRecord> finalHistory = history;
                 CompletableFuture.runAsync(() -> {
                     try {
+                        redisTemplate.delete(key);
                         redisTemplate.opsForList().rightPushAll(key, finalHistory.toArray());
                         redisTemplate.expire(key, 2, java.util.concurrent.TimeUnit.HOURS);
                     } catch (Exception e) {
@@ -366,7 +374,7 @@ public class ChatbotService {
             model = getChatModel(request.getModel());
             if (model == null) {
                 sendStreamError(emitter, "未找到可用的聊天模型");
-                return;
+                return;  
             }
         }
 

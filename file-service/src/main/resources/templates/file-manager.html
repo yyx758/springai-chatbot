@@ -3,1109 +3,1288 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Manager - 文件管理</title>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <title>AI Studio | 文件管理</title>
+    <link href="https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        :root {
-            --primary: #2563EB;
-            --primary-hover: #1D4ED8;
-            --secondary: #3B82F6;
-            --accent: #D97706;
-            --background: #F8FAFC;
-            --foreground: #0F172A;
-            --muted: #F1F5F9;
-            --border: #E2E8F0;
-            --destructive: #DC2626;
-            --destructive-hover: #B91C1C;
-            --success: #059669;
-            --ring: #2563EB;
-            --radius: 12px;
-            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --warm-50: #faf9f7;
+            --warm-100: #f5f3f0;
+            --warm-200: #eae7e2;
+            --warm-300: #d6d1ca;
+            --warm-400: #a8a196;
+            --warm-500: #7c756a;
+            --warm-600: #5c564d;
+            --warm-700: #3d3832;
+            --warm-800: #2a2520;
+            --warm-900: #1a1613;
+            --accent: #c4a882;
+            --accent-light: #d4c4a8;
+            --accent-dim: rgba(196, 168, 130, 0.12);
+            --card-bg: rgba(250, 248, 243, 0.88);
+            --card-border: rgba(120, 104, 82, 0.10);
+            --shadow-sm: 0 1px 4px rgba(80,60,40,0.04);
+            --shadow-md: 0 4px 24px rgba(80,60,40,0.06);
+            --shadow-lg: 0 12px 48px rgba(80,60,40,0.08);
+            --radius-sm: 10px;
+            --radius-md: 16px;
+            --radius-lg: 24px;
+            --radius-xl: 32px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --destructive: #dc503c;
+            --destructive-hover: #c43a28;
+            --success: #4ade80;
         }
 
         body {
-            font-family: 'Fira Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: var(--background);
-            color: var(--foreground);
+            font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--warm-50);
+            color: var(--warm-800);
             line-height: 1.6;
             min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
         }
+
+        /* ═══════════════════════════════════════════════
+           BACKGROUND SYSTEM
+           ═══════════════════════════════════════════════ */
+
+        .bg-base {
+            position: fixed; inset: 0; z-index: 0;
+            background:
+                radial-gradient(ellipse 120% 80% at 50% 0%, rgba(250,249,247,1) 0%, transparent 70%),
+                radial-gradient(ellipse 80% 60% at 20% 15%, rgba(244,238,228,0.6) 0%, transparent 55%),
+                radial-gradient(ellipse 70% 50% at 85% 80%, rgba(234,231,226,0.4) 0%, transparent 50%),
+                linear-gradient(168deg, #faf9f7 0%, #f5f3f0 35%, #f0ece6 65%, #ede8e0 100%);
+        }
+
+        .bg-noise {
+            position: fixed; inset: 0; z-index: 1;
+            opacity: 0.22;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+            background-size: 200px 200px;
+            pointer-events: none;
+        }
+
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 1;
+            opacity: 0.03;
+            background-image:
+                linear-gradient(var(--warm-300) 1px, transparent 1px),
+                linear-gradient(90deg, var(--warm-300) 1px, transparent 1px);
+            background-size: 64px 64px;
+            pointer-events: none;
+        }
+
+        .ambient-circle {
+            position: fixed; border-radius: 50%; pointer-events: none; z-index: 1;
+        }
+        .ambient-circle.c1 {
+            width: 450px; height: 450px;
+            top: -100px; right: -80px;
+            background: radial-gradient(circle, rgba(196,168,130,0.06) 0%, transparent 70%);
+        }
+        .ambient-circle.c2 {
+            width: 300px; height: 300px;
+            bottom: -60px; left: -40px;
+            background: radial-gradient(circle, rgba(196,168,130,0.05) 0%, transparent 70%);
+        }
+
+        .ambient-text {
+            position: fixed;
+            font-size: 90px; font-weight: 700;
+            letter-spacing: -0.04em;
+            color: rgba(196,168,130,0.03);
+            pointer-events: none; z-index: 1;
+            user-select: none;
+        }
+        .ambient-text.t1 { top: 8%; right: 3%; transform: rotate(-6deg); }
+        .ambient-text.t2 { bottom: 6%; left: 2%; transform: rotate(4deg); }
+
+        /* ═══════════════════════════════════════════════
+           CONTAINER
+           ═══════════════════════════════════════════════ */
 
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: 2rem 2.5rem 4rem;
+            position: relative; z-index: 10;
         }
 
-        /* Header */
+        /* ═══════════════════════════════════════════════
+           HEADER
+           ═══════════════════════════════════════════════ */
+
         .header {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: space-between;
             margin-bottom: 2rem;
             padding-bottom: 1.5rem;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--card-border);
         }
-
         .header-left {
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 14px;
         }
-
-        .logo-icon {
-            width: 48px;
-            height: 48px;
-            background: var(--primary);
-            border-radius: var(--radius);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.5rem;
+        .brand-monogram {
+            width: 42px; height: 42px;
+            background: linear-gradient(135deg, var(--warm-900) 0%, var(--warm-700) 100%);
+            color: var(--warm-50);
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 12px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.88rem; font-weight: 700;
+            letter-spacing: -0.06em;
+            position: relative; overflow: hidden;
+            flex-shrink: 0;
         }
-
+        .brand-monogram::after {
+            content: '';
+            position: absolute; top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background: linear-gradient(135deg, transparent 40%, rgba(196,168,130,0.15) 50%, transparent 60%);
+            pointer-events: none;
+        }
         .header h1 {
-            font-size: 1.75rem;
+            font-size: 1.4rem;
             font-weight: 600;
-            color: var(--foreground);
+            color: var(--warm-900);
+            letter-spacing: -0.02em;
+            margin-bottom: 0.15rem;
         }
-
         .header p {
-            font-size: 0.875rem;
-            color: #64748B;
+            font-size: 0.82rem;
+            color: var(--warm-400);
         }
 
         .header-stats {
             display: flex;
             gap: 2rem;
         }
-
-        .stat-item {
-            text-align: center;
-        }
-
+        .stat-item { text-align: right; }
         .stat-value {
             font-size: 1.5rem;
-            font-weight: 600;
-            color: var(--primary);
+            font-weight: 700;
+            color: var(--warm-900);
             font-family: 'Fira Code', monospace;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
         }
-
         .stat-label {
-            font-size: 0.75rem;
-            color: #64748B;
+            font-size: 0.68rem;
+            color: var(--warm-400);
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.06em;
+            font-weight: 500;
         }
 
-        /* Upload Area */
+        /* ═══════════════════════════════════════════════
+           UPLOAD ZONE
+           ═══════════════════════════════════════════════ */
+
         .upload-section {
             margin-bottom: 2rem;
         }
 
         .upload-zone {
-            border: 2px dashed var(--border);
-            border-radius: var(--radius);
-            padding: 3rem 2rem;
+            border: 1.5px dashed var(--warm-300);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem 2rem;
             text-align: center;
-            background: white;
-            transition: all 0.2s ease;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            transition: var(--transition);
             cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        .upload-zone::before {
+            content: '';
+            position: absolute; inset: 0;
+            opacity: 0.10;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.3'/%3E%3C/svg%3E");
+            background-size: 180px 180px;
+            pointer-events: none; border-radius: inherit;
         }
 
-        .upload-zone:hover,
+        .upload-zone:hover {
+            border-color: var(--warm-500);
+            background: rgba(255,255,255,0.92);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
         .upload-zone.drag-over {
-            border-color: var(--primary);
-            background: #EFF6FF;
+            border-color: var(--accent);
+            background: rgba(255,255,255,0.95);
+            box-shadow: var(--shadow-lg), 0 0 0 4px var(--accent-dim);
+            transform: translateY(-2px);
         }
 
-        .upload-icon {
-            font-size: 3rem;
-            color: var(--primary);
-            margin-bottom: 1rem;
+        .upload-visual {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 1.25rem;
+            opacity: 0.25;
+        }
+        .upload-visual .doc {
+            width: 44px; height: 56px;
+            border: 1.5px solid var(--warm-400);
+            border-radius: 6px;
+            position: relative;
+        }
+        .upload-visual .doc::before {
+            content: '';
+            position: absolute; top: 10px; left: 8px;
+            width: 60%; height: 4px;
+            background: var(--warm-300);
+            border-radius: 2px;
+        }
+        .upload-visual .doc::after {
+            content: '';
+            position: absolute; top: 20px; left: 8px;
+            width: 40%; height: 3px;
+            background: var(--warm-300);
+            border-radius: 2px;
+            opacity: 0.6;
+        }
+        .upload-visual .doc:nth-child(2) {
+            transform: rotate(2deg) translateY(-4px);
+        }
+        .upload-visual .doc:nth-child(3) {
+            transform: rotate(-1deg) translateY(-2px);
         }
 
         .upload-title {
-            font-size: 1.125rem;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--warm-800);
+            margin-bottom: 0.35rem;
         }
-
         .upload-subtitle {
-            font-size: 0.875rem;
-            color: #64748B;
-            margin-bottom: 1.5rem;
+            font-size: 0.78rem;
+            color: var(--warm-400);
+            margin-bottom: 1.25rem;
         }
 
         .upload-btn {
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            background: var(--primary);
-            color: white;
+            gap: 6px;
+            padding: 0.65rem 1.5rem;
+            background: var(--warm-900);
+            color: var(--warm-50);
             border: none;
-            border-radius: 8px;
-            font-size: 0.875rem;
+            border-radius: 12px;
+            font-size: 0.82rem;
             font-weight: 500;
+            font-family: inherit;
             cursor: pointer;
-            transition: background 0.15s ease;
+            transition: var(--transition);
+            position: relative;
         }
-
         .upload-btn:hover {
-            background: var(--primary-hover);
+            background: var(--warm-700);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(26,22,19,0.2);
         }
 
-        .upload-input {
-            display: none;
-        }
+        .upload-input { display: none; }
 
-        /* Filters */
+        /* ═══════════════════════════════════════════════
+           FILTERS TOOLBAR
+           ═══════════════════════════════════════════════ */
+
         .filters {
             display: flex;
-            gap: 1rem;
+            gap: 12px;
             margin-bottom: 1.5rem;
-            flex-wrap: wrap;
+            align-items: center;
         }
 
         .filter-group {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 8px;
         }
-
         .filter-label {
-            font-size: 0.875rem;
-            color: #64748B;
+            font-size: 0.78rem;
+            color: var(--warm-500);
             font-weight: 500;
+            white-space: nowrap;
         }
 
         .filter-select {
-            padding: 0.5rem 1rem;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-size: 0.875rem;
-            background: white;
-            color: var(--foreground);
+            padding: 0.5rem 2rem 0.5rem 0.85rem;
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            font-size: 0.82rem;
+            font-family: inherit;
+            background: rgba(255,255,255,0.6);
+            color: var(--warm-700);
             cursor: pointer;
             outline: none;
-            transition: border-color 0.15s ease;
+            transition: var(--transition);
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%237c756a' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.6rem center;
+            background-size: 14px 10px;
         }
-
         .filter-select:focus {
-            border-color: var(--ring);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            border-color: var(--warm-700);
+            box-shadow: 0 0 0 3px rgba(61,56,50,0.06);
         }
 
         .search-input {
             flex: 1;
             min-width: 200px;
             padding: 0.5rem 1rem;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-size: 0.875rem;
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            font-size: 0.82rem;
+            font-family: inherit;
+            background: rgba(255,255,255,0.6);
+            color: var(--warm-700);
             outline: none;
-            transition: border-color 0.15s ease;
+            transition: var(--transition);
         }
-
+        .search-input::placeholder { color: var(--warm-400); }
         .search-input:focus {
-            border-color: var(--ring);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            border-color: var(--warm-700);
+            box-shadow: 0 0 0 3px rgba(61,56,50,0.06);
         }
 
-        /* File Table */
+        /* ═══════════════════════════════════════════════
+           FILE TABLE
+           ═══════════════════════════════════════════════ */
+
         .file-table-container {
-            background: white;
-            border-radius: var(--radius);
-            border: 1px solid var(--border);
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
             overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            position: relative;
+        }
+        .file-table-container::before {
+            content: '';
+            position: absolute; inset: 0;
+            opacity: 0.10;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.3'/%3E%3C/svg%3E");
+            background-size: 180px 180px;
+            pointer-events: none; border-radius: inherit;
         }
 
         .file-table {
             width: 100%;
             border-collapse: collapse;
+            position: relative;
         }
-
         .file-table th {
-            background: var(--muted);
-            padding: 1rem 1.25rem;
+            background: rgba(250,248,243,0.5);
+            padding: 0.85rem 1.25rem;
             text-align: left;
-            font-size: 0.75rem;
+            font-size: 0.68rem;
             font-weight: 600;
-            color: #64748B;
+            color: var(--warm-400);
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border-bottom: 1px solid var(--border);
+            letter-spacing: 0.06em;
+            border-bottom: 1px solid var(--card-border);
         }
-
         .file-table td {
-            padding: 1rem 1.25rem;
-            border-bottom: 1px solid var(--border);
-            font-size: 0.875rem;
+            padding: 0.85rem 1.25rem;
+            border-bottom: 1px solid rgba(120,104,82,0.06);
+            font-size: 0.85rem;
+            color: var(--warm-700);
+            transition: var(--transition);
         }
-
-        .file-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .file-table tr:hover {
-            background: #FAFBFC;
+        .file-table tr:last-child td { border-bottom: none; }
+        .file-table tbody tr:hover td {
+            background: rgba(196,168,130,0.04);
         }
 
         .file-name {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 12px;
         }
 
-        .file-icon {
-            width: 40px;
-            height: 40px;
+        .file-type-badge {
+            width: 36px; height: 36px;
             border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.25rem;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.65rem; font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
             flex-shrink: 0;
+            border: 1px solid var(--card-border);
+        }
+        .file-type-badge.image {
+            background: rgba(196,168,130,0.1);
+            color: var(--warm-600);
+        }
+        .file-type-badge.document {
+            background: rgba(250,248,243,0.8);
+            color: var(--warm-600);
+        }
+        .file-type-badge.other {
+            background: var(--warm-100);
+            color: var(--warm-500);
         }
 
-        .file-icon.image {
-            background: #DBEAFE;
-            color: #2563EB;
-        }
-
-        .file-icon.document {
-            background: #FEF3C7;
-            color: #D97706;
-        }
-
-        .file-icon.other {
-            background: #F1F5F9;
-            color: #64748B;
-        }
-
-        .file-info {
-            min-width: 0;
-        }
-
+        .file-info { min-width: 0; }
         .file-title {
             font-weight: 500;
-            color: var(--foreground);
+            color: var(--warm-800);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 300px;
+            max-width: 320px;
+            font-size: 0.85rem;
         }
-
         .file-meta {
-            font-size: 0.75rem;
-            color: #64748B;
+            font-size: 0.7rem;
+            color: var(--warm-400);
+            margin-top: 1px;
         }
 
         .file-size {
             font-family: 'Fira Code', monospace;
-            color: #64748B;
-        }
-
-        .file-date {
-            color: #64748B;
+            font-size: 0.8rem;
+            color: var(--warm-500);
         }
 
         .file-biz-type {
             display: inline-block;
-            padding: 0.25rem 0.75rem;
-            background: var(--muted);
-            border-radius: 100px;
-            font-size: 0.75rem;
+            padding: 3px 10px;
+            background: var(--warm-100);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            font-size: 0.7rem;
             font-weight: 500;
-            color: #64748B;
+            color: var(--warm-600);
+        }
+
+        .file-date {
+            color: var(--warm-500);
+            font-size: 0.8rem;
         }
 
         .file-actions {
             display: flex;
-            gap: 0.5rem;
+            gap: 6px;
         }
-
         .action-btn {
-            width: 36px;
-            height: 36px;
-            border: 1px solid var(--border);
+            width: 32px; height: 32px;
+            border: 1px solid var(--card-border);
             border-radius: 8px;
-            background: white;
-            color: #64748B;
+            background: rgba(255,255,255,0.5);
+            color: var(--warm-500);
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-            transition: all 0.15s ease;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.85rem;
+            transition: var(--transition);
         }
-
         .action-btn:hover {
-            background: var(--muted);
-            color: var(--foreground);
+            background: var(--warm-200);
+            color: var(--warm-800);
+            border-color: var(--warm-400);
         }
-
         .action-btn.download:hover {
-            border-color: var(--primary);
-            color: var(--primary);
+            color: var(--warm-900);
+            border-color: var(--warm-700);
         }
-
         .action-btn.delete:hover {
-            border-color: var(--destructive);
+            border-color: rgba(220,80,60,0.3);
             color: var(--destructive);
-            background: #FEF2F2;
+            background: rgba(220,80,60,0.06);
         }
 
-        /* Empty State */
+        /* ═══════════════════════════════════════════════
+           EMPTY STATE
+           ═══════════════════════════════════════════════ */
+
         .empty-state {
             text-align: center;
             padding: 4rem 2rem;
-            background: white;
-            border-radius: var(--radius);
-            border: 1px solid var(--border);
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            position: relative;
+        }
+        .empty-state::before {
+            content: '';
+            position: absolute; inset: 0;
+            opacity: 0.08;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.3'/%3E%3C/svg%3E");
+            background-size: 180px 180px;
+            pointer-events: none; border-radius: inherit;
         }
 
-        .empty-icon {
-            font-size: 4rem;
-            color: #CBD5E1;
+        .empty-docs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
             margin-bottom: 1.5rem;
+            opacity: 0.15;
+        }
+        .empty-docs .ed {
+            border: 1.5px solid var(--warm-400);
+            border-radius: 8px;
+            position: relative;
+        }
+        .empty-docs .ed:nth-child(1) { width: 50px; height: 64px; transform: rotate(-3deg); }
+        .empty-docs .ed:nth-child(2) { width: 50px; height: 64px; transform: rotate(1deg) translateY(-4px); }
+        .empty-docs .ed:nth-child(3) { width: 50px; height: 64px; transform: rotate(-1deg) translateY(-2px); }
+        .empty-docs .ed::before {
+            content: '';
+            position: absolute; top: 12px; left: 8px;
+            width: 60%; height: 4px;
+            background: var(--warm-300);
+            border-radius: 2px;
+        }
+        .empty-docs .ed::after {
+            content: '';
+            position: absolute; top: 22px; left: 8px;
+            width: 40%; height: 3px;
+            background: var(--warm-300);
+            border-radius: 2px;
+            opacity: 0.6;
         }
 
         .empty-title {
-            font-size: 1.25rem;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--warm-800);
+            margin-bottom: 0.4rem;
         }
-
         .empty-subtitle {
-            color: #64748B;
-            font-size: 0.875rem;
+            color: var(--warm-400);
+            font-size: 0.85rem;
+            max-width: 360px;
+            margin: 0 auto;
         }
 
-        /* Toast */
+        /* ═══════════════════════════════════════════════
+           PAGINATION
+           ═══════════════════════════════════════════════ */
+
+        #paginationBar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-top: 1.5rem;
+            padding: 8px 0;
+        }
+
+        .page-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 16px;
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.6);
+            color: var(--warm-700);
+            font-size: 0.8rem;
+            font-family: inherit;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+            min-height: 34px;
+        }
+        .page-btn:hover:not(:disabled) {
+            background: var(--warm-200);
+            border-color: var(--warm-400);
+        }
+        .page-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+        .page-btn:active:not(:disabled) {
+            transform: scale(0.97);
+        }
+
+        .page-info {
+            color: var(--warm-500);
+            font-size: 0.78rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        /* ═══════════════════════════════════════════════
+           TOAST
+           ═══════════════════════════════════════════════ */
+
         .toast-container {
             position: fixed;
-            top: 1.5rem;
-            right: 1.5rem;
+            top: 1.5rem; right: 1.5rem;
             z-index: 1000;
             display: flex;
             flex-direction: column;
-            gap: 0.75rem;
+            gap: 10px;
         }
-
         .toast {
-            padding: 1rem 1.25rem;
-            background: white;
-            border-radius: 8px;
-            box-shadow: var(--shadow-md);
-            border-left: 4px solid var(--primary);
+            padding: 0.85rem 1.25rem;
+            background: rgba(250,248,243,0.96);
+            backdrop-filter: blur(20px);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(80,60,40,0.12);
+            border: 1px solid var(--card-border);
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 10px;
             animation: slideIn 0.3s ease;
-            min-width: 300px;
+            min-width: 280px;
+            font-size: 0.85rem;
+            color: var(--warm-700);
         }
-
-        .toast.success {
-            border-left-color: var(--success);
-        }
-
-        .toast.error {
-            border-left-color: var(--destructive);
-        }
-
-        .toast-icon {
-            font-size: 1.25rem;
-        }
-
-        .toast.success .toast-icon {
-            color: var(--success);
-        }
-
-        .toast.error .toast-icon {
-            color: var(--destructive);
-        }
-
-        .toast-message {
-            flex: 1;
-            font-size: 0.875rem;
-        }
-
+        .toast.success { border-left: 3px solid #4ade80; }
+        .toast.error { border-left: 3px solid var(--destructive); }
+        .toast-icon { font-size: 1rem; }
+        .toast.success .toast-icon { color: #4ade80; }
+        .toast.error .toast-icon { color: var(--destructive); }
+        .toast-message { flex: 1; }
         .toast-close {
-            background: none;
-            border: none;
-            color: #94A3B8;
-            cursor: pointer;
-            font-size: 1rem;
-            padding: 0.25rem;
+            background: none; border: none;
+            color: var(--warm-400); cursor: pointer;
+            font-size: 1rem; padding: 2px;
+            transition: var(--transition);
         }
+        .toast-close:hover { color: var(--warm-700); }
 
         @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
         }
 
-        /* Preview Modal */
+        /* ═══════════════════════════════════════════════
+           MODAL
+           ═══════════════════════════════════════════════ */
+
         .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
+            position: fixed; inset: 0;
+            background: rgba(26,22,19,0.4);
+            backdrop-filter: blur(4px);
             display: flex;
-            align-items: center;
-            justify-content: center;
+            align-items: center; justify-content: center;
             z-index: 1000;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.2s ease;
+            opacity: 0; visibility: hidden;
+            transition: var(--transition);
         }
-
-        .modal-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
 
         .modal {
-            background: white;
-            border-radius: var(--radius);
+            background: rgba(250,248,243,0.97);
+            backdrop-filter: blur(30px) saturate(1.3);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-xl);
             padding: 2rem;
-            max-width: 500px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
+            max-width: 500px; width: 90%;
+            max-height: 80vh; overflow-y: auto;
+            box-shadow: 0 8px 16px rgba(80,60,40,0.06), 0 24px 56px rgba(80,60,40,0.10);
             transform: scale(0.95);
-            transition: transform 0.2s ease;
+            transition: transform var(--transition);
         }
-
-        .modal-overlay.active .modal {
-            transform: scale(1);
-        }
+        .modal-overlay.active .modal { transform: scale(1); }
 
         .modal-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            display: flex; align-items: center; justify-content: space-between;
             margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--card-border);
         }
-
         .modal-title {
-            font-size: 1.25rem;
-            font-weight: 600;
+            font-size: 1.1rem; font-weight: 600; color: var(--warm-900);
         }
-
         .modal-close {
-            width: 36px;
-            height: 36px;
-            border: none;
-            background: var(--muted);
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.25rem;
-            color: #64748B;
-            transition: background 0.15s ease;
+            width: 32px; height: 32px;
+            border: none; background: var(--warm-100);
+            border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; color: var(--warm-500);
+            transition: var(--transition);
         }
+        .modal-close:hover { background: var(--warm-200); color: var(--warm-800); }
 
-        .modal-close:hover {
-            background: #E2E8F0;
-        }
-
-        .file-detail {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
+        .file-detail { display: flex; flex-direction: column; gap: 0; }
         .detail-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.75rem 0;
-            border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between;
+            padding: 0.7rem 0;
+            border-bottom: 1px solid rgba(120,104,82,0.06);
         }
-
+        .detail-row:last-child { border-bottom: none; }
         .detail-label {
-            font-size: 0.875rem;
-            color: #64748B;
-            font-weight: 500;
+            font-size: 0.82rem; color: var(--warm-400); font-weight: 500;
         }
-
         .detail-value {
-            font-size: 0.875rem;
-            color: var(--foreground);
+            font-size: 0.82rem; color: var(--warm-700);
             font-family: 'Fira Code', monospace;
-            text-align: right;
-            max-width: 60%;
+            text-align: right; max-width: 60%;
             word-break: break-all;
         }
 
         .preview-image {
-            width: 100%;
-            max-height: 300px;
+            width: 100%; max-height: 300px;
             object-fit: contain;
-            border-radius: 8px;
-            background: var(--muted);
+            border-radius: var(--radius-sm);
+            background: var(--warm-100);
             margin-top: 1rem;
         }
 
-        /* Responsive */
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
+        /* ═══════════════════════════════════════════════
+           LOADING
+           ═══════════════════════════════════════════════ */
 
+        .loading {
+            display: flex; align-items: center; justify-content: center;
+            padding: 3rem;
+        }
+        .spinner {
+            width: 32px; height: 32px;
+            border: 2.5px solid var(--warm-200);
+            border-top-color: var(--warm-600);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ═══════════════════════════════════════════════
+           SCROLLBAR
+           ═══════════════════════════════════════════════ */
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--warm-300); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--warm-400); }
+
+        /* ═══════════════════════════════════════════════
+           RESPONSIVE
+           ═══════════════════════════════════════════════ */
+
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
             .header {
                 flex-direction: column;
                 gap: 1rem;
                 align-items: flex-start;
             }
+            .header-stats { width: 100%; justify-content: flex-start; gap: 2rem; }
+            .stat-item { text-align: left; }
+            .filters { flex-direction: column; }
+            .filter-group { width: 100%; }
+            .filter-select, .search-input { flex: 1; }
+            .file-table th:nth-child(4), .file-table td:nth-child(4) { display: none; }
+            .file-title { max-width: 160px; }
+            .ambient-text { display: none; }
+            #paginationBar { flex-wrap: wrap; }
+        }
 
-            .header-stats {
-                width: 100%;
-                justify-content: space-around;
-            }
-
-            .filters {
-                flex-direction: column;
-            }
-
-            .filter-group {
-                width: 100%;
-            }
-
-            .filter-select,
-            .search-input {
-                flex: 1;
-            }
-
-            .file-table th:nth-child(4),
-            .file-table td:nth-child(4) {
-                display: none;
-            }
-
-            .file-title {
-                max-width: 150px;
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
             }
         }
 
-        /* Loading */
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 3rem;
-        }
+        /* ═══════════════════════════════════════════════
+           STAGGER ANIMATION
+           ═══════════════════════════════════════════════ */
 
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid var(--border);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+        .fade-in {
+            opacity: 0; transform: translateY(10px);
+            animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: var(--muted);
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #CBD5E1;
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94A3B8;
+        @keyframes fadeUp {
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-left">
-                <div class="logo-icon">
-                    <i class="bi bi-folder-fill"></i>
-                </div>
-                <div>
-                    <h1>File Manager</h1>
-                    <p>文件存储服务管理后台</p>
-                </div>
-            </div>
-            <div class="header-stats">
-                <div class="stat-item">
-                    <div class="stat-value" id="totalFiles">-</div>
-                    <div class="stat-label">文件总数</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value" id="totalSize">-</div>
-                    <div class="stat-label">总大小</div>
-                </div>
-            </div>
-        </header>
 
-        <!-- Upload Section -->
-        <section class="upload-section">
-            <div class="upload-zone" id="uploadZone">
-                <div class="upload-icon">
-                    <i class="bi bi-cloud-arrow-up"></i>
-                </div>
-                <div class="upload-title">拖拽文件到此处或点击上传</div>
-                <div class="upload-subtitle">支持 JPG, PNG, GIF, WebP, PDF, TXT 等格式，单个文件最大 10MB</div>
-                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
-                    <i class="bi bi-plus-lg"></i>
-                    选择文件
-                </button>
-                <input type="file" id="fileInput" class="upload-input" multiple>
-            </div>
-        </section>
+<!-- Background layers -->
+<div class="bg-base"></div>
+<div class="bg-noise"></div>
+<div class="bg-grid"></div>
+<div class="ambient-circle c1"></div>
+<div class="ambient-circle c2"></div>
+<div class="ambient-text t1">Files</div>
+<div class="ambient-text t2">Asset</div>
 
-        <!-- Filters -->
-        <section class="filters">
-            <div class="filter-group">
-                <label class="filter-label">业务类型:</label>
-                <select class="filter-select" id="bizTypeFilter">
-                    <option value="">全部</option>
-                    <option value="CHAT_IMAGE">聊天图片</option>
-                    <option value="KNOWLEDGE_DOC">知识文档</option>
-                    <option value="AVATAR">头像</option>
-                    <option value="TEST">测试</option>
-                </select>
+<div class="container">
+    <!-- Header -->
+    <header class="header fade-in" style="animation-delay:0.05s;">
+        <div class="header-left">
+            <div class="brand-monogram">Ai</div>
+            <div>
+                <h1>文件管理</h1>
+                <p>文件资产管理工作台</p>
             </div>
-            <input type="text" class="search-input" id="searchInput" placeholder="搜索文件名...">
-        </section>
-
-        <!-- File List -->
-        <section id="fileList">
-            <div class="loading" id="loadingState">
-                <div class="spinner"></div>
-            </div>
-        </section>
-
-        <!-- Pagination -->
-        <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:16px;padding:8px 0;" id="paginationBar">
-            <button class="action-btn" onclick="changePage(-1)" id="prevBtn" style="padding:6px 16px;">← 上一页</button>
-            <span style="color:#64748b;font-size:14px;" id="pageInfo">第 1 页</span>
-            <button class="action-btn" onclick="changePage(1)" id="nextBtn" style="padding:6px 16px;">下一页 →</button>
         </div>
-    </div>
-
-    <!-- Toast Container -->
-    <div class="toast-container" id="toastContainer"></div>
-
-    <!-- Preview Modal -->
-    <div class="modal-overlay" id="previewModal">
-        <div class="modal">
-            <div class="modal-header">
-                <h2 class="modal-title">文件详情</h2>
-                <button class="modal-close" onclick="closeModal()">
-                    <i class="bi bi-x"></i>
-                </button>
+        <div class="header-stats">
+            <div class="stat-item">
+                <div class="stat-value" id="totalFiles">-</div>
+                <div class="stat-label">文件总数</div>
             </div>
-            <div class="file-detail" id="fileDetail"></div>
+            <div class="stat-item">
+                <div class="stat-value" id="totalSize">-</div>
+                <div class="stat-label">总大小</div>
+            </div>
         </div>
+    </header>
+
+    <!-- Upload Section -->
+    <section class="upload-section fade-in" style="animation-delay:0.1s;">
+        <div class="upload-zone" id="uploadZone">
+            <div class="upload-visual">
+                <div class="doc"></div>
+                <div class="doc"></div>
+                <div class="doc"></div>
+            </div>
+            <div class="upload-title">拖拽文件到此处或点击上传</div>
+            <div class="upload-subtitle">支持 JPG, PNG, GIF, WebP, PDF, TXT 等格式，单个文件最大 10MB</div>
+            <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                选择文件
+            </button>
+            <input type="file" id="fileInput" class="upload-input" multiple>
+        </div>
+    </section>
+
+    <!-- Filters -->
+    <section class="filters fade-in" style="animation-delay:0.15s;">
+        <div class="filter-group">
+            <label class="filter-label">业务类型</label>
+            <select class="filter-select" id="bizTypeFilter">
+                <option value="">全部</option>
+                <option value="CHAT_IMAGE">聊天图片</option>
+                <option value="KNOWLEDGE_DOC">知识文档</option>
+                <option value="AVATAR">头像</option>
+                <option value="TEST">测试</option>
+            </select>
+        </div>
+        <input type="text" class="search-input" id="searchInput" placeholder="搜索文件名...">
+    </section>
+
+    <!-- File List -->
+    <section id="fileList" class="fade-in" style="animation-delay:0.2s;">
+        <div class="loading" id="loadingState">
+            <div class="spinner"></div>
+        </div>
+    </section>
+
+    <!-- Pagination -->
+    <div id="paginationBar">
+        <button class="page-btn" onclick="changePage(-1)" id="prevBtn">上一页</button>
+        <span class="page-info" id="pageInfo">第 1 页</span>
+        <button class="page-btn" onclick="changePage(1)" id="nextBtn">下一页</button>
     </div>
+</div>
 
-    <script>
-        const API_BASE = '/api/files';
-        let allFiles = [];
-        let currentPage = 1;
-        let totalPages = 1;
-        // 从 URL 读取当前用户 ID
-        const urlParams = new URLSearchParams(window.location.search);
-        const currentUserId = urlParams.get('userId') || '0';
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
 
-        function getFileHeaders(extra = {}) {
-            const headers = Object.assign({}, extra);
-            if (currentUserId && currentUserId !== '0') {
-                headers['X-Auth-UserId'] = currentUserId;
+<!-- Preview Modal -->
+<div class="modal-overlay" id="previewModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">文件详情</h2>
+            <button class="modal-close" onclick="closeModal()">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+        <div class="file-detail" id="fileDetail"></div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = '/api/files';
+    const authToken = localStorage.getItem('ai_studio_token') || '';
+    let allFiles = [];
+    let currentPage = 1;
+    let totalPages = 1;
+    // 从 URL 读取当前用户 ID
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentUserId = urlParams.get('userId') || '0';
+
+    function getFileHeaders(extra = {}) {
+        const headers = Object.assign({}, extra);
+        if (authToken) {
+            headers['Authorization'] = `Bearer ${authToken}`;
+        }
+        if (currentUserId && currentUserId !== '0') {
+            headers['X-Auth-UserId'] = currentUserId;
+        }
+        return headers;
+    }
+
+    async function fileApiFetch(url, options = {}) {
+        const opts = Object.assign({}, options);
+        opts.headers = getFileHeaders(options.headers || {});
+        return fetch(url, opts);
+    }
+
+    // Format file size
+    function formatSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    // Format date
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // Get file icon class
+    function getFileIconClass(contentType) {
+        if (!contentType) return 'other';
+        if (contentType.startsWith('image/')) return 'image';
+        if (contentType.includes('pdf') || contentType.includes('document') || contentType.includes('text')) return 'document';
+        return 'other';
+    }
+
+    // Get file icon text
+    function getFileIconText(contentType) {
+        if (!contentType) return 'FILE';
+        if (contentType.startsWith('image/')) return 'IMG';
+        if (contentType.includes('pdf')) return 'PDF';
+        if (contentType.includes('text')) return 'TXT';
+        return 'FILE';
+    }
+
+    // Show toast
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+            <i class="toast-icon bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill'}"></i>
+            <span class="toast-message">${message}</span>
+            <button class="toast-close" onclick="this.parentElement.remove()">
+                <i class="bi bi-x"></i>
+            </button>
+        `;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    // Load files
+    async function loadFiles() {
+        const loadingState = document.getElementById('loadingState');
+        loadingState.style.display = 'flex';
+
+        try {
+            const resp = await fileApiFetch(`${API_BASE}?page=${currentPage}&size=20`);
+            const result = await resp.json();
+            if (result.success && result.data) {
+                allFiles = result.data.records || [];
+                totalFiles = result.data.total || 0;
+                totalPages = Math.ceil(totalFiles / 20);
+                renderFiles(allFiles);
+                updateStats();
+                renderPagination();
+            } else {
+                allFiles = [];
+                renderFiles([]);
+                updateStats();
             }
-            return headers;
+        } catch (error) {
+            console.error('Load files failed:', error);
+            showToast('加载文件列表失败', 'error');
+        } finally {
+            loadingState.style.display = 'none';
         }
+    }
 
-        async function fileApiFetch(url, options = {}) {
-            const opts = Object.assign({}, options);
-            opts.headers = getFileHeaders(options.headers || {});
-            return fetch(url, opts);
-        }
+    // Render files
+    function renderFiles(files) {
+        const container = document.getElementById('fileList');
 
-        // Format file size
-        function formatSize(bytes) {
-            if (bytes === 0) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-        }
-
-        // Format date
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            const date = new Date(dateStr);
-            return date.toLocaleDateString('zh-CN', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        }
-
-        // Get file icon class
-        function getFileIconClass(contentType) {
-            if (!contentType) return 'other';
-            if (contentType.startsWith('image/')) return 'image';
-            if (contentType.includes('pdf') || contentType.includes('document') || contentType.includes('text')) return 'document';
-            return 'other';
-        }
-
-        // Get file icon
-        function getFileIcon(contentType) {
-            if (!contentType) return 'bi-file-earmark';
-            if (contentType.startsWith('image/')) return 'bi-file-earmark-image';
-            if (contentType.includes('pdf')) return 'bi-file-earmark-pdf';
-            if (contentType.includes('text')) return 'bi-file-earmark-text';
-            return 'bi-file-earmark';
-        }
-
-        // Show toast
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            toast.innerHTML = `
-                <i class="toast-icon bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill'}"></i>
-                <span class="toast-message">${message}</span>
-                <button class="toast-close" onclick="this.parentElement.remove()">
-                    <i class="bi bi-x"></i>
-                </button>
-            `;
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-
-        // Load files
-        async function loadFiles() {
-            const loadingState = document.getElementById('loadingState');
-            loadingState.style.display = 'flex';
-
-            try {
-                const resp = await fileApiFetch(`${API_BASE}?page=${currentPage}&size=20`);
-                const result = await resp.json();
-                if (result.success && result.data) {
-                    allFiles = result.data.records || [];
-                    totalFiles = result.data.total || 0;
-                    totalPages = Math.ceil(totalFiles / 20);
-                    renderFiles(allFiles);
-                    updateStats();
-                    renderPagination();
-                } else {
-                    allFiles = [];
-                    renderFiles([]);
-                    updateStats();
-                }
-            } catch (error) {
-                console.error('Load files failed:', error);
-                showToast('加载文件列表失败', 'error');
-            } finally {
-                loadingState.style.display = 'none';
-            }
-        }
-
-        // Render files
-        function renderFiles(files) {
-            const container = document.getElementById('fileList');
-
-            if (files.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">
-                            <i class="bi bi-folder2-open"></i>
-                        </div>
-                        <div class="empty-title">暂无文件</div>
-                        <div class="empty-subtitle">上传您的第一个文件开始使用</div>
-                    </div>
-                `;
-                return;
-            }
-
+        if (files.length === 0) {
             container.innerHTML = `
-                <div class="file-table-container">
-                    <table class="file-table">
-                        <thead>
-                            <tr>
-                                <th>文件名</th>
-                                <th>大小</th>
-                                <th>业务类型</th>
-                                <th>上传时间</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${files.map(file => `
-                                <tr>
-                                    <td>
-                                        <div class="file-name">
-                                            <div class="file-icon ${getFileIconClass(file.contentType)}">
-                                                <i class="${getFileIcon(file.contentType)}"></i>
-                                            </div>
-                                            <div class="file-info">
-                                                <div class="file-title">${file.originalName || file.fileKey}</div>
-                                                <div class="file-meta">${file.contentType || '未知类型'}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="file-size">${formatSize(file.fileSize || 0)}</td>
-                                    <td><span class="file-biz-type">${file.bizType || '-'}</span></td>
-                                    <td class="file-date">${formatDate(file.createdTime)}</td>
-                                    <td>
-                                        <div class="file-actions">
-                                            <button class="action-btn download" title="下载" onclick="downloadFile('${file.fileKey}')">
-                                                <i class="bi bi-download"></i>
-                                            </button>
-                                            <button class="action-btn" title="详情" onclick="showFileDetail('${file.fileKey}')">
-                                                <i class="bi bi-info-circle"></i>
-                                            </button>
-                                            <button class="action-btn delete" title="删除" onclick="deleteFile('${file.fileKey}')">
-                                                <i class="bi bi-trash3"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                <div class="empty-state">
+                    <div class="empty-docs">
+                        <div class="ed"></div>
+                        <div class="ed"></div>
+                        <div class="ed"></div>
+                    </div>
+                    <div class="empty-title">还没有文件</div>
+                    <div class="empty-subtitle">上传文档、图片或资料后会在这里统一管理</div>
                 </div>
             `;
+            return;
         }
 
-        // Update stats
-        function updateStats() {
-            document.getElementById('totalFiles').textContent = totalFiles || allFiles.length;
-            const totalSize = allFiles.reduce((sum, file) => sum + (file.fileSize || 0), 0);
-            document.getElementById('totalSize').textContent = formatSize(totalSize);
-        }
+        container.innerHTML = `
+            <div class="file-table-container">
+                <table class="file-table">
+                    <thead>
+                        <tr>
+                            <th>文件名</th>
+                            <th>大小</th>
+                            <th>业务类型</th>
+                            <th>上传时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${files.map(file => `
+                            <tr>
+                                <td>
+                                    <div class="file-name">
+                                        <div class="file-type-badge ${getFileIconClass(file.contentType)}">
+                                            ${getFileIconText(file.contentType)}
+                                        </div>
+                                        <div class="file-info">
+                                            <div class="file-title">${file.originalName || file.fileKey}</div>
+                                            <div class="file-meta">${file.contentType || '未知类型'}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="file-size">${formatSize(file.fileSize || 0)}</td>
+                                <td><span class="file-biz-type">${file.bizType || '-'}</span></td>
+                                <td class="file-date">${formatDate(file.createdTime)}</td>
+                                <td>
+                                    <div class="file-actions">
+                                        <button class="action-btn download" title="下载" onclick="downloadFile('${file.fileKey}')">
+                                            <i class="bi bi-download"></i>
+                                        </button>
+                                        <button class="action-btn" title="详情" onclick="showFileDetail('${file.fileKey}')">
+                                            <i class="bi bi-info-circle"></i>
+                                        </button>
+                                        <button class="action-btn delete" title="删除" onclick="deleteFile('${file.fileKey}')">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
 
-        function renderPagination() {
-            document.getElementById('pageInfo').textContent = `第 ${currentPage} 页，共 ${totalPages} 页`;
-            document.getElementById('prevBtn').disabled = currentPage <= 1;
-            document.getElementById('nextBtn').disabled = currentPage >= totalPages;
-        }
+    // Update stats
+    function updateStats() {
+        document.getElementById('totalFiles').textContent = totalFiles || allFiles.length;
+        const totalSize = allFiles.reduce((sum, file) => sum + (file.fileSize || 0), 0);
+        document.getElementById('totalSize').textContent = formatSize(totalSize);
+    }
 
-        function changePage(delta) {
-            const newPage = currentPage + delta;
-            if (newPage < 1 || newPage > totalPages) return;
-            currentPage = newPage;
-            loadFiles();
-        }
+    function renderPagination() {
+        document.getElementById('pageInfo').textContent = `第 ${currentPage} 页，共 ${totalPages} 页`;
+        document.getElementById('prevBtn').disabled = currentPage <= 1;
+        document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+    }
 
-        // Upload file
-        async function uploadFile(file) {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('bizType', document.getElementById('bizTypeFilter').value || 'TEST');
+    function changePage(delta) {
+        const newPage = currentPage + delta;
+        if (newPage < 1 || newPage > totalPages) return;
+        currentPage = newPage;
+        loadFiles();
+    }
 
-            try {
-                const response = await fileApiFetch(`${API_BASE}/upload`, {
-                    method: 'POST',
-                    body: formData
-                });
+    // Upload file
+    async function uploadFile(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bizType', document.getElementById('bizTypeFilter').value || 'TEST');
 
-                const result = await response.json();
-                if (result.success) {
-                    showToast(`文件 "${file.name}" 上传成功`);
-                    // Add to local list
-                    allFiles.unshift(result.data);
-                    renderFiles(allFiles);
-                    updateStats();
-                } else {
-                    showToast(result.error || '上传失败', 'error');
-                }
-            } catch (error) {
-                console.error('Upload failed:', error);
-                showToast('上传失败: ' + error.message, 'error');
+        try {
+            const response = await fileApiFetch(`${API_BASE}/upload`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                showToast(`文件 "${file.name}" 上传成功`);
+                // Add to local list
+                allFiles.unshift(result.data);
+                renderFiles(allFiles);
+                updateStats();
+            } else {
+                showToast(result.error || '上传失败', 'error');
             }
+        } catch (error) {
+            console.error('Upload failed:', error);
+            showToast('上传失败: ' + error.message, 'error');
         }
+    }
 
-        // Download file
-        function downloadFile(fileKey) {
-            window.open(`${API_BASE}/download/${fileKey}`, '_blank');
-        }
+    // Download file
+    function downloadFile(fileKey) {
+        window.open(`${API_BASE}/download/${fileKey}?userId=${encodeURIComponent(currentUserId)}`, '_blank');
+    }
 
-        // Show file detail
-        async function showFileDetail(fileKey) {
-            try {
-                const response = await fileApiFetch(`${API_BASE}/info/${fileKey}`);
-                const result = await response.json();
+    // Show file detail
+    async function showFileDetail(fileKey) {
+        try {
+            const response = await fileApiFetch(`${API_BASE}/info/${fileKey}`);
+            const result = await response.json();
 
-                if (result.success) {
-                    const file = result.data;
-                    const isImage = file.contentType && file.contentType.startsWith('image/');
+            if (result.success) {
+                const file = result.data;
+                const isImage = file.contentType && file.contentType.startsWith('image/');
 
-                    document.getElementById('fileDetail').innerHTML = `
-                        <div class="detail-row">
-                            <span class="detail-label">文件名</span>
-                            <span class="detail-value">${file.originalName}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">文件 Key</span>
-                            <span class="detail-value">${file.fileKey}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">类型</span>
-                            <span class="detail-value">${file.contentType}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">大小</span>
-                            <span class="detail-value">${formatSize(file.fileSize)}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">业务类型</span>
-                            <span class="detail-value">${file.bizType}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">上传者</span>
-                            <span class="detail-value">${file.uploaderId || '-'}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">上传时间</span>
-                            <span class="detail-value">${formatDate(file.createdTime)}</span>
-                        </div>
-                        ${isImage ? `<img src="${API_BASE}/download/${file.fileKey}" class="preview-image" alt="preview">` : ''}
-                    `;
-                    document.getElementById('previewModal').classList.add('active');
-                } else {
-                    showToast('获取文件信息失败', 'error');
-                }
-            } catch (error) {
+                document.getElementById('fileDetail').innerHTML = `
+                    <div class="detail-row">
+                        <span class="detail-label">文件名</span>
+                        <span class="detail-value">${file.originalName}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">文件 Key</span>
+                        <span class="detail-value">${file.fileKey}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">类型</span>
+                        <span class="detail-value">${file.contentType}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">大小</span>
+                        <span class="detail-value">${formatSize(file.fileSize)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">业务类型</span>
+                        <span class="detail-value">${file.bizType}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">上传者</span>
+                        <span class="detail-value">${file.uploaderId || '-'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">上传时间</span>
+                        <span class="detail-value">${formatDate(file.createdTime)}</span>
+                    </div>
+                    ${isImage ? `<img src="${API_BASE}/download/${file.fileKey}?userId=${encodeURIComponent(currentUserId)}" class="preview-image" alt="preview">` : ''}
+                `;
+                document.getElementById('previewModal').classList.add('active');
+            } else {
                 showToast('获取文件信息失败', 'error');
             }
+        } catch (error) {
+            showToast('获取文件信息失败', 'error');
+        }
+    }
+
+    // Close modal
+    function closeModal() {
+        document.getElementById('previewModal').classList.remove('active');
+    }
+
+    // Delete file
+    async function deleteFile(fileKey) {
+        if (!confirm('确定要删除这个文件吗？此操作不可撤销。')) return;
+
+        try {
+            const response = await fileApiFetch(`${API_BASE}/delete/${fileKey}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                showToast('文件删除成功');
+                allFiles = allFiles.filter(f => f.fileKey !== fileKey);
+                renderFiles(allFiles);
+                updateStats();
+            } else {
+                showToast(result.error || '删除失败', 'error');
+            }
+        } catch (error) {
+            showToast('删除失败', 'error');
+        }
+    }
+
+    // Filter files
+    function filterFiles() {
+        const bizType = document.getElementById('bizTypeFilter').value;
+        const search = document.getElementById('searchInput').value.toLowerCase();
+
+        let filtered = allFiles;
+
+        if (bizType) {
+            filtered = filtered.filter(f => f.bizType === bizType);
         }
 
-        // Close modal
-        function closeModal() {
-            document.getElementById('previewModal').classList.remove('active');
+        if (search) {
+            filtered = filtered.filter(f =>
+                (f.originalName || '').toLowerCase().includes(search) ||
+                (f.fileKey || '').toLowerCase().includes(search)
+            );
         }
 
-        // Delete file
-        async function deleteFile(fileKey) {
-            if (!confirm('确定要删除这个文件吗？此操作不可撤销。')) return;
+        renderFiles(filtered);
+    }
 
-            try {
-                const response = await fileApiFetch(`${API_BASE}/delete/${fileKey}`, {
-                    method: 'DELETE'
-                });
+    // Event listeners
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+        const files = Array.from(e.target.files);
+        files.forEach(file => uploadFile(file));
+        e.target.value = '';
+    });
 
-                const result = await response.json();
-                if (result.success) {
-                    showToast('文件删除成功');
-                    allFiles = allFiles.filter(f => f.fileKey !== fileKey);
-                    renderFiles(allFiles);
-                    updateStats();
-                } else {
-                    showToast(result.error || '删除失败', 'error');
-                }
-            } catch (error) {
-                showToast('删除失败', 'error');
-            }
+    document.getElementById('bizTypeFilter').addEventListener('change', filterFiles);
+    document.getElementById('searchInput').addEventListener('input', filterFiles);
+
+    // Drag and drop
+    const uploadZone = document.getElementById('uploadZone');
+
+    uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadZone.classList.add('drag-over');
+    });
+
+    uploadZone.addEventListener('dragleave', () => {
+        uploadZone.classList.remove('drag-over');
+    });
+
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('drag-over');
+        const files = Array.from(e.dataTransfer.files);
+        files.forEach(file => uploadFile(file));
+    });
+
+    // Close modal on overlay click
+    document.getElementById('previewModal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) {
+            closeModal();
         }
+    });
 
-        // Filter files
-        function filterFiles() {
-            const bizType = document.getElementById('bizTypeFilter').value;
-            const search = document.getElementById('searchInput').value.toLowerCase();
-
-            let filtered = allFiles;
-
-            if (bizType) {
-                filtered = filtered.filter(f => f.bizType === bizType);
-            }
-
-            if (search) {
-                filtered = filtered.filter(f =>
-                    (f.originalName || '').toLowerCase().includes(search) ||
-                    (f.fileKey || '').toLowerCase().includes(search)
-                );
-            }
-
-            renderFiles(filtered);
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeModal();
         }
+    });
 
-        // Event listeners
-        document.getElementById('fileInput').addEventListener('change', (e) => {
-            const files = Array.from(e.target.files);
-            files.forEach(file => uploadFile(file));
-            e.target.value = '';
-        });
-
-        document.getElementById('bizTypeFilter').addEventListener('change', filterFiles);
-        document.getElementById('searchInput').addEventListener('input', filterFiles);
-
-        // Drag and drop
-        const uploadZone = document.getElementById('uploadZone');
-
-        uploadZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadZone.classList.add('drag-over');
-        });
-
-        uploadZone.addEventListener('dragleave', () => {
-            uploadZone.classList.remove('drag-over');
-        });
-
-        uploadZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadZone.classList.remove('drag-over');
-            const files = Array.from(e.dataTransfer.files);
-            files.forEach(file => uploadFile(file));
-        });
-
-        // Close modal on overlay click
-        document.getElementById('previewModal').addEventListener('click', (e) => {
-            if (e.target === e.currentTarget) {
-                closeModal();
-            }
-        });
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeModal();
-            }
-        });
-
-        // Init
-        loadFiles();
-    </script>
+    // Init
+    loadFiles();
+</script>
 </body>
 </html>

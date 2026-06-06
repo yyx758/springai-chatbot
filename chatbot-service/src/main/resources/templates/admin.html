@@ -4,210 +4,622 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Studio | 管理后台</title>
-    <link href="https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
 
     <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
         :root {
-            --primary-black: #111827;
-            --primary-white: #ffffff;
-            --bg-color: #f8f9fa;
-            --border-light: rgba(0, 0, 0, 0.06);
-            --glass-bg: rgba(255, 255, 255, 0.95);
-            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+            --warm-50: #faf9f7;
+            --warm-100: #f5f3f0;
+            --warm-200: #eae7e2;
+            --warm-300: #d6d1ca;
+            --warm-400: #a8a196;
+            --warm-500: #7c756a;
+            --warm-600: #5c564d;
+            --warm-700: #3d3832;
+            --warm-800: #2a2520;
+            --warm-900: #1a1613;
+            --accent: #c4a882;
+            --accent-light: #d4c4a8;
+            --accent-dim: rgba(196, 168, 130, 0.12);
+            --card-bg: rgba(250, 248, 243, 0.88);
+            --card-border: rgba(120, 104, 82, 0.10);
+            --shadow-sm: 0 1px 4px rgba(80,60,40,0.04);
+            --shadow-md: 0 4px 24px rgba(80,60,40,0.06);
+            --shadow-lg: 0 12px 48px rgba(80,60,40,0.08);
+            --shadow-xl: 0 8px 16px rgba(80,60,40,0.06), 0 24px 56px rgba(80,60,40,0.08);
+            --radius-sm: 10px;
+            --radius-md: 16px;
+            --radius-lg: 24px;
+            --radius-xl: 32px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         body {
-            font-family: 'Inter', 'Noto Sans SC', sans-serif;
-            background-color: var(--bg-color);
+            font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
             min-height: 100vh;
             margin: 0;
-            color: #333;
+            color: var(--warm-800);
+            -webkit-font-smoothing: antialiased;
         }
 
-        .animated-bg {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;
-            background: linear-gradient(120deg, #ffffff, #f1f5f9, #ffffff, #e2e8f0);
-            background-size: 300% 300%;
-            animation: gradientMove 15s ease infinite;
+        /* ═══════════════════════════════════════════════
+           BACKGROUND SYSTEM
+           ═══════════════════════════════════════════════ */
+
+        .bg-base {
+            position: fixed; inset: 0; z-index: 0;
+            background:
+                radial-gradient(ellipse 120% 80% at 50% 0%, rgba(250,249,247,1) 0%, transparent 70%),
+                radial-gradient(ellipse 80% 60% at 20% 15%, rgba(244,238,228,0.6) 0%, transparent 55%),
+                radial-gradient(ellipse 70% 50% at 85% 80%, rgba(234,231,226,0.4) 0%, transparent 50%),
+                linear-gradient(168deg, #faf9f7 0%, #f5f3f0 35%, #f0ece6 65%, #ede8e0 100%);
         }
-        @keyframes gradientMove { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+        .bg-noise {
+            position: fixed; inset: 0; z-index: 1;
+            opacity: 0.22;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+            background-size: 200px 200px;
+            pointer-events: none;
+        }
+
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 1;
+            opacity: 0.03;
+            background-image:
+                linear-gradient(var(--warm-300) 1px, transparent 1px),
+                linear-gradient(90deg, var(--warm-300) 1px, transparent 1px);
+            background-size: 64px 64px;
+            pointer-events: none;
+        }
+
+        /* Ambient decorations */
+        .ambient-circle {
+            position: fixed; border-radius: 50%; pointer-events: none; z-index: 1;
+        }
+        .ambient-circle.c1 {
+            width: 500px; height: 500px;
+            top: -120px; right: -100px;
+            background: radial-gradient(circle, rgba(196,168,130,0.07) 0%, transparent 70%);
+        }
+        .ambient-circle.c2 {
+            width: 350px; height: 350px;
+            bottom: -80px; left: -60px;
+            background: radial-gradient(circle, rgba(196,168,130,0.05) 0%, transparent 70%);
+        }
+
+        .ambient-text {
+            position: fixed;
+            font-size: 100px; font-weight: 700;
+            letter-spacing: -0.04em;
+            color: rgba(196,168,130,0.03);
+            pointer-events: none; z-index: 1;
+            user-select: none;
+        }
+        .ambient-text.t1 { top: 10%; right: 3%; transform: rotate(-6deg); }
+        .ambient-text.t2 { bottom: 8%; left: 2%; transform: rotate(4deg); }
+
+        /* ═══════════════════════════════════════════════
+           NAVBAR
+           ═══════════════════════════════════════════════ */
 
         .navbar-custom {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border-light);
-            padding: 1rem 2rem;
+            background: rgba(250, 248, 243, 0.82);
+            backdrop-filter: blur(24px) saturate(1.2);
+            -webkit-backdrop-filter: blur(24px) saturate(1.2);
+            border-bottom: 1px solid var(--card-border);
+            padding: 0.85rem 2.5rem;
+            position: sticky; top: 0; z-index: 50;
         }
 
-        .main-content { max-width: 1400px; margin: 2rem auto; padding: 0 2rem 4rem; }
-
-        .stat-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-light);
-            border-radius: 20px;
-            padding: 1.5rem 2rem;
-            box-shadow: var(--glass-shadow);
-            transition: all 0.3s ease;
+        .brand-mark {
+            display: flex; align-items: center; gap: 12px;
+            text-decoration: none; color: inherit;
         }
-        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.08); }
-
-        .stat-icon {
-            width: 48px; height: 48px;
-            border-radius: 14px;
+        .brand-monogram {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, var(--warm-900) 0%, var(--warm-700) 100%);
+            color: var(--warm-50);
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.3rem;
+            border-radius: 10px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.82rem; font-weight: 700;
+            letter-spacing: -0.06em;
+            position: relative; overflow: hidden;
         }
+        .brand-monogram::after {
+            content: '';
+            position: absolute; top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background: linear-gradient(135deg, transparent 40%, rgba(196,168,130,0.15) 50%, transparent 60%);
+            pointer-events: none;
+        }
+        .brand-title {
+            font-size: 0.95rem; font-weight: 600;
+            color: var(--warm-900); letter-spacing: -0.02em;
+        }
+        .brand-sub {
+            font-size: 0.68rem; color: var(--warm-400);
+            font-weight: 500; letter-spacing: 0.02em;
+        }
+
+        .nav-actions {
+            display: flex; align-items: center; gap: 10px;
+        }
+        .nav-admin-name {
+            font-size: 0.78rem; color: var(--warm-500);
+            font-weight: 500; margin-right: 4px;
+        }
+        .btn-nav {
+            background: transparent;
+            border: 1px solid var(--card-border);
+            color: var(--warm-600);
+            font-size: 0.78rem; font-weight: 500;
+            padding: 5px 14px; border-radius: 20px;
+            cursor: pointer; transition: var(--transition);
+            text-decoration: none;
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .btn-nav:hover {
+            background: var(--warm-900); color: var(--warm-50);
+            border-color: var(--warm-900);
+        }
+        .btn-nav.danger:hover {
+            background: #dc503c; border-color: #dc503c;
+        }
+
+        /* ═══════════════════════════════════════════════
+           MAIN CONTENT
+           ═══════════════════════════════════════════════ */
+
+        .main-content {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 2rem 2.5rem 4rem;
+            position: relative; z-index: 10;
+        }
+
+        /* Dashboard header */
+        .dash-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: 2rem;
+        }
+        .dash-header-left h2 {
+            font-size: 1.5rem; font-weight: 600;
+            color: var(--warm-900); letter-spacing: -0.02em;
+            margin-bottom: 0.3rem;
+        }
+        .dash-header-left p {
+            font-size: 0.85rem; color: var(--warm-400);
+        }
+        .dash-header-right {
+            display: flex; gap: 8px; align-items: center;
+        }
+
+        /* ═══════════════════════════════════════════════
+           SEGMENTED TAB CONTROL
+           ═══════════════════════════════════════════════ */
+
+        .tab-bar {
+            display: inline-flex;
+            background: rgba(250,248,243,0.7);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 4px;
+            margin-bottom: 2rem;
+            gap: 2px;
+        }
+        .tab-btn {
+            background: transparent;
+            border: none;
+            padding: 0.55rem 1.2rem;
+            border-radius: 11px;
+            font-size: 0.82rem; font-weight: 500;
+            color: var(--warm-500);
+            cursor: pointer; transition: var(--transition);
+            display: flex; align-items: center; gap: 6px;
+            font-family: inherit;
+        }
+        .tab-btn:hover { color: var(--warm-800); background: rgba(255,255,255,0.5); }
+        .tab-btn.active {
+            background: var(--warm-900);
+            color: var(--warm-50);
+            box-shadow: 0 2px 8px rgba(26,22,19,0.15);
+        }
+        .tab-btn i { font-size: 0.9rem; opacity: 0.7; }
+        .tab-btn.active i { opacity: 1; }
+
+        /* ═══════════════════════════════════════════════
+           STAT CARDS
+           ═══════════════════════════════════════════════ */
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem 1.75rem;
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition);
+            position: relative; overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute; inset: 0;
+            opacity: 0.12;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.3'/%3E%3C/svg%3E");
+            background-size: 180px 180px;
+            pointer-events: none; border-radius: inherit;
+        }
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--warm-300);
+        }
+        .stat-label {
+            font-size: 0.75rem; font-weight: 500;
+            color: var(--warm-400);
+            text-transform: uppercase; letter-spacing: 0.06em;
+            margin-bottom: 0.6rem;
+        }
+        .stat-value {
+            font-size: 2rem; font-weight: 700;
+            color: var(--warm-900);
+            letter-spacing: -0.03em;
+            line-height: 1;
+            margin-bottom: 0.4rem;
+        }
+        .stat-desc {
+            font-size: 0.72rem; color: var(--warm-400);
+        }
+        .stat-accent {
+            position: absolute; top: 0; right: 0;
+            width: 80px; height: 80px;
+            border-radius: 0 var(--radius-lg) 0 50%;
+            opacity: 0.06;
+        }
+        .stat-accent.a1 { background: var(--warm-900); }
+        .stat-accent.a2 { background: var(--accent); }
+        .stat-accent.a3 { background: var(--warm-600); }
+
+        /* ═══════════════════════════════════════════════
+           SYSTEM OVERVIEW
+           ═══════════════════════════════════════════════ */
+
+        .system-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 2rem;
+        }
+        .sys-item {
+            background: rgba(250,248,243,0.6);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-md);
+            padding: 1rem 1.2rem;
+            transition: var(--transition);
+        }
+        .sys-item:hover {
+            background: rgba(255,255,255,0.7);
+            border-color: var(--warm-300);
+        }
+        .sys-label {
+            font-size: 0.68rem; font-weight: 500;
+            color: var(--warm-400); text-transform: uppercase;
+            letter-spacing: 0.05em; margin-bottom: 0.4rem;
+        }
+        .sys-value {
+            font-size: 0.88rem; font-weight: 600;
+            color: var(--warm-800);
+        }
+        .sys-dot {
+            display: inline-block;
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            margin-right: 5px; vertical-align: middle;
+        }
+        .sys-dot.ok { background: #4ade80; }
+        .sys-dot.warn { background: var(--accent); }
+        .sys-dot.off { background: var(--warm-300); }
+
+        /* ═══════════════════════════════════════════════
+           DATA TABLES
+           ═══════════════════════════════════════════════ */
 
         .data-card {
-            background: var(--glass-bg);
+            background: var(--card-bg);
             backdrop-filter: blur(20px);
-            border: 1px solid var(--border-light);
-            border-radius: 20px;
-            box-shadow: var(--glass-shadow);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
             overflow: hidden;
+            position: relative;
+        }
+        .data-card::before {
+            content: '';
+            position: absolute; inset: 0;
+            opacity: 0.10;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.3'/%3E%3C/svg%3E");
+            background-size: 180px 180px;
+            pointer-events: none; border-radius: inherit;
         }
 
-        .data-card .card-header {
+        .card-header-custom {
             background: transparent;
-            border-bottom: 1px solid var(--border-light);
-            padding: 1.2rem 1.5rem;
-            font-weight: 600;
+            border-bottom: 1px solid var(--card-border);
+            padding: 1rem 1.5rem;
+            display: flex; justify-content: space-between; align-items: center;
+            position: relative;
+        }
+        .card-header-custom h6 {
+            font-size: 0.88rem; font-weight: 600;
+            color: var(--warm-800); margin: 0;
         }
 
-        .table-custom { margin-bottom: 0; }
+        .table-custom { margin-bottom: 0; position: relative; }
         .table-custom th {
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #64748b;
-            border-bottom: 1px solid var(--border-light);
-            padding: 1rem 1.2rem;
+            font-size: 0.7rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            color: var(--warm-400);
+            border-bottom: 1px solid var(--card-border);
+            padding: 0.85rem 1.2rem;
+            background: rgba(250,248,243,0.4);
         }
         .table-custom td {
-            padding: 0.9rem 1.2rem;
+            padding: 0.8rem 1.2rem;
             vertical-align: middle;
-            border-bottom: 1px solid var(--border-light);
+            border-bottom: 1px solid rgba(120,104,82,0.06);
+            font-size: 0.85rem;
+            color: var(--warm-700);
+            transition: var(--transition);
+        }
+        .table-custom tbody tr:hover td {
+            background: rgba(196,168,130,0.04);
         }
 
         .role-badge {
-            font-size: 0.75rem;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-weight: 500;
+            font-size: 0.7rem; font-weight: 600;
+            padding: 3px 10px; border-radius: 20px;
+            letter-spacing: 0.02em;
         }
-        .role-ADMIN { background: #111827; color: #fff; }
-        .role-USER { background: #f1f5f9; color: #475569; }
+        .role-ADMIN { background: var(--warm-900); color: var(--warm-50); }
+        .role-USER { background: var(--warm-100); color: var(--warm-600); border: 1px solid var(--card-border); }
 
-        .nav-pills .nav-link {
-            border-radius: 12px;
-            padding: 0.7rem 1.4rem;
-            color: #64748b;
-            font-weight: 500;
-            margin-right: 0.5rem;
+        .pagination-sm .page-link {
+            border-radius: 8px; margin: 0 2px;
+            border: 1px solid var(--card-border);
+            color: var(--warm-700); font-size: 0.8rem;
+            transition: var(--transition);
         }
-        .nav-pills .nav-link.active { background: var(--primary-black); color: #fff; }
+        .pagination-sm .page-item.active .page-link {
+            background: var(--warm-900); border-color: var(--warm-900);
+            color: var(--warm-50);
+        }
+        .pagination-sm .page-link:hover {
+            background: var(--warm-200);
+        }
 
-        .pagination-sm .page-link { border-radius: 10px; margin: 0 2px; border: none; color: #333; }
-        .pagination-sm .active .page-link { background: var(--primary-black); color: #fff; border-radius: 10px; }
+        .form-select-sm {
+            border-radius: 8px;
+            border: 1px solid var(--card-border);
+            font-size: 0.78rem; color: var(--warm-700);
+            background-color: rgba(250,248,243,0.6);
+            transition: var(--transition);
+        }
+        .form-select-sm:focus {
+            border-color: var(--warm-700);
+            box-shadow: 0 0 0 3px rgba(61,56,50,0.06);
+        }
 
-        .form-select-sm { border-radius: 10px; border: 1px solid var(--border-light); font-size: 0.82rem; }
+        .form-check-input:checked {
+            background-color: var(--warm-900);
+            border-color: var(--warm-900);
+        }
+
+        .btn-refresh {
+            background: transparent;
+            border: 1px solid var(--card-border);
+            color: var(--warm-600);
+            font-size: 0.75rem; font-weight: 500;
+            padding: 4px 12px; border-radius: 8px;
+            cursor: pointer; transition: var(--transition);
+            display: inline-flex; align-items: center; gap: 4px;
+        }
+        .btn-refresh:hover {
+            background: var(--warm-900); color: var(--warm-50);
+            border-color: var(--warm-900);
+        }
+
+        .btn-delete-row {
+            background: transparent;
+            border: 1px solid rgba(220,80,60,0.2);
+            color: #dc503c;
+            font-size: 0.72rem; font-weight: 500;
+            padding: 3px 10px; border-radius: 6px;
+            cursor: pointer; transition: var(--transition);
+        }
+        .btn-delete-row:hover {
+            background: #dc503c; color: #fff;
+            border-color: #dc503c;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--warm-400);
+            font-size: 0.85rem;
+        }
+
+        /* ═══════════════════════════════════════════════
+           TOAST
+           ═══════════════════════════════════════════════ */
+
         .toast-custom {
             position: fixed; bottom: 2rem; right: 2rem; z-index: 9999;
-            background: var(--primary-black); color: #fff;
-            padding: 0.8rem 1.5rem; border-radius: 14px; font-size: 0.9rem;
+            background: var(--warm-900); color: var(--warm-50);
+            padding: 0.75rem 1.5rem; border-radius: 14px;
+            font-size: 0.85rem; font-weight: 500;
+            box-shadow: 0 8px 32px rgba(26,22,19,0.2);
             opacity: 0; transform: translateY(20px);
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .toast-custom.show { opacity: 1; transform: translateY(0); }
-        .toast-custom.error { background: #dc3545; }
+        .toast-custom.error { background: #dc503c; }
+
+        /* ═══════════════════════════════════════════════
+           STAGGER ANIMATION
+           ═══════════════════════════════════════════════ */
+
+        .fade-in {
+            opacity: 0; transform: translateY(12px);
+            animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes fadeUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ═══════════════════════════════════════════════
+           RESPONSIVE
+           ═══════════════════════════════════════════════ */
+
+        @media (max-width: 1024px) {
+            .system-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .navbar-custom { padding: 0.75rem 1rem; }
+            .main-content { padding: 1.5rem 1rem 3rem; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .system-grid { grid-template-columns: 1fr; }
+            .dash-header { flex-direction: column; gap: 1rem; }
+            .tab-bar { flex-wrap: wrap; }
+            .ambient-text { display: none; }
+            .nav-actions { flex-wrap: wrap; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
     </style>
 </head>
 <body>
 
-<div class="animated-bg"></div>
+<!-- Background layers -->
+<div class="bg-base"></div>
+<div class="bg-noise"></div>
+<div class="bg-grid"></div>
+<div class="ambient-circle c1"></div>
+<div class="ambient-circle c2"></div>
+<div class="ambient-text t1">Console</div>
+<div class="ambient-text t2">Admin</div>
 
+<!-- Navbar -->
 <nav class="navbar-custom d-flex justify-content-between align-items-center">
-    <div class="d-flex align-items-center gap-3">
-        <i class="bi bi-shield-lock" style="font-size: 1.4rem;"></i>
-        <h5 class="mb-0 fw-bold">AI Studio 管理后台</h5>
-    </div>
-    <div class="d-flex align-items-center gap-3">
-        <span id="adminName" class="small text-muted"></span>
-        <a href="#" onclick="var u=JSON.parse(localStorage.getItem('ai_studio_user')||'{}').userId||0;window.open('http://'+window.location.hostname+':8081/admin/files?userId='+u,'_blank');return false;" class="btn btn-sm btn-outline-dark">
-            <i class="bi bi-folder me-1"></i>文件管理
+    <a class="brand-mark" href="/chat">
+        <div class="brand-monogram">Ai</div>
+        <div>
+            <div class="brand-title">AI Studio</div>
+            <div class="brand-sub">管理后台</div>
+        </div>
+    </a>
+    <div class="nav-actions">
+        <span id="adminName" class="nav-admin-name"></span>
+        <a href="#" onclick="var u=JSON.parse(localStorage.getItem('ai_studio_user')||'{}').userId||0;window.open('/admin/files?userId='+u,'_blank');return false;" class="btn-nav">
+            文件管理
         </a>
-        <a href="/chat" class="btn btn-sm btn-outline-dark">返回聊天</a>
-        <button class="btn btn-sm btn-outline-danger" onclick="doLogout()">退出</button>
+        <a href="/chat" class="btn-nav">返回聊天</a>
+        <button class="btn-nav danger" onclick="doLogout()">退出</button>
     </div>
 </nav>
 
 <main class="main-content">
 
-    <ul class="nav nav-pills mb-4" id="adminTabs">
-        <li class="nav-item">
-            <button class="nav-link active" data-tab="dashboard" onclick="switchTab('dashboard')">
-                <i class="bi bi-speedometer2 me-1"></i>仪表盘
-            </button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link" data-tab="users" onclick="switchTab('users')">
-                <i class="bi bi-people me-1"></i>用户管理
-            </button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link" data-tab="documents" onclick="switchTab('documents')">
-                <i class="bi bi-files me-1"></i>文档管理
-            </button>
-        </li>
-    </ul>
+    <!-- Dashboard header -->
+    <div class="dash-header fade-in" style="animation-delay:0.05s;">
+        <div class="dash-header-left">
+            <h2>管理工作台</h2>
+            <p>管理用户、知识文档与助手资源</p>
+        </div>
+    </div>
 
+    <!-- Tab bar -->
+    <div class="tab-bar fade-in" style="animation-delay:0.1s;" id="adminTabs">
+        <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">
+            <i class="bi bi-grid-1x2"></i>仪表盘
+        </button>
+        <button class="tab-btn" data-tab="users" onclick="switchTab('users')">
+            <i class="bi bi-people"></i>用户管理
+        </button>
+        <button class="tab-btn" data-tab="documents" onclick="switchTab('documents')">
+            <i class="bi bi-file-earmark-text"></i>文档管理
+        </button>
+    </div>
+
+    <!-- ═══ Dashboard Tab ═══ -->
     <div id="tab-dashboard">
-        <div class="row g-4 mb-4" id="statsRow">
-            <div class="col-md-4">
-                <div class="stat-card d-flex align-items-center gap-3">
-                    <div class="stat-icon" style="background: #dbeafe; color: #2563eb;">
-                        <i class="bi bi-people-fill"></i>
-                    </div>
-                    <div>
-                        <div class="small text-muted">用户总数</div>
-                        <div class="fw-bold fs-4" id="statUsers">-</div>
-                    </div>
-                </div>
+        <!-- Stats -->
+        <div class="stats-grid fade-in" style="animation-delay:0.15s;" id="statsRow">
+            <div class="stat-card">
+                <div class="stat-accent a1"></div>
+                <div class="stat-label">用户总数</div>
+                <div class="stat-value" id="statUsers">-</div>
+                <div class="stat-desc">当前注册用户</div>
             </div>
-            <div class="col-md-4">
-                <div class="stat-card d-flex align-items-center gap-3">
-                    <div class="stat-icon" style="background: #d1fae5; color: #059669;">
-                        <i class="bi bi-chat-dots-fill"></i>
-                    </div>
-                    <div>
-                        <div class="small text-muted">总对话数</div>
-                        <div class="fw-bold fs-4" id="statChats">-</div>
-                    </div>
-                </div>
+            <div class="stat-card">
+                <div class="stat-accent a2"></div>
+                <div class="stat-label">总对话数</div>
+                <div class="stat-value" id="statChats">-</div>
+                <div class="stat-desc">累计会话记录</div>
             </div>
-            <div class="col-md-4">
-                <div class="stat-card d-flex align-items-center gap-3">
-                    <div class="stat-icon" style="background: #fef3c7; color: #d97706;">
-                        <i class="bi bi-file-text-fill"></i>
-                    </div>
-                    <div>
-                        <div class="small text-muted">知识文档</div>
-                        <div class="fw-bold fs-4" id="statDocs">-</div>
-                    </div>
-                </div>
+            <div class="stat-card">
+                <div class="stat-accent a3"></div>
+                <div class="stat-label">知识文档</div>
+                <div class="stat-value" id="statDocs">-</div>
+                <div class="stat-desc">已索引知识文档</div>
+            </div>
+        </div>
+
+        <!-- System overview -->
+        <div class="system-grid fade-in" style="animation-delay:0.25s;">
+            <div class="sys-item">
+                <div class="sys-label">聊天服务</div>
+                <div class="sys-value"><span class="sys-dot ok"></span>运行中</div>
+            </div>
+            <div class="sys-item">
+                <div class="sys-label">RAG 索引</div>
+                <div class="sys-value"><span class="sys-dot ok"></span>已启用</div>
+            </div>
+            <div class="sys-item">
+                <div class="sys-label">默认模型</div>
+                <div class="sys-value">DeepSeek v3</div>
+            </div>
+            <div class="sys-item">
+                <div class="sys-label">文件存储</div>
+                <div class="sys-value"><span class="sys-dot ok"></span>正常</div>
             </div>
         </div>
     </div>
 
+    <!-- ═══ Users Tab ═══ -->
     <div id="tab-users" class="d-none">
-        <div class="data-card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-people me-2"></i>用户列表</span>
-                <button class="btn btn-sm btn-outline-dark" onclick="loadUsers(userPage)"><i class="bi bi-arrow-clockwise me-1"></i>刷新</button>
+        <div class="data-card fade-in">
+            <div class="card-header-custom">
+                <h6>用户列表</h6>
+                <button class="btn-refresh" onclick="loadUsers(userPage)"><i class="bi bi-arrow-clockwise"></i>刷新</button>
             </div>
             <div class="table-responsive">
                 <table class="table table-custom">
@@ -232,11 +644,12 @@
         </div>
     </div>
 
+    <!-- ═══ Documents Tab ═══ -->
     <div id="tab-documents" class="d-none">
-        <div class="data-card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-files me-2"></i>全部文档</span>
-                <button class="btn btn-sm btn-outline-dark" onclick="loadDocs(docPage)"><i class="bi bi-arrow-clockwise me-1"></i>刷新</button>
+        <div class="data-card fade-in">
+            <div class="card-header-custom">
+                <h6>全部文档</h6>
+                <button class="btn-refresh" onclick="loadDocs(docPage)"><i class="bi bi-arrow-clockwise"></i>刷新</button>
             </div>
             <div class="table-responsive">
                 <table class="table table-custom">
@@ -339,7 +752,7 @@
         ['dashboard','users','documents'].forEach(t => {
             document.getElementById('tab-' + t).classList.toggle('d-none', t !== name);
         });
-        document.querySelectorAll('#adminTabs .nav-link').forEach(btn => {
+        document.querySelectorAll('#adminTabs .tab-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tab === name);
         });
         if (name === 'users') loadUsers(userPage);
@@ -387,7 +800,7 @@
                     </td>
                     <td class="small text-muted">${u.createdTime || ''}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                        <button class="btn-delete-row"
                                 onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')">
                             删除
                         </button>
@@ -444,11 +857,11 @@
                     <td>${d.id}</td>
                     <td class="fw-semibold">${escapeHtml(d.title)}</td>
                     <td>${d.userId}</td>
-                    <td><span class="badge bg-light text-dark">${escapeHtml(d.tags || '无')}</span></td>
-                    <td>${d.enabled ? '<span class="text-success small">启用</span>' : '<span class="text-muted small">禁用</span>'}</td>
+                    <td><span class="role-badge role-USER">${escapeHtml(d.tags || '无')}</span></td>
+                    <td>${d.enabled ? '<span style="color:#4ade80;font-size:0.78rem;font-weight:500;">启用</span>' : '<span class="text-muted small">禁用</span>'}</td>
                     <td class="small text-muted">${d.createdTime || ''}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                        <button class="btn-delete-row"
                                 onclick="deleteDoc(${d.id}, '${escapeHtml(d.title)}')">
                             删除
                         </button>

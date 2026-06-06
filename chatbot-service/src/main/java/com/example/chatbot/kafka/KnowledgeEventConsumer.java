@@ -1,5 +1,6 @@
 package com.example.chatbot.kafka;
 
+import com.example.chatbot.rag.VectorIndexingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Component;
 public class KnowledgeEventConsumer {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final VectorIndexingService vectorIndexingService;
 
     @KafkaListener(
             topics = KafkaTopicConfig.TOPIC_KNOWLEDGE_EVENTS,
@@ -34,6 +36,7 @@ public class KnowledgeEventConsumer {
             // 知识文档变更后，清除该用户的所有聊天历史缓存
             // 这样下次聊天时会重新从 MySQL 加载，包含最新的 RAG 引用
             invalidateUserChatCache(event.getUserId());
+            refreshVectorIndex(event);
 
             log.info("【Kafka Consumer-知识库】缓存刷新完成，UserId: {}", event.getUserId());
             ack.acknowledge();
@@ -59,6 +62,19 @@ public class KnowledgeEventConsumer {
             }
         } catch (Exception e) {
             log.warn("【Kafka Consumer-知识库】缓存清除失败，UserId: {}, Error: {}", userId, e.getMessage());
+        }
+    }
+
+    private void refreshVectorIndex(KnowledgeEvent event) {
+        if (event == null || event.getUserId() == null || event.getDocumentId() == null) {
+            return;
+        }
+        if ("KNOWLEDGE_DELETED".equals(event.getEventType())) {
+            vectorIndexingService.deleteDocument(event.getUserId(), event.getDocumentId());
+            return;
+        }
+        if ("KNOWLEDGE_CREATED".equals(event.getEventType()) || "KNOWLEDGE_UPDATED".equals(event.getEventType())) {
+            vectorIndexingService.indexDocument(event.getUserId(), event.getDocumentId());
         }
     }
 }

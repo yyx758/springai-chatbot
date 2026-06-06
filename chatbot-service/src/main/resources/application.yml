@@ -146,6 +146,35 @@ app:
     jwt-secret: ${APP_JWT_SECRET:change-this-dev-secret-key-at-least-32-chars}
     token-expire-ms: ${APP_TOKEN_EXPIRE_MS:1800000}
     refresh-token-expire-ms: ${APP_REFRESH_TOKEN_EXPIRE_MS:604800000}
+  agent:
+    enabled: true
+    max-history: 5
+    max-tool-iterations: 6
+    tool-timeout-ms: 10000
+    pending-action-expire-minutes: 10
+  rag:
+    mode: ${APP_RAG_MODE:keyword}
+    fallback-to-keyword: true
+    chunk:
+      size: ${APP_RAG_CHUNK_SIZE:800}
+      overlap: ${APP_RAG_CHUNK_OVERLAP:100}
+      max-chunks-per-document: ${APP_RAG_MAX_CHUNKS_PER_DOCUMENT:200}
+    vector:
+      enabled: ${APP_RAG_VECTOR_ENABLED:false}
+      jdbc-url: ${APP_RAG_VECTOR_JDBC_URL:}
+      username: ${APP_RAG_VECTOR_USERNAME:}
+      password: ${APP_RAG_VECTOR_PASSWORD:}
+      table-name: ${APP_RAG_VECTOR_TABLE:ai_studio_knowledge_vectors}
+      dimensions: ${APP_RAG_VECTOR_DIMENSIONS:1024}
+      top-k: ${APP_RAG_VECTOR_TOP_K:5}
+      similarity-threshold: ${APP_RAG_VECTOR_SIMILARITY_THRESHOLD:0.55}
+      initialize-schema: ${APP_RAG_VECTOR_INITIALIZE_SCHEMA:true}
+    embedding:
+      provider: ${APP_RAG_EMBEDDING_PROVIDER:remote-ollama}
+      model: ${APP_RAG_EMBEDDING_MODEL:bge-m3}
+      base-url: ${APP_RAG_EMBEDDING_BASE_URL:}
+      api-key: ${APP_RAG_EMBEDDING_API_KEY:}
+      timeout-ms: ${APP_RAG_EMBEDDING_TIMEOUT_MS:20000}
   chatbot:
     rag-enabled: true
     rag-top-k: 3

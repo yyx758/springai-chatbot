@@ -46,6 +46,12 @@ spring:
           predicates:
             - Path=/api/admin/**
 
+        # 文件管理后台页面
+        - id: file-manager-page
+          uri: lb://file-service
+          predicates:
+            - Path=/admin/files
+
         # 文件服务路由
         - id: file-service
           uri: lb://file-service
@@ -90,12 +96,20 @@ app:
   auth:
     jwt-secret: ${APP_JWT_SECRET:change-this-dev-secret-key-at-least-32-chars}
     exclude-paths:
+      - /
+      - /login
+      - /chat
+      - /admin
+      - /admin/files
+      - /favicon.ico
+      - /static/**
       - /api/auth/login
       - /api/auth/register
       - /api/auth/send-code
       - /api/auth/refresh
       - /api/auth/forgot-password
       - /api/auth/reset-password
+      - /api/files/download/**
       - /api/chat/health
       - /actuator/**
 

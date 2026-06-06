@@ -43,6 +43,15 @@ public class KnowledgeController {
         return ResponseEntity.ok(ragService.listDocuments(userId, page, size));
     }
 
+    @GetMapping("/documents/{documentId}")
+    public ResponseEntity<KnowledgeDocument> getDocument(
+            @PathVariable Long documentId,
+            HttpServletRequest httpServletRequest
+    ) {
+        Long userId = resolveUserId(httpServletRequest);
+        return ResponseEntity.ok(ragService.getDocument(userId, documentId));
+    }
+
     @DeleteMapping("/documents/{documentId}")
     public ResponseEntity<Map<String, Object>> deleteDocument(
             @PathVariable Long documentId,
