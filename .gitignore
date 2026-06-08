@@ -14,6 +14,6 @@ downloaded_test.txt
 md/
 deploy/
 .firecrawl/
-
-# 其他
+AGENTS.md
+CLAUDE.md
 重写大神_杨以轩_简历.md
