@@ -71,6 +71,12 @@ public class KnowledgeController {
         return ResponseEntity.ok(ragService.retrieveReferences(userId, request.getQuery(), request.getTopK()));
     }
 
+    @PostMapping("/reindex")
+    public ResponseEntity<Map<String, Object>> reindex(HttpServletRequest httpServletRequest) {
+        Long userId = resolveUserId(httpServletRequest);
+        return ResponseEntity.ok(ragService.reindexUserDocuments(userId));
+    }
+
     private Long resolveUserId(HttpServletRequest request) {
         Object userId = request.getAttribute(AuthInterceptor.AUTH_USER_ID_ATTR);
         if (userId == null) {

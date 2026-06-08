@@ -81,16 +81,24 @@ check_runtime_config() {
 }
 
 check_pgvector_profile() {
-  local pg_state
+  local pg_state vector_enabled
+  vector_enabled="$(env_value APP_RAG_VECTOR_ENABLED)"
+  vector_enabled="${vector_enabled:-false}"
   pg_state="$(docker inspect -f '{{.State.Status}}' "$PGVECTOR_CONTAINER" 2>/dev/null || true)"
   if [ -z "$pg_state" ]; then
-    pass "PGVector container is not created; vector profile is not active"
+    if [ "$vector_enabled" = "true" ]; then
+      fail "vector RAG is enabled but PGVector container is not created"
+    else
+      pass "PGVector container is not created; vector profile is not active"
+    fi
     return
   fi
   if [ "$pg_state" = "running" ]; then
     pass "PGVector container is running"
+  elif [ "$vector_enabled" = "true" ]; then
+    fail "vector RAG is enabled but PGVector container is not running (state=$pg_state)"
   else
-    fail "PGVector container exists but is not running (state=$pg_state)"
+    pass "PGVector container exists but vector RAG is disabled (state=$pg_state)"
   fi
 }
 

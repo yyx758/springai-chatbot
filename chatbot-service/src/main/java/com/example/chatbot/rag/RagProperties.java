@@ -40,7 +40,9 @@ public class RagProperties {
         private String provider = "remote-ollama";
         private String model = "bge-m3";
         private String baseUrl = "";
+        private String embeddingsPath = "";
         private String apiKey = "";
+        private String encodingFormat = "float";
         private int timeoutMs = 20000;
     }
 }

@@ -46,6 +46,18 @@ spring:
           predicates:
             - Path=/api/admin/**
 
+        # MCP 工具网关路由（默认由 chatbot-service 配置关闭）
+        - id: mcp-service
+          uri: lb://chatbot-service
+          predicates:
+            - Path=/api/mcp/**
+
+        # Agent 工作区路由
+        - id: agent-workspace-service
+          uri: lb://chatbot-service
+          predicates:
+            - Path=/api/agent/**
+
         # 文件管理后台页面
         - id: file-manager-page
           uri: lb://file-service
@@ -89,7 +101,7 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: yyx2005yyx
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
 
 # 应用配置
 app:

@@ -6,6 +6,8 @@ import com.example.chatbot.agent.tool.FileReadTools;
 import com.example.chatbot.agent.tool.KnowledgeReadTools;
 import com.example.chatbot.agent.tool.KnowledgeWriteTools;
 import com.example.chatbot.agent.tool.TimeTools;
+import com.example.chatbot.agent.tool.WebTools;
+import com.example.chatbot.agent.tool.WorkspaceTools;
 import com.example.chatbot.dto.ChatRequest;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.entity.KnowledgeDocument;
@@ -19,6 +21,7 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.ObjectProvider;
@@ -31,10 +34,15 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @Slf4j
 public class AgentService {
+
+    private static final Pattern PUBLIC_URL_PATTERN = Pattern.compile("https?://[^\\s\\u3000，。！？；、）)]+", Pattern.CASE_INSENSITIVE);
+    private static final int WEB_CONTEXT_MAX_CHARS = 12000;
 
     private final OpenAiChatModel openAiChatModel;
     private final OllamaChatModel ollamaChatModel;
@@ -46,6 +54,8 @@ public class AgentService {
     private final FileReadTools fileReadTools;
     private final ChatHistoryTools chatHistoryTools;
     private final TimeTools timeTools;
+    private final WorkspaceTools workspaceTools;
+    private final WebTools webTools;
     private final AgentToolNotifier toolNotifier;
 
     @Value("${app.agent.enabled:true}")
@@ -68,6 +78,8 @@ public class AgentService {
             FileReadTools fileReadTools,
             ChatHistoryTools chatHistoryTools,
             TimeTools timeTools,
+            WorkspaceTools workspaceTools,
+            WebTools webTools,
             AgentToolNotifier toolNotifier
     ) {
         this.openAiChatModel = getIfAvailable(openAiChatModelProvider, "OpenAI/DeepSeek");
@@ -80,6 +92,8 @@ public class AgentService {
         this.fileReadTools = fileReadTools;
         this.chatHistoryTools = chatHistoryTools;
         this.timeTools = timeTools;
+        this.workspaceTools = workspaceTools;
+        this.webTools = webTools;
         this.toolNotifier = toolNotifier;
     }
 
@@ -113,10 +127,12 @@ public class AgentService {
             emitter.send(SseEmitter.event().name("agent_status")
                     .data(Map.of("status", "started")));
 
+            enrichWithMandatoryWebFetch(messages, request.getMessage(), new ToolContext(toolContext));
+
             ChatClient.create(model)
                     .prompt()
                     .messages(messages)
-                    .tools(knowledgeReadTools, knowledgeWriteTools, fileReadTools, chatHistoryTools, timeTools)
+                    .tools(knowledgeReadTools, knowledgeWriteTools, fileReadTools, chatHistoryTools, timeTools, workspaceTools, webTools)
                     .toolContext(toolContext)
                     .stream()
                     .content()
@@ -185,6 +201,13 @@ public class AgentService {
                 You are AI Studio's customer service agent.
                 You can answer directly, read current-user data, and perform only the explicitly available low-risk tools.
                 When the user asks to create, save, store, or put a document into the knowledge base, you MUST call createKnowledgeDocument.
+                When the user asks to create, write, save, or edit a normal file, you MUST use workspace tools such as createWorkspaceFile or updateWorkspaceFile.
+                Workspace files are the only files you can create or edit. Never claim you wrote a local/server file unless a workspace tool succeeded.
+                When the user uploads or imports a code project, first listWorkspaceFiles, then read relevant files before proposing or applying code changes.
+                For code edits, prefer targeted updates to the smallest necessary files and explain which workspace files changed.
+                Local folders are only available after the user explicitly opens one in the browser workspace UI. You can operate on the synced workspace files, but the browser must write them back to the local folder.
+                When the user asks to search the web or read a web page, use web tools. If web tools are disabled or not configured, say that clearly.
+                If the system message says fetchWebPage has already been called for the current request, use that provided tool result and do not pretend to browse again.
                 Never say a document was saved into the knowledge base unless createKnowledgeDocument succeeded.
                 You must not delete anything directly. For deletion, call the request-delete tool and tell the user to confirm the pending action.
                 Never claim that you deleted, sent, purchased, or executed a sensitive action unless the tool result confirms it.
@@ -193,6 +216,63 @@ public class AgentService {
                 Do not ask for or expose internal tokens, passwords, API keys, or secrets.
                 Reply in concise, natural Chinese unless the user asks for another language.
                 """;
+    }
+
+    private void enrichWithMandatoryWebFetch(List<Message> messages, String userMessage, ToolContext toolContext) {
+        String url = extractFirstPublicUrl(userMessage);
+        if (url == null || !looksLikeWebFetchRequest(userMessage)) {
+            return;
+        }
+        try {
+            Map<String, Object> result = webTools.fetchWebPage(url, toolContext);
+            String title = String.valueOf(result.getOrDefault("title", ""));
+            String content = String.valueOf(result.getOrDefault("content", ""));
+            if (content.length() > WEB_CONTEXT_MAX_CHARS) {
+                content = content.substring(0, WEB_CONTEXT_MAX_CHARS) + "\n\n[content truncated]";
+            }
+            messages.add(new SystemMessage("""
+                    fetchWebPage has already been called for the current user request.
+                    Use this real fetched page content as the web source. Do not claim web access beyond this tool result.
+
+                    URL: %s
+                    Title: %s
+                    Content:
+                    %s
+                    """.formatted(url, title, content)));
+        } catch (Exception e) {
+            messages.add(new SystemMessage("""
+                    fetchWebPage was required for the current user request but failed.
+                    Tell the user the web fetch failed and include this error, instead of inventing page content.
+
+                    URL: %s
+                    Error: %s
+                    """.formatted(url, e.getMessage())));
+        }
+    }
+
+    private String extractFirstPublicUrl(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Matcher matcher = PUBLIC_URL_PATTERN.matcher(text);
+        return matcher.find() ? matcher.group() : null;
+    }
+
+    private boolean looksLikeWebFetchRequest(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        String normalized = text.toLowerCase();
+        return normalized.contains("读取")
+                || normalized.contains("抓取")
+                || normalized.contains("爬取")
+                || normalized.contains("获取")
+                || normalized.contains("打开")
+                || normalized.contains("网页")
+                || normalized.contains("网站")
+                || normalized.contains("fetch")
+                || normalized.contains("scrape")
+                || normalized.contains("read");
     }
 
     private Long latestKnowledgeDocumentId(Long userId) {

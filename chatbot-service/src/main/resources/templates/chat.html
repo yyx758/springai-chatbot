@@ -901,12 +901,65 @@
         .index-status {
             display: inline-flex;
             align-items: center;
+            gap: 4px;
             border-radius: 999px;
             padding: 2px 8px;
             font-size: 0.7rem;
             border: 1px solid var(--card-border);
             color: var(--warm-600);
             background: rgba(255,255,255,0.5);
+        }
+        .index-status.indexed {
+            color: #15803d;
+            border-color: rgba(21,128,61,0.18);
+            background: rgba(34,197,94,0.10);
+        }
+        .index-status.indexing,
+        .index-status.pending-index {
+            color: #9a6a10;
+            border-color: rgba(154,106,16,0.18);
+            background: rgba(245,158,11,0.10);
+        }
+        .index-status.failed {
+            color: #b42318;
+            border-color: rgba(180,35,24,0.18);
+            background: rgba(239,68,68,0.10);
+        }
+        .index-status.disabled {
+            color: var(--warm-500);
+            background: rgba(255,255,255,0.55);
+        }
+        .knowledge-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        .knowledge-toolbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .knowledge-reindex-status {
+            min-height: 18px;
+            font-size: 0.72rem;
+            color: var(--warm-500);
+        }
+        .knowledge-meta-line {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            color: var(--warm-500);
+            font-size: 0.78rem;
+            margin-bottom: 4px;
+        }
+        .knowledge-error {
+            color: #b42318;
+            font-size: 0.76rem;
+            margin-bottom: 4px;
+            word-break: break-word;
         }
         .agent-doc-card {
             display: flex;
@@ -962,6 +1015,108 @@
             font-size: 0.78rem;
             white-space: nowrap;
         }
+        .workspace-browser {
+            display: grid;
+            grid-template-columns: minmax(260px, 34%) minmax(0, 1fr);
+            gap: 18px;
+            min-height: 58vh;
+        }
+        .workspace-tree-pane,
+        .workspace-detail-pane {
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
+            background: rgba(255,255,255,0.68);
+            overflow: auto;
+        }
+        .workspace-tree-pane {
+            padding: 12px;
+        }
+        .workspace-detail-pane {
+            padding: 16px;
+        }
+        .workspace-tree-dir {
+            margin: 2px 0;
+        }
+        .workspace-tree-dir > summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 30px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            color: var(--warm-800);
+            user-select: none;
+        }
+        .workspace-tree-dir > summary::-webkit-details-marker {
+            display: none;
+        }
+        .workspace-tree-dir > summary:hover,
+        .workspace-tree-file:hover {
+            background: rgba(92,86,77,0.08);
+        }
+        .workspace-tree-children {
+            margin-left: 18px;
+            border-left: 1px solid rgba(92,86,77,0.12);
+            padding-left: 8px;
+        }
+        .workspace-tree-file {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 0;
+            background: transparent;
+            color: var(--warm-800);
+            min-height: 30px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+        .workspace-tree-file.active {
+            background: rgba(20,18,16,0.10);
+            font-weight: 600;
+        }
+        .workspace-tree-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .workspace-detail-title {
+            font-weight: 700;
+            color: var(--warm-900);
+            margin-bottom: 4px;
+            overflow-wrap: anywhere;
+        }
+        .workspace-detail-meta {
+            color: var(--warm-500);
+            font-size: 0.8rem;
+            margin-bottom: 14px;
+            overflow-wrap: anywhere;
+        }
+        .workspace-detail-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+        .workspace-preview {
+            max-height: 42vh;
+            overflow: auto;
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
+            background: rgba(250,248,243,0.82);
+            padding: 12px;
+            font-size: 0.84rem;
+        }
+        .workspace-preview pre {
+            margin: 0;
+            background: transparent;
+            color: var(--warm-900);
+            padding: 0;
+        }
         .doc-viewer-content {
             max-height: 62vh;
             overflow: auto;
@@ -981,6 +1136,16 @@
             overflow-x: auto;
         }
         code { font-family: 'Fira Code', monospace; font-size: 0.85rem; }
+
+        @media (max-width: 900px) {
+            .workspace-browser {
+                grid-template-columns: 1fr;
+            }
+            .workspace-tree-pane,
+            .workspace-detail-pane {
+                max-height: 42vh;
+            }
+        }
 
         /* History items in modal */
         .history-item {
@@ -1273,6 +1438,12 @@
                     <option value="ollama">Ollama Local</option>
                     <option value="agent">AI Agent</option>
                 </select>
+                <button class="custom-select" style="cursor:pointer;" onclick="openWorkspaceModal()">
+                    <i class="bi bi-folder2-open"></i>
+                </button>
+                <button class="custom-select" style="cursor:pointer;" onclick="openLocalFolderWorkspace()" title="Open local folder workspace">
+                    <i class="bi bi-folder-plus"></i>
+                </button>
             </div>
         </header>
 
@@ -1336,7 +1507,7 @@
 
 <!-- Records Modal -->
 <div class="modal fade" id="recordsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border-0">
             <div class="modal-header border-0 px-5 pt-5 pb-3">
                 <h4 class="mb-0">云端归档</h4>
@@ -1383,7 +1554,20 @@
                 </div>
                 <div class="row g-3">
                     <div class="col-md-7">
-                        <h6 class="fw-bold" style="color:var(--warm-800);">我的知识文档</h6>
+                        <div class="knowledge-toolbar">
+                            <div>
+                                <h6 class="fw-bold mb-1" style="color:var(--warm-800);">我的知识文档</h6>
+                                <div class="knowledge-reindex-status" id="knowledgeReindexStatus"></div>
+                            </div>
+                            <div class="knowledge-toolbar-actions">
+                                <button class="btn btn-sm btn-outline-dark" onclick="loadKnowledgeDocs(1)" title="刷新列表">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                                <button class="btn btn-sm btn-dark" id="knowledgeReindexBtn" onclick="reindexKnowledgeDocs()">
+                                    重建向量索引
+                                </button>
+                            </div>
+                        </div>
                         <div id="knowledgeList"></div>
                     </div>
                     <div class="col-md-5">
@@ -1395,6 +1579,28 @@
                         <div id="knowledgeSearchResult"></div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Workspace Modal -->
+<div class="modal fade" id="workspaceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0">
+            <div class="modal-header border-0 px-5 pt-5 pb-3">
+                <div>
+                    <h4 class="mb-1">当前对话工作区</h4>
+                    <div class="small" style="color:var(--warm-500);" id="workspaceMeta"></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-5 py-3">
+                <div id="workspaceFileList"></div>
+            </div>
+            <div class="modal-footer border-0 px-5 pb-5 pt-2 justify-content-end">
+                <button class="btn btn-outline-dark" onclick="syncWorkspaceToLocal()">Sync to Local</button>
+                <button class="btn btn-dark" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -1460,6 +1666,27 @@
     const ragReferenceBar = document.getElementById('ragReferenceBar');
     let knowledgeModal;
     let documentViewerModal;
+    let workspaceModal;
+    let currentWorkspaceId = null;
+    let workspaceFileMap = new Map();
+    let activeWorkspacePath = '';
+    let localDirectoryHandle = null;
+    let localWorkspaceFileHandles = new Map();
+    const LOCAL_WORKSPACE_ALLOWED_EXTENSIONS = new Set([
+        '.md', '.txt', '.json', '.csv', '.html', '.css', '.js', '.ts', '.jsx', '.tsx',
+        '.java', '.kt', '.py', '.go', '.rs', '.c', '.cpp', '.h', '.hpp', '.cs', '.php',
+        '.rb', '.swift', '.sql', '.sh', '.bat', '.ps1', '.gradle', '.vue', '.scss',
+        '.less', '.xml', '.yml', '.yaml', '.properties', '.toml', '.ini', '.conf',
+        '.gitignore', '.gitattributes', '.dockerignore', '.editorconfig'
+    ]);
+    const LOCAL_WORKSPACE_ALLOWED_FILENAMES = new Set([
+        'Dockerfile', 'Containerfile', 'Jenkinsfile', 'Makefile', 'mvnw', 'gradlew',
+        'README', 'LICENSE', 'NOTICE'
+    ]);
+    const LOCAL_WORKSPACE_SKIP_DIRS = new Set(['.git', '.idea', '.vscode', 'node_modules', 'target', 'dist', 'build', '.gradle']);
+    const LOCAL_WORKSPACE_MAX_FILES = 300;
+    const LOCAL_WORKSPACE_MAX_FILE_SIZE = 2 * 1024 * 1024;
+    const LOCAL_WORKSPACE_MAX_DEPTH = 6;
     let isStreaming = false;
     let currentAbortController = null;
     let hasStreamContent = false;
@@ -1701,7 +1928,9 @@
     function escapeHtml(text) {
         return (text || '').replaceAll('&', '&amp;')
             .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;');
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
     }
 
     function renderReferences(references) {
@@ -1735,11 +1964,29 @@
         return statuses[status] || status || '';
     }
 
-    function renderAgentToolPanel(toolEvents, pendingActions, documentCards) {
-        if ((!toolEvents || toolEvents.length === 0) && (!pendingActions || pendingActions.length === 0) && (!documentCards || documentCards.length === 0)) {
+    function renderAgentToolPanel(toolEvents, pendingActions, documentCards, workspaceCards) {
+        if ((!toolEvents || toolEvents.length === 0) && (!pendingActions || pendingActions.length === 0)
+            && (!documentCards || documentCards.length === 0) && (!workspaceCards || workspaceCards.length === 0)) {
             return '';
         }
         const rows = [];
+        (workspaceCards || []).forEach(file => {
+            rows.push(`<div class="agent-doc-card" onclick="openWorkspaceFile(${file.workspaceId}, '${encodeURIComponent(file.relativePath || '')}')" style="cursor:pointer;">
+                <div class="agent-doc-main">
+                    <div class="agent-doc-icon"><i class="bi bi-file-earmark-text"></i></div>
+                    <div style="min-width:0;">
+                        <div class="agent-doc-title">${escapeHtml(file.fileName || file.relativePath || 'Workspace file')}</div>
+                        <div class="agent-doc-meta">Workspace · ${escapeHtml(file.contentType || 'text/plain')} · v${file.version || 1}</div>
+                    </div>
+                </div>
+                <div class="agent-doc-actions">
+                    <button class="agent-doc-btn" onclick="event.stopPropagation();openWorkspaceFile(${file.workspaceId}, '${encodeURIComponent(file.relativePath || '')}')">Open</button>
+                    <button class="agent-doc-btn" onclick="event.stopPropagation();downloadWorkspaceFile(${file.workspaceId}, '${encodeURIComponent(file.relativePath || '')}')"><i class="bi bi-download"></i></button>
+                    <button class="agent-doc-btn" onclick="event.stopPropagation();writeWorkspaceFileToLocal(${file.workspaceId}, '${encodeURIComponent(file.relativePath || '')}')">Local</button>
+                    <button class="agent-doc-btn" onclick="event.stopPropagation();saveWorkspaceFileToKnowledge(${file.workspaceId}, '${encodeURIComponent(file.relativePath || '')}')">KB</button>
+                </div>
+            </div>`);
+        });
         (documentCards || []).forEach(doc => {
             const download = doc.downloadUrl ? `<button class="agent-doc-btn" onclick="event.stopPropagation();downloadKnowledgeFile('${doc.fileKey || ''}')"><i class="bi bi-download"></i></button>` : '';
             rows.push(`<div class="agent-doc-card" onclick="openKnowledgeDocument(${doc.documentId})" style="cursor:pointer;">
@@ -1775,8 +2022,8 @@
         return `<div class="agent-tool-panel">${rows.join('')}</div>`;
     }
 
-    function renderAssistantBubble(targetBubble, fullText, toolEvents, pendingActions, fallbackHtml, documentCards) {
-        const toolHtml = renderAgentToolPanel(toolEvents, pendingActions, documentCards);
+    function renderAssistantBubble(targetBubble, fullText, toolEvents, pendingActions, fallbackHtml, documentCards, workspaceCards) {
+        const toolHtml = renderAgentToolPanel(toolEvents, pendingActions, documentCards, workspaceCards);
         const contentHtml = fullText ? marked.parse(fullText) : (fallbackHtml || '');
         targetBubble.innerHTML = toolHtml + contentHtml;
         targetBubble.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
@@ -1790,7 +2037,7 @@
         }
         if (name === 'tool_call_started') {
             state.toolEvents.push({ type: 'running', toolName: json.toolName, label: formatToolName(json.toolName), status: 'running' });
-            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards);
+            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards, state.workspaceCards);
             return true;
         }
         if (name === 'tool_call_result') {
@@ -1815,7 +2062,28 @@
                     });
                 }
             }
-            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards);
+            addWorkspaceCard(state, json);
+            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards, state.workspaceCards);
+            return true;
+        }
+        if (name === 'workspace_file_created' || name === 'workspace_file_updated') {
+            addWorkspaceCard(state, json);
+            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards, state.workspaceCards);
+            return true;
+        }
+        if (name === 'workspace_file_saved_to_knowledge') {
+            if (json.documentId) {
+                const exists = state.documentCards.some(doc => String(doc.documentId) === String(json.documentId));
+                if (!exists) {
+                    state.documentCards.push({
+                        documentId: json.documentId,
+                        title: json.title,
+                        fileKey: json.fileKey,
+                        downloadUrl: json.downloadUrl
+                    });
+                }
+            }
+            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards, state.workspaceCards);
             return true;
         }
         if (name === 'knowledge_document_created') {
@@ -1834,15 +2102,35 @@
                     });
                 }
             }
-            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards);
+            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards, state.workspaceCards);
             return true;
         }
         if (name === 'tool_call_error') {
             state.toolEvents.push({ type: 'error', toolName: json.toolName, label: formatToolName(json.toolName), status: json.error || 'failed' });
-            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards);
+            renderAssistantBubble(targetBubble, state.fullText, state.toolEvents, state.pendingActions, loadingHtml, state.documentCards, state.workspaceCards);
             return true;
         }
         return false;
+    }
+
+    function addWorkspaceCard(state, file) {
+        if (!file || !file.workspaceId || !file.relativePath) return;
+        const key = `${file.workspaceId}:${file.relativePath}`;
+        const idx = state.workspaceCards.findIndex(item => `${item.workspaceId}:${item.relativePath}` === key);
+        const card = {
+            workspaceId: file.workspaceId,
+            relativePath: file.relativePath,
+            fileName: file.fileName || file.relativePath,
+            contentType: file.contentType,
+            version: file.version,
+            downloadUrl: file.downloadUrl
+        };
+        if (idx >= 0) {
+            state.workspaceCards[idx] = card;
+        } else {
+            state.workspaceCards.push(card);
+        }
+        currentWorkspaceId = file.workspaceId;
     }
 
     function downloadKnowledgeFile(fileKey) {
@@ -1880,6 +2168,467 @@
         } catch (e) {
             titleEl.textContent = 'Open failed';
             contentEl.innerHTML = `<span style="color:#dc503c;">${e && e.message ? e.message : 'Unable to open document.'}</span>`;
+        }
+    }
+
+    async function openWorkspaceFile(workspaceId, encodedPath) {
+        if (!workspaceId || !encodedPath) return;
+        const path = decodeURIComponent(encodedPath);
+        const titleEl = document.getElementById('documentViewerTitle');
+        const metaEl = document.getElementById('documentViewerMeta');
+        const contentEl = document.getElementById('documentViewerContent');
+        const downloadBtn = document.getElementById('documentViewerDownload');
+        titleEl.textContent = path;
+        metaEl.textContent = 'Workspace file';
+        contentEl.innerHTML = '<span style="color:var(--warm-500);">Loading file...</span>';
+        downloadBtn.style.display = 'none';
+        if (!documentViewerModal) {
+            documentViewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
+        }
+        documentViewerModal.show();
+        try {
+            const response = await authFetch(`/api/agent/workspaces/${workspaceId}/files/content?path=${encodeURIComponent(path)}`);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Open failed');
+            const file = result.file || {};
+            titleEl.textContent = file.fileName || path;
+            metaEl.textContent = `${file.relativePath || path} · v${file.version || 1}`;
+            contentEl.innerHTML = marked.parse(file.content || '');
+            contentEl.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+            downloadBtn.style.display = 'inline-flex';
+            downloadBtn.onclick = () => downloadWorkspaceFile(workspaceId, encodedPath);
+        } catch (e) {
+            titleEl.textContent = 'Open failed';
+            contentEl.innerHTML = `<span style="color:#dc503c;">${e && e.message ? e.message : 'Unable to open file.'}</span>`;
+        }
+    }
+
+    async function downloadWorkspaceFile(workspaceId, encodedPath) {
+        if (!workspaceId || !encodedPath) return;
+        const path = decodeURIComponent(encodedPath);
+        const response = await authFetch(`/api/agent/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(path)}`);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = path.split('/').pop() || 'workspace-file';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    async function saveWorkspaceFileToKnowledge(workspaceId, encodedPath) {
+        if (!workspaceId || !encodedPath) return;
+        const path = decodeURIComponent(encodedPath);
+        try {
+            const response = await authFetch(`/api/agent/workspaces/${workspaceId}/files/save-to-knowledge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    relativePath: path,
+                    title: path.split('/').pop().replace(/\.[^.]+$/, ''),
+                    tags: 'workspace',
+                    enabled: true
+                })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Save failed');
+            alert('已存入知识库');
+        } catch (e) {
+            alert(e && e.message ? e.message : '存入知识库失败');
+        }
+    }
+
+    function normalizeLocalRelativePath(path) {
+        const normalized = String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+        if (!normalized || normalized.includes('..') || normalized.includes(':')) {
+            throw new Error('Unsafe local path');
+        }
+        const parts = normalized.split('/').filter(Boolean);
+        if (parts.some(part => part === '.')) {
+            throw new Error('Unsafe local path');
+        }
+        return parts.join('/');
+    }
+
+    function localFileExtension(path) {
+        const name = String(path || '').toLowerCase();
+        const idx = name.lastIndexOf('.');
+        return idx >= 0 ? name.substring(idx) : '';
+    }
+
+    function localFileName(path) {
+        const normalized = String(path || '').replace(/\\/g, '/');
+        const parts = normalized.split('/').filter(Boolean);
+        return parts.length === 0 ? '' : parts[parts.length - 1];
+    }
+
+    function isSkippedLocalWorkspacePath(relativePath) {
+        return String(relativePath || '')
+            .replace(/\\/g, '/')
+            .split('/')
+            .filter(Boolean)
+            .some(part => LOCAL_WORKSPACE_SKIP_DIRS.has(part));
+    }
+
+    function isAllowedLocalWorkspaceFile(relativePath, file) {
+        if (!file || file.size > LOCAL_WORKSPACE_MAX_FILE_SIZE) return false;
+        if (isSkippedLocalWorkspacePath(relativePath)) return false;
+        return LOCAL_WORKSPACE_ALLOWED_EXTENSIONS.has(localFileExtension(relativePath))
+            || LOCAL_WORKSPACE_ALLOWED_FILENAMES.has(localFileName(relativePath));
+    }
+
+    function contentTypeForLocalPath(path) {
+        const ext = localFileExtension(path);
+        if (ext === '.md') return 'text/markdown';
+        if (ext === '.json') return 'application/json';
+        if (ext === '.html') return 'text/html';
+        if (ext === '.css') return 'text/css';
+        if (ext === '.js' || ext === '.ts') return 'text/javascript';
+        if (ext === '.xml') return 'application/xml';
+        return 'text/plain';
+    }
+
+    async function ensureWorkspaceReady() {
+        if (!currentUser || !activeSessionId) {
+            throw new Error('Please login and open a chat session first.');
+        }
+        const response = await authFetch(`/api/agent/workspaces/current?sessionId=${encodeURIComponent(activeSessionId)}`);
+        const result = await response.json();
+        if (!result.success || !result.workspace || !result.workspace.id) {
+            throw new Error(result.error || 'Workspace is unavailable.');
+        }
+        currentWorkspaceId = result.workspace.id;
+        return result.workspace;
+    }
+
+    async function scanLocalDirectory(directoryHandle, prefix, files, depth) {
+        if (depth > LOCAL_WORKSPACE_MAX_DEPTH || files.length >= LOCAL_WORKSPACE_MAX_FILES) return;
+        for await (const [name, handle] of directoryHandle.entries()) {
+            if (files.length >= LOCAL_WORKSPACE_MAX_FILES) return;
+            if (handle.kind === 'directory') {
+                if (LOCAL_WORKSPACE_SKIP_DIRS.has(name)) continue;
+                await scanLocalDirectory(handle, `${prefix}${name}/`, files, depth + 1);
+                continue;
+            }
+            if (handle.kind !== 'file') continue;
+            const relativePath = normalizeLocalRelativePath(`${prefix}${name}`);
+            const file = await handle.getFile();
+            if (!isAllowedLocalWorkspaceFile(relativePath, file)) continue;
+            files.push({ relativePath, file, handle });
+            localWorkspaceFileHandles.set(relativePath, handle);
+        }
+    }
+
+    async function createOrUpdateWorkspaceFile(workspaceId, relativePath, content, contentType) {
+        const response = await authFetch(`/api/agent/workspaces/${workspaceId}/files`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                relativePath,
+                content,
+                contentType,
+                overwrite: true
+            })
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || `Sync failed: ${relativePath}`);
+        return result.file;
+    }
+
+    async function openLocalFolderWorkspace() {
+        if (!window.showDirectoryPicker) {
+            await importLocalFolderReadOnly();
+            return;
+        }
+        try {
+            const workspace = await ensureWorkspaceReady();
+            const directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+            localDirectoryHandle = directoryHandle;
+            localWorkspaceFileHandles = new Map();
+            const files = [];
+            await scanLocalDirectory(directoryHandle, '', files, 0);
+            if (files.length === 0) {
+                alert('No supported text files found in this folder.');
+                return;
+            }
+            for (const item of files) {
+                const content = await item.file.text();
+                await createOrUpdateWorkspaceFile(workspace.id, item.relativePath, content, contentTypeForLocalPath(item.relativePath));
+            }
+            await openWorkspaceModal();
+            const metaEl = document.getElementById('workspaceMeta');
+            if (metaEl) {
+                metaEl.textContent = `${workspace.name || 'Agent Workspace'} · local folder linked: ${directoryHandle.name} · ${files.length} files synced`;
+            }
+            alert(`Local folder synced into workspace: ${files.length} files.`);
+        } catch (e) {
+            alert(e && e.message ? e.message : 'Local folder sync failed.');
+        }
+    }
+
+    async function importLocalFolderReadOnly() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+        input.webkitdirectory = true;
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        input.onchange = async () => {
+            try {
+                const workspace = await ensureWorkspaceReady();
+                const selected = Array.from(input.files || []);
+                const accepted = [];
+                for (const file of selected) {
+                    const rawPath = file.webkitRelativePath || file.name;
+                    const parts = rawPath.split('/').filter(Boolean);
+                    const relativePath = normalizeLocalRelativePath(parts.length > 1 ? parts.slice(1).join('/') : rawPath);
+                    if (accepted.length >= LOCAL_WORKSPACE_MAX_FILES) break;
+                    if (!isAllowedLocalWorkspaceFile(relativePath, file)) continue;
+                    accepted.push({ relativePath, file });
+                }
+                if (accepted.length === 0) {
+                    alert('No supported text files found in this folder.');
+                    return;
+                }
+                localDirectoryHandle = null;
+                localWorkspaceFileHandles = new Map();
+                for (const item of accepted) {
+                    const content = await item.file.text();
+                    await createOrUpdateWorkspaceFile(workspace.id, item.relativePath, content, contentTypeForLocalPath(item.relativePath));
+                }
+                await openWorkspaceModal();
+                alert(`Local folder imported into workspace: ${accepted.length} files. Direct write-back requires HTTPS or localhost.`);
+            } catch (e) {
+                alert(e && e.message ? e.message : 'Local folder import failed.');
+            } finally {
+                input.remove();
+            }
+        };
+        input.click();
+    }
+
+    async function requestLocalWritePermission() {
+        if (!localDirectoryHandle) throw new Error('Open a local folder workspace first.');
+        if (typeof localDirectoryHandle.queryPermission !== 'function') return;
+        const current = await localDirectoryHandle.queryPermission({ mode: 'readwrite' });
+        if (current === 'granted') return;
+        const requested = await localDirectoryHandle.requestPermission({ mode: 'readwrite' });
+        if (requested !== 'granted') {
+            throw new Error('Local folder write permission was not granted.');
+        }
+    }
+
+    async function getOrCreateLocalFileHandle(relativePath) {
+        const safePath = normalizeLocalRelativePath(relativePath);
+        if (localWorkspaceFileHandles.has(safePath)) {
+            return localWorkspaceFileHandles.get(safePath);
+        }
+        let directory = localDirectoryHandle;
+        const parts = safePath.split('/');
+        for (let i = 0; i < parts.length - 1; i++) {
+            directory = await directory.getDirectoryHandle(parts[i], { create: true });
+        }
+        const fileHandle = await directory.getFileHandle(parts[parts.length - 1], { create: true });
+        localWorkspaceFileHandles.set(safePath, fileHandle);
+        return fileHandle;
+    }
+
+    async function writeWorkspaceFileToLocal(workspaceId, encodedPath, quiet = false) {
+        if (!workspaceId || !encodedPath) return;
+        try {
+            await requestLocalWritePermission();
+            const path = normalizeLocalRelativePath(decodeURIComponent(encodedPath));
+            const response = await authFetch(`/api/agent/workspaces/${workspaceId}/files/content?path=${encodeURIComponent(path)}`);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Read workspace file failed.');
+            const fileHandle = await getOrCreateLocalFileHandle(path);
+            const writable = await fileHandle.createWritable();
+            await writable.write((result.file && result.file.content) || '');
+            await writable.close();
+            if (!quiet) alert(`Written to local folder: ${path}`);
+            return path;
+        } catch (e) {
+            if (!quiet) alert(e && e.message ? e.message : 'Write to local folder failed.');
+            if (quiet) throw e;
+        }
+    }
+
+    async function syncWorkspaceToLocal() {
+        try {
+            await requestLocalWritePermission();
+            const workspaceId = currentWorkspaceId || (await ensureWorkspaceReady()).id;
+            const response = await authFetch(`/api/agent/workspaces/current?sessionId=${encodeURIComponent(activeSessionId)}`);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Load workspace failed.');
+            const files = result.files || [];
+            let count = 0;
+            for (const file of files) {
+                if (!file.relativePath) continue;
+                await writeWorkspaceFileToLocal(workspaceId, encodeURIComponent(file.relativePath), true);
+                count++;
+            }
+            alert(`Workspace files written to local folder: ${count}`);
+        } catch (e) {
+            alert(e && e.message ? e.message : 'Sync to local folder failed.');
+        }
+    }
+
+    function workspaceFileIcon(path) {
+        const ext = localFileExtension(path);
+        if (['.java', '.js', '.ts', '.jsx', '.tsx', '.py', '.go', '.rs', '.cpp', '.c', '.cs', '.php', '.rb', '.kt', '.vue'].includes(ext)) {
+            return 'bi-file-earmark-code';
+        }
+        if (['.yml', '.yaml', '.properties', '.json', '.xml', '.toml', '.ini', '.conf'].includes(ext)) {
+            return 'bi-file-earmark-ruled';
+        }
+        if (ext === '.md') return 'bi-markdown';
+        return 'bi-file-earmark-text';
+    }
+
+    function buildWorkspaceTree(files) {
+        const root = { type: 'dir', name: '', children: new Map() };
+        (files || []).forEach(file => {
+            const relativePath = normalizeLocalRelativePath(file.relativePath || file.fileName || '');
+            const parts = relativePath.split('/');
+            let node = root;
+            for (let i = 0; i < parts.length; i++) {
+                const name = parts[i];
+                const isFile = i === parts.length - 1;
+                if (!node.children.has(name)) {
+                    node.children.set(name, isFile
+                        ? { type: 'file', name, path: relativePath, file }
+                        : { type: 'dir', name, children: new Map() });
+                }
+                node = node.children.get(name);
+                if (isFile) {
+                    node.file = file;
+                    node.path = relativePath;
+                }
+            }
+        });
+        return root;
+    }
+
+    function sortedWorkspaceChildren(node) {
+        return Array.from(node.children.values()).sort((a, b) => {
+            if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+            return a.name.localeCompare(b.name);
+        });
+    }
+
+    function renderWorkspaceTreeNode(node) {
+        if (node.type === 'file') {
+            const encodedPath = encodeURIComponent(node.path);
+            const active = activeWorkspacePath === node.path ? ' active' : '';
+            return `<button class="workspace-tree-file${active}" onclick="previewWorkspaceFile('${encodedPath}')">
+                <i class="bi ${workspaceFileIcon(node.path)}"></i>
+                <span class="workspace-tree-name" title="${escapeHtml(node.path)}">${escapeHtml(node.name)}</span>
+            </button>`;
+        }
+        return `<details class="workspace-tree-dir" open>
+            <summary><i class="bi bi-folder2-open"></i><span class="workspace-tree-name">${escapeHtml(node.name)}</span></summary>
+            <div class="workspace-tree-children">${sortedWorkspaceChildren(node).map(renderWorkspaceTreeNode).join('')}</div>
+        </details>`;
+    }
+
+    function renderWorkspaceBrowser(files) {
+        workspaceFileMap = new Map();
+        (files || []).forEach(file => {
+            if (file.relativePath) workspaceFileMap.set(file.relativePath, file);
+        });
+        if (!activeWorkspacePath || !workspaceFileMap.has(activeWorkspacePath)) {
+            activeWorkspacePath = files && files.length > 0 ? files[0].relativePath : '';
+        }
+        const tree = buildWorkspaceTree(files || []);
+        const treeHtml = sortedWorkspaceChildren(tree).map(renderWorkspaceTreeNode).join('');
+        return `<div class="workspace-browser">
+            <div class="workspace-tree-pane">${treeHtml}</div>
+            <div class="workspace-detail-pane" id="workspaceFileDetail"></div>
+        </div>`;
+    }
+
+    async function previewWorkspaceFile(encodedPath) {
+        const path = decodeURIComponent(encodedPath);
+        activeWorkspacePath = path;
+        const file = workspaceFileMap.get(path);
+        const detailEl = document.getElementById('workspaceFileDetail');
+        if (!file || !detailEl) return;
+        document.querySelectorAll('.workspace-tree-file').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('onclick') === `previewWorkspaceFile('${encodeURIComponent(path)}')`);
+        });
+        const actionPath = encodeURIComponent(path);
+        detailEl.innerHTML = `<div class="workspace-detail-title">${escapeHtml(file.fileName || path)}</div>
+            <div class="workspace-detail-meta">${escapeHtml(path)} · v${file.version || 1} · ${escapeHtml(file.contentType || 'text/plain')}</div>
+            <div class="workspace-detail-actions">
+                <button class="agent-doc-btn" onclick="openWorkspaceFile(${file.workspaceId}, '${actionPath}')">Open</button>
+                <button class="agent-doc-btn" onclick="downloadWorkspaceFile(${file.workspaceId}, '${actionPath}')"><i class="bi bi-download"></i></button>
+                <button class="agent-doc-btn" onclick="writeWorkspaceFileToLocal(${file.workspaceId}, '${actionPath}')">Local</button>
+                <button class="agent-doc-btn" onclick="saveWorkspaceFileToKnowledge(${file.workspaceId}, '${actionPath}')">KB</button>
+            </div>
+            <div class="workspace-preview">Loading preview...</div>`;
+        try {
+            const response = await authFetch(`/api/agent/workspaces/${file.workspaceId}/files/content?path=${encodeURIComponent(path)}`);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Preview failed');
+            const content = (result.file && result.file.content) || '';
+            const clipped = content.length > 20000 ? content.substring(0, 20000) + '\n\n... preview truncated ...' : content;
+            const previewEl = detailEl.querySelector('.workspace-preview');
+            previewEl.innerHTML = `<pre><code>${escapeHtml(clipped)}</code></pre>`;
+        } catch (e) {
+            const previewEl = detailEl.querySelector('.workspace-preview');
+            if (previewEl) previewEl.innerHTML = `<span style="color:#dc503c;">${e && e.message ? e.message : 'Preview failed.'}</span>`;
+        }
+    }
+
+    async function openWorkspaceModal() {
+        if (!currentUser || !activeSessionId) return;
+        const listEl = document.getElementById('workspaceFileList');
+        const metaEl = document.getElementById('workspaceMeta');
+        listEl.innerHTML = '<span style="color:var(--warm-500);">Loading workspace...</span>';
+        metaEl.textContent = activeSessionId;
+        if (!workspaceModal) {
+            workspaceModal = new bootstrap.Modal(document.getElementById('workspaceModal'));
+        }
+        workspaceModal.show();
+        try {
+            const response = await authFetch(`/api/agent/workspaces/current?sessionId=${encodeURIComponent(activeSessionId)}`);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Load failed');
+            currentWorkspaceId = result.workspace && result.workspace.id;
+            const files = result.files || [];
+            const localMeta = localDirectoryHandle ? ` · local folder linked: ${localDirectoryHandle.name}` : '';
+            metaEl.textContent = `${result.workspace.name || 'Agent Workspace'} · ${files.length} files${localMeta}`;
+            if (files.length === 0) {
+                listEl.innerHTML = '<span style="color:var(--warm-500);">当前对话还没有生成文件。</span>';
+                return;
+            }
+            listEl.innerHTML = renderWorkspaceBrowser(files);
+            if (activeWorkspacePath) {
+                await previewWorkspaceFile(encodeURIComponent(activeWorkspacePath));
+            }
+            /*
+            listEl.innerHTML = files.map(file => `
+                <div class="agent-doc-card">
+                    <div class="agent-doc-main">
+                        <div class="agent-doc-icon"><i class="bi bi-file-earmark-text"></i></div>
+                        <div style="min-width:0;">
+                            <div class="agent-doc-title">${escapeHtml(file.fileName || file.relativePath)}</div>
+                            <div class="agent-doc-meta">${escapeHtml(file.relativePath)} · v${file.version || 1}</div>
+                        </div>
+                    </div>
+                    <div class="agent-doc-actions">
+                        <button class="agent-doc-btn" onclick="openWorkspaceFile(${file.workspaceId}, '${encodeURIComponent(file.relativePath || '')}')">Open</button>
+                        <button class="agent-doc-btn" onclick="downloadWorkspaceFile(${file.workspaceId}, '${encodeURIComponent(file.relativePath || '')}')"><i class="bi bi-download"></i></button>
+                        <button class="agent-doc-btn" onclick="writeWorkspaceFileToLocal(${file.workspaceId}, '${encodeURIComponent(file.relativePath || '')}')">Local</button>
+                        <button class="agent-doc-btn" onclick="saveWorkspaceFileToKnowledge(${file.workspaceId}, '${encodeURIComponent(file.relativePath || '')}')">KB</button>
+                    </div>
+                </div>
+            `).join('');
+            */
+        } catch (e) {
+            listEl.innerHTML = `<span style="color:#dc503c;">${e && e.message ? e.message : 'Unable to load workspace.'}</span>`;
         }
     }
 
@@ -1992,7 +2741,7 @@
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
-            const streamState = { fullText: '', toolEvents: [], pendingActions: [], documentCards: [] };
+            const streamState = { fullText: '', toolEvents: [], pendingActions: [], documentCards: [], workspaceCards: [] };
             let buffer = '';
             let currentEventName = 'message';
 
@@ -2029,14 +2778,14 @@
                         if (json.status === 'queued') {
                             renderAssistantBubble(targetBubble, streamState.fullText, streamState.toolEvents, streamState.pendingActions, `<div class="d-flex align-items-center gap-3">
                                 <div class="thinking-wave"><div class="line"></div><div class="line"></div><div class="line"></div></div>
-                                <span class="small" style="color:var(--warm-400);">${json.message || 'Queued...'}</span></div>`, streamState.documentCards);
+                                <span class="small" style="color:var(--warm-400);">${json.message || 'Queued...'}</span></div>`, streamState.documentCards, streamState.workspaceCards);
                             currentEventName = 'message';
                             continue;
                         }
                         if (json.status === 'processing') {
                             renderAssistantBubble(targetBubble, streamState.fullText, streamState.toolEvents, streamState.pendingActions, `<div class="d-flex align-items-center gap-3">
                                 <div class="thinking-wave"><div class="line"></div><div class="line"></div><div class="line"></div></div>
-                                <span class="small" style="color:var(--warm-400);">AI is thinking...</span></div>`, streamState.documentCards);
+                                <span class="small" style="color:var(--warm-400);">AI is thinking...</span></div>`, streamState.documentCards, streamState.workspaceCards);
                             currentEventName = 'message';
                             continue;
                         }
@@ -2066,7 +2815,7 @@
                         if (json.content && json.content !== "[DONE]") {
                             hasStreamContent = true;
                             streamState.fullText += json.content;
-                            renderAssistantBubble(targetBubble, streamState.fullText, streamState.toolEvents, streamState.pendingActions, loadingHtml, streamState.documentCards);
+                            renderAssistantBubble(targetBubble, streamState.fullText, streamState.toolEvents, streamState.pendingActions, loadingHtml, streamState.documentCards, streamState.workspaceCards);
                             currentEventName = 'message';
                         }
                     } catch (e) { }
@@ -2254,6 +3003,7 @@
         knowledgeModal.show();
         loadKnowledgeDocs(1);
         document.getElementById('knowledgeSearchResult').innerHTML = '';
+        document.getElementById('knowledgeReindexStatus').textContent = '';
     }
 
     // 打开文件管理页面（新窗口）
@@ -2261,10 +3011,77 @@
         window.open('/admin/files?userId=' + (currentUser ? currentUser.userId : 0), '_blank');
     }
 
+    function normalizeIndexStatus(status) {
+        const value = (status || 'UNKNOWN').toUpperCase();
+        const labels = {
+            PENDING_INDEX: '待索引',
+            INDEXING: '索引中',
+            INDEXED: '已索引',
+            INDEX_FAILED: '索引失败',
+            VECTOR_DISABLED: '向量关闭',
+            INDEX_SKIPPED: '已跳过',
+            UNKNOWN: '未知'
+        };
+        const classes = {
+            PENDING_INDEX: 'pending-index',
+            INDEXING: 'indexing',
+            INDEXED: 'indexed',
+            INDEX_FAILED: 'failed',
+            VECTOR_DISABLED: 'disabled',
+            INDEX_SKIPPED: 'disabled',
+            UNKNOWN: 'disabled'
+        };
+        const icons = {
+            PENDING_INDEX: 'bi-clock',
+            INDEXING: 'bi-arrow-repeat',
+            INDEXED: 'bi-check-circle',
+            INDEX_FAILED: 'bi-exclamation-triangle',
+            VECTOR_DISABLED: 'bi-dash-circle',
+            INDEX_SKIPPED: 'bi-skip-forward',
+            UNKNOWN: 'bi-question-circle'
+        };
+        return {
+            raw: value,
+            label: labels[value] || value,
+            className: classes[value] || 'disabled',
+            icon: icons[value] || 'bi-question-circle'
+        };
+    }
+
     function renderIndexStatus(status, error) {
-        const value = status || 'UNKNOWN';
+        const info = normalizeIndexStatus(status);
         const title = error ? ` title="${escapeHtml(error)}"` : '';
-        return `<span class="index-status"${title}>${escapeHtml(value)}</span>`;
+        return `<span class="index-status ${info.className}"${title}><i class="bi ${info.icon}"></i>${escapeHtml(info.label)}</span>`;
+    }
+
+    function formatKnowledgeTime(value) {
+        if (!value) return '';
+        try {
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return String(value).replace('T', ' ');
+            return date.toLocaleString('zh-CN', { hour12: false });
+        } catch (e) {
+            return String(value).replace('T', ' ');
+        }
+    }
+
+    function renderKnowledgeMeta(doc) {
+        const tags = doc.tags || '无';
+        const indexedTime = formatKnowledgeTime(doc.indexedTime);
+        const status = normalizeIndexStatus(doc.indexStatus);
+        const parts = [
+            `标签：${escapeHtml(tags)}`,
+            `状态：${escapeHtml(status.label)}`
+        ];
+        if (indexedTime) {
+            parts.push(`索引时间：${escapeHtml(indexedTime)}`);
+        }
+        return `<div class="knowledge-meta-line">${parts.map(item => `<span>${item}</span>`).join('<span>·</span>')}</div>`;
+    }
+
+    function renderKnowledgeError(error) {
+        if (!error) return '';
+        return `<div class="knowledge-error"><i class="bi bi-exclamation-triangle me-1"></i>${escapeHtml(error)}</div>`;
     }
 
     function loadKnowledgeDocs(page = 1) {
@@ -2287,11 +3104,37 @@
                                 <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteKnowledgeDoc(${r.id})">Delete</button>
                             </div>
                         </div>
-                        <div class="small mb-1" style="color:var(--warm-500);">标签：${escapeHtml(r.tags || '无')}</div>
+                        ${renderKnowledgeMeta(r)}
+                        ${renderKnowledgeError(r.indexError)}
                         <div class="small" style="color:var(--warm-600);">${escapeHtml((r.content || '').slice(0, 120))}${(r.content || '').length > 120 ? '...' : ''}</div>
                     </div>
                 `).join('');
             });
+    }
+
+    async function reindexKnowledgeDocs() {
+        const btn = document.getElementById('knowledgeReindexBtn');
+        const statusEl = document.getElementById('knowledgeReindexStatus');
+        if (!btn || !statusEl) return;
+        btn.disabled = true;
+        const oldText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>重建中';
+        statusEl.textContent = '正在提交当前用户的知识库文档向量索引...';
+        try {
+            const response = await authFetch('/api/knowledge/reindex', { method: 'POST' });
+            const result = await response.json();
+            if (!response.ok || result.success === false) {
+                throw new Error(result.message || result.error || '重建失败');
+            }
+            statusEl.textContent = `已提交 ${result.requested ?? 0} 个文档，向量索引：${result.vectorEnabled ? '已启用' : '未启用'}`;
+            loadKnowledgeDocs(1);
+            setTimeout(() => loadKnowledgeDocs(1), 2500);
+        } catch (error) {
+            statusEl.textContent = `重建失败：${error.message || '未知错误'}`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = oldText;
+        }
     }
 
     function createKnowledgeDoc() {

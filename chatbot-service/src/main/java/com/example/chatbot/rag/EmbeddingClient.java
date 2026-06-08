@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,7 +33,8 @@ public class EmbeddingClient {
     }
 
     private List<Double> embedRemoteOllama(String text) {
-        String url = trimTrailingSlash(ragProperties.getEmbedding().getBaseUrl()) + "/api/embeddings";
+        String url = trimTrailingSlash(ragProperties.getEmbedding().getBaseUrl())
+                + resolveEmbeddingsPath("/api/embeddings");
         Map<String, Object> body = Map.of(
                 "model", ragProperties.getEmbedding().getModel(),
                 "prompt", text
@@ -42,11 +44,19 @@ public class EmbeddingClient {
     }
 
     private List<Double> embedOpenAiCompatible(String text) {
-        String url = trimTrailingSlash(ragProperties.getEmbedding().getBaseUrl()) + "/v1/embeddings";
-        Map<String, Object> body = Map.of(
-                "model", ragProperties.getEmbedding().getModel(),
-                "input", text
-        );
+        String url = trimTrailingSlash(ragProperties.getEmbedding().getBaseUrl())
+                + resolveEmbeddingsPath("/v1/embeddings");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", ragProperties.getEmbedding().getModel());
+        body.put("input", text);
+        int dimensions = ragProperties.getVector().getDimensions();
+        if (dimensions > 0) {
+            body.put("dimensions", dimensions);
+        }
+        String encodingFormat = ragProperties.getEmbedding().getEncodingFormat();
+        if (encodingFormat != null && !encodingFormat.isBlank()) {
+            body.put("encoding_format", encodingFormat.trim());
+        }
         JsonNode root = postJson(url, body);
         return toDoubleList(root.path("data").path(0).path("embedding"));
     }
@@ -84,5 +94,14 @@ public class EmbeddingClient {
             result = result.substring(0, result.length() - 1);
         }
         return result;
+    }
+
+    private String resolveEmbeddingsPath(String defaultPath) {
+        String path = ragProperties.getEmbedding().getEmbeddingsPath();
+        if (path == null || path.isBlank()) {
+            return defaultPath;
+        }
+        String result = path.trim();
+        return result.startsWith("/") ? result : "/" + result;
     }
 }

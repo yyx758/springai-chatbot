@@ -47,6 +47,30 @@ public class AgentToolNotifier {
         emit("knowledge_document_created", document);
     }
 
+    public void workspaceFileCreated(Map<String, Object> file) {
+        emit("workspace_file_created", file);
+    }
+
+    public void workspaceFileUpdated(Map<String, Object> file) {
+        emit("workspace_file_updated", file);
+    }
+
+    public void workspaceFileSavedToKnowledge(Map<String, Object> payload) {
+        emit("workspace_file_saved_to_knowledge", payload);
+    }
+
+    public void webSearchStarted(Map<String, Object> payload) {
+        emit("web_search_started", payload);
+    }
+
+    public void webSearchCompleted(Map<String, Object> payload) {
+        emit("web_search_completed", payload);
+    }
+
+    public void webFetchCompleted(Map<String, Object> payload) {
+        emit("web_fetch_completed", payload);
+    }
+
     private void emit(String eventName, Map<String, Object> payload) {
         SseEmitter emitter = currentEmitter.get();
         if (emitter == null) {

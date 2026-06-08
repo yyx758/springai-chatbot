@@ -8,7 +8,7 @@ services:
     ports:
       - "3307:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-yyx2005yyx}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
       MYSQL_DATABASE: chatbot
       MYSQL_CHARACTER_SET_SERVER: utf8mb4
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
@@ -26,11 +26,11 @@ services:
     container_name: chatbot-redis
     ports:
       - "6379:6379"
-    command: redis-server --requirepass ${REDIS_PASSWORD:-yyx2005yyx} --maxmemory 32mb --maxmemory-policy allkeys-lru --save ""
+    command: redis-server --requirepass ${REDIS_PASSWORD:-} --maxmemory 32mb --maxmemory-policy allkeys-lru --save ""
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-yyx2005yyx}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -90,7 +90,7 @@ services:
     profiles:
       - vector
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: ${PGVECTOR_DB:-chatbot_vector}
       POSTGRES_USER: ${PGVECTOR_USER:-postgres}
@@ -113,10 +113,10 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/chatbot?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-yyx2005yyx}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-yyx2005yyx}
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       NACOS_SERVER_ADDR: nacos:8848
       APP_JWT_SECRET: ${APP_JWT_SECRET:-change-this-to-a-random-string-at-least-32-chars}
@@ -131,7 +131,16 @@ services:
       APP_RAG_EMBEDDING_PROVIDER: ${APP_RAG_EMBEDDING_PROVIDER:-remote-ollama}
       APP_RAG_EMBEDDING_MODEL: ${APP_RAG_EMBEDDING_MODEL:-bge-m3}
       APP_RAG_EMBEDDING_BASE_URL: ${APP_RAG_EMBEDDING_BASE_URL:-}
+      APP_RAG_EMBEDDING_PATH: ${APP_RAG_EMBEDDING_PATH:-}
       APP_RAG_EMBEDDING_API_KEY: ${APP_RAG_EMBEDDING_API_KEY:-}
+      APP_RAG_EMBEDDING_ENCODING_FORMAT: ${APP_RAG_EMBEDDING_ENCODING_FORMAT:-float}
+      APP_WEB_TOOLS_ENABLED: ${APP_WEB_TOOLS_ENABLED:-false}
+      APP_WEB_TOOLS_PROVIDER: ${APP_WEB_TOOLS_PROVIDER:-firecrawl}
+      APP_WEB_TOOLS_MAX_RESULTS: ${APP_WEB_TOOLS_MAX_RESULTS:-5}
+      APP_WEB_TOOLS_FETCH_TIMEOUT_MS: ${APP_WEB_TOOLS_FETCH_TIMEOUT_MS:-15000}
+      APP_WEB_TOOLS_MAX_CONTENT_CHARS: ${APP_WEB_TOOLS_MAX_CONTENT_CHARS:-100000}
+      APP_FIRECRAWL_BASE_URL: ${APP_FIRECRAWL_BASE_URL:-https://api.firecrawl.dev}
+      APP_FIRECRAWL_API_KEY: ${APP_FIRECRAWL_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-smtp.qq.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
@@ -158,10 +167,10 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/chatbot?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-yyx2005yyx}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-yyx2005yyx}
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       NACOS_SERVER_ADDR: nacos:8848
       JAVA_OPTS: "-Xms64m -Xmx128m -XX:+UseSerialGC -XX:MaxRAM=160m"
     volumes:
@@ -178,12 +187,12 @@ services:
       dockerfile: gateway/Dockerfile
     container_name: chatbot-gateway
     ports:
-      - "9000:9000"
+      - "127.0.0.1:9000:9000"
     environment:
       NACOS_SERVER_ADDR: nacos:8848
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-yyx2005yyx}
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       APP_JWT_SECRET: ${APP_JWT_SECRET:-change-this-to-a-random-string-at-least-32-chars}
       JAVA_OPTS: "-Xms64m -Xmx128m -XX:+UseSerialGC -XX:MaxRAM=160m"
     depends_on:

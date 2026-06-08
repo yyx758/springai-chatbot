@@ -44,7 +44,7 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: yyx2005yyx
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
       timeout: 3s
       connect-timeout: 3s
       lettuce:
@@ -58,7 +58,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/chatbot?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
-    password: yyx2005yyx
+    password: ${SPRING_DATASOURCE_PASSWORD:}
   
   # Thymeleaf配置
   thymeleaf:
@@ -90,7 +90,7 @@ spring:
         api-key: ${DEEPSEEK_API_KEY:local-disabled}
     ollama:
     # 内网穿透的 URL
-      base-url: https://ollama.yyyyx.top
+      base-url: ${SPRING_AI_OLLAMA_BASE_URL:http://localhost:11434}
       chat:
         options:
           model: qwen2.5:0.5b # 确保你本地电脑已经 pull 了这个模型
@@ -152,6 +152,99 @@ app:
     max-tool-iterations: 6
     tool-timeout-ms: 10000
     pending-action-expire-minutes: 10
+    workspace:
+      max-files: ${APP_AGENT_WORKSPACE_MAX_FILES:300}
+      max-file-size-bytes: ${APP_AGENT_WORKSPACE_MAX_FILE_SIZE_BYTES:2097152}
+      max-path-length: ${APP_AGENT_WORKSPACE_MAX_PATH_LENGTH:512}
+      allowed-extensions:
+        - .md
+        - .txt
+        - .json
+        - .csv
+        - .html
+        - .css
+        - .js
+        - .ts
+        - .jsx
+        - .tsx
+        - .java
+        - .kt
+        - .py
+        - .go
+        - .rs
+        - .c
+        - .cpp
+        - .h
+        - .hpp
+        - .cs
+        - .php
+        - .rb
+        - .swift
+        - .sql
+        - .sh
+        - .bat
+        - .ps1
+        - .gradle
+        - .vue
+        - .scss
+        - .less
+        - .xml
+        - .yml
+        - .yaml
+        - .properties
+        - .toml
+        - .ini
+        - .conf
+        - .gitignore
+        - .gitattributes
+        - .dockerignore
+        - .editorconfig
+      allowed-filenames:
+        - Dockerfile
+        - Containerfile
+        - Jenkinsfile
+        - Makefile
+        - mvnw
+        - gradlew
+        - README
+        - LICENSE
+        - NOTICE
+      blocked-path-segments:
+        - .git
+        - .idea
+        - .vscode
+        - node_modules
+        - target
+        - dist
+        - build
+        - .gradle
+  mcp:
+    enabled: ${APP_MCP_ENABLED:false}
+    server:
+      enabled: ${APP_MCP_SERVER_ENABLED:false}
+      allowed-tools:
+        - knowledge.search
+        - files.info
+        - chat.history
+        - workspace.files.list
+        - workspace.files.read
+    client:
+      enabled: ${APP_MCP_CLIENT_ENABLED:false}
+      allowed-tools: []
+  web-tools:
+    enabled: ${APP_WEB_TOOLS_ENABLED:false}
+    provider: ${APP_WEB_TOOLS_PROVIDER:firecrawl}
+    max-results: ${APP_WEB_TOOLS_MAX_RESULTS:5}
+    fetch-timeout-ms: ${APP_WEB_TOOLS_FETCH_TIMEOUT_MS:15000}
+    max-content-chars: ${APP_WEB_TOOLS_MAX_CONTENT_CHARS:100000}
+    blocked-hosts:
+      - localhost
+      - 127.0.0.1
+      - 0.0.0.0
+      - 169.254.169.254
+    firecrawl:
+      base-url: ${APP_FIRECRAWL_BASE_URL:https://api.firecrawl.dev}
+      api-key: ${APP_FIRECRAWL_API_KEY:}
   rag:
     mode: ${APP_RAG_MODE:keyword}
     fallback-to-keyword: true
@@ -169,12 +262,14 @@ app:
       top-k: ${APP_RAG_VECTOR_TOP_K:5}
       similarity-threshold: ${APP_RAG_VECTOR_SIMILARITY_THRESHOLD:0.55}
       initialize-schema: ${APP_RAG_VECTOR_INITIALIZE_SCHEMA:true}
-    embedding:
-      provider: ${APP_RAG_EMBEDDING_PROVIDER:remote-ollama}
-      model: ${APP_RAG_EMBEDDING_MODEL:bge-m3}
-      base-url: ${APP_RAG_EMBEDDING_BASE_URL:}
-      api-key: ${APP_RAG_EMBEDDING_API_KEY:}
-      timeout-ms: ${APP_RAG_EMBEDDING_TIMEOUT_MS:20000}
+      embedding:
+        provider: ${APP_RAG_EMBEDDING_PROVIDER:remote-ollama}
+        model: ${APP_RAG_EMBEDDING_MODEL:bge-m3}
+        base-url: ${APP_RAG_EMBEDDING_BASE_URL:}
+        embeddings-path: ${APP_RAG_EMBEDDING_PATH:}
+        api-key: ${APP_RAG_EMBEDDING_API_KEY:}
+        encoding-format: ${APP_RAG_EMBEDDING_ENCODING_FORMAT:float}
+        timeout-ms: ${APP_RAG_EMBEDDING_TIMEOUT_MS:20000}
   chatbot:
     rag-enabled: true
     rag-top-k: 3

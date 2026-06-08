@@ -32,6 +32,9 @@ class HybridRagServiceTest {
     private VectorRagService vectorRagService;
 
     @Mock
+    private VectorIndexingService vectorIndexingService;
+
+    @Mock
     private FileServiceClient fileServiceClient;
 
     @Test
@@ -39,7 +42,8 @@ class HybridRagServiceTest {
     void hybridFallsBackToKeyword() {
         RagProperties properties = new RagProperties();
         properties.setMode("hybrid");
-        RagService ragService = new RagService(knowledgeDocumentMapper, knowledgeEventProducer, vectorRagService, properties, fileServiceClient);
+        RagService ragService = new RagService(knowledgeDocumentMapper, knowledgeEventProducer, vectorRagService,
+                vectorIndexingService, properties, fileServiceClient);
         KnowledgeDocument document = KnowledgeDocument.builder()
                 .id(1L)
                 .userId(7L)
@@ -64,7 +68,8 @@ class HybridRagServiceTest {
         RagProperties properties = new RagProperties();
         properties.setMode("vector");
         properties.setFallbackToKeyword(true);
-        RagService ragService = new RagService(knowledgeDocumentMapper, knowledgeEventProducer, vectorRagService, properties, fileServiceClient);
+        RagService ragService = new RagService(knowledgeDocumentMapper, knowledgeEventProducer, vectorRagService,
+                vectorIndexingService, properties, fileServiceClient);
         KnowledgeDocument document = KnowledgeDocument.builder()
                 .id(1L)
                 .userId(7L)

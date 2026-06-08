@@ -49,6 +49,22 @@ public class FileServiceClient {
         }
     }
 
+    public byte[] getFileBytes(String fileKey, Long userId) {
+        try {
+            String url = fileServiceUrl + "/api/files/download/" + fileKey;
+            ResponseEntity<byte[]> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    new HttpEntity<>(authHeaders(userId)),
+                    byte[].class
+            );
+            return response.getBody();
+        } catch (Exception e) {
+            log.error("FileServiceClient get file bytes failed: key={}", fileKey, e);
+            return null;
+        }
+    }
+
     /**
      * 获取文件信息
      */
@@ -134,6 +150,36 @@ public class FileServiceClient {
             return null;
         } catch (Exception e) {
             log.warn("銆怓ileServiceClient銆慉gent鐢熸垚鏂囨。鍐欏叆file-service寮傚父: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    public Map<String, Object> createGeneratedWorkspaceFile(Long userId, Long workspaceId, String relativePath,
+                                                            String content, String contentType) {
+        try {
+            String url = fileServiceUrl + "/api/files/generated/workspace";
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("relativePath", relativePath);
+            body.put("content", content == null ? "" : content);
+            body.put("contentType", contentType == null ? "" : contentType);
+            body.put("bizId", workspaceId == null ? "" : String.valueOf(workspaceId));
+
+            HttpHeaders headers = authHeaders(userId);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    new HttpEntity<>(body, headers),
+                    Map.class
+            );
+            Map<String, Object> result = response.getBody();
+            if (result != null && Boolean.TRUE.equals(result.get("success"))) {
+                return (Map<String, Object>) result.get("data");
+            }
+            log.warn("FileServiceClient generated workspace file failed: {}", result);
+            return null;
+        } catch (Exception e) {
+            log.warn("FileServiceClient generated workspace file request failed: {}", e.getMessage());
             return null;
         }
     }

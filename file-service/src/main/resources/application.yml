@@ -17,7 +17,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3307/chatbot?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
-    password: yyx2005yyx
+    password: ${SPRING_DATASOURCE_PASSWORD:}
 
   # Flyway（使用独立的 schema 表，避免与 chatbot-service 冲突）
   flyway:
@@ -45,7 +45,7 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: yyx2005yyx
+      password: ${SPRING_DATASOURCE_PASSWORD:}
 
 # MyBatis-Plus
 mybatis-plus:

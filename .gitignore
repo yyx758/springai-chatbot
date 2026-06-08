@@ -5,6 +5,15 @@ target/
 .claude/
 *.log
 .env
+!.env.example
 META-INF/
 uploads/
 downloaded_test.txt
+
+# 内部文档（含敏感信息）
+md/
+deploy/
+.firecrawl/
+
+# 其他
+重写大神_杨以轩_简历.md

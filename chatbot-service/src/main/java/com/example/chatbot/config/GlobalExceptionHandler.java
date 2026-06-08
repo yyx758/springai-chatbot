@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 
@@ -43,6 +44,14 @@ public class GlobalExceptionHandler {
         log.warn("权限不足: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of("success", false, "error", e.getMessage()));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatus(ResponseStatusException e) {
+        log.warn("HTTP status exception: status={}, reason={}", e.getStatusCode(), e.getReason());
+        String message = e.getReason() == null || e.getReason().isBlank() ? "request failed" : e.getReason();
+        return ResponseEntity.status(e.getStatusCode())
+                .body(Map.of("success", false, "error", message));
     }
 
     @ExceptionHandler(Exception.class)

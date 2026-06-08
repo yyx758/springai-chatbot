@@ -10,7 +10,7 @@ services:
     ports:
       - "3307:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: yyx2005yyx
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: chatbot
       MYSQL_CHARACTER_SET_SERVER: utf8mb4
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
@@ -28,11 +28,11 @@ services:
     container_name: chatbot-redis
     ports:
       - "6379:6379"
-    command: redis-server --requirepass yyx2005yyx
+    command: redis-server --requirepass ${REDIS_PASSWORD:?请在 .env 中设置 REDIS_PASSWORD}
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "yyx2005yyx", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -120,17 +120,17 @@ services:
       # 数据库
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/chatbot?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: yyx2005yyx
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       # Redis
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: yyx2005yyx
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
       # Kafka（容器内通信使用 INTERNAL 监听器 29092）
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       # Nacos
       NACOS_SERVER_ADDR: nacos:8848
       # JWT
-      APP_JWT_SECRET: change-this-dev-secret-key-at-least-32-chars
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?请在 .env 中设置 APP_JWT_SECRET}
       # AI 模型
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       SPRING_AI_OPENAI_ENABLED: ${SPRING_AI_OPENAI_ENABLED:-false}
@@ -176,11 +176,11 @@ services:
       # 数据库
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/chatbot?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: yyx2005yyx
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       # Redis
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: yyx2005yyx
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
       # Nacos
       NACOS_SERVER_ADDR: nacos:8848
       # JVM 调优
@@ -207,9 +207,9 @@ services:
       # Redis
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: yyx2005yyx
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
       # JWT（必须与主服务一致）
-      APP_JWT_SECRET: change-this-dev-secret-key-at-least-32-chars
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?请在 .env 中设置 APP_JWT_SECRET}
       # JVM 调优
       JAVA_OPTS: "-Xms128m -Xmx256m -XX:+UseG1GC"
     depends_on:

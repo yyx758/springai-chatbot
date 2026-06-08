@@ -211,6 +211,33 @@ public class FileService {
                 .in(FileRecord::getFileKey, fileKeys));
     }
 
+    public FileRecord uploadGeneratedWorkspaceText(String relativePath, String content, String contentType,
+                                                   String bizId, Long uploaderId) {
+        String originalName = sanitizeWorkspaceFilename(relativePath);
+        String finalContentType = contentType == null || contentType.isBlank() ? guessTextContentType(originalName) : contentType.trim();
+        byte[] fileBytes = (content == null ? "" : content).getBytes(StandardCharsets.UTF_8);
+        String fileKey = generateFileKey(originalName);
+
+        fileStorage.store(new ByteArrayInputStream(fileBytes), fileKey, finalContentType);
+
+        FileRecord record = FileRecord.builder()
+                .fileKey(fileKey)
+                .originalName(originalName)
+                .contentType(finalContentType)
+                .fileSize((long) fileBytes.length)
+                .storageType("LOCAL")
+                .storagePath(fileKey)
+                .uploaderId(uploaderId)
+                .bizType("AGENT_WORKSPACE")
+                .bizId(bizId)
+                .downloadCount(0)
+                .build();
+
+        fileRecordMapper.insert(record);
+        log.info("Agent workspace file generated: key={}, bizId={}, size={}KB", fileKey, bizId, fileBytes.length / 1024);
+        return record;
+    }
+
     private FileRecord getByFileKey(String fileKey) {
         return fileRecordMapper.selectOne(new LambdaQueryWrapper<FileRecord>()
                 .eq(FileRecord::getFileKey, fileKey));
@@ -240,5 +267,32 @@ public class FileService {
             value = value.substring(0, 80);
         }
         return value;
+    }
+
+    private String sanitizeWorkspaceFilename(String relativePath) {
+        String value = relativePath == null ? "" : relativePath.trim().replace('\\', '/');
+        int slash = value.lastIndexOf('/');
+        if (slash >= 0) {
+            value = value.substring(slash + 1);
+        }
+        value = value.replaceAll("[\\\\/:*?\"<>|\\r\\n\\t]", "_");
+        if (value.isBlank()) {
+            value = "workspace-file.txt";
+        }
+        if (value.length() > 120) {
+            value = value.substring(value.length() - 120);
+        }
+        return value;
+    }
+
+    private String guessTextContentType(String originalName) {
+        String lower = originalName == null ? "" : originalName.toLowerCase();
+        if (lower.endsWith(".md")) return "text/markdown";
+        if (lower.endsWith(".json")) return "application/json";
+        if (lower.endsWith(".csv")) return "text/csv";
+        if (lower.endsWith(".html")) return "text/html";
+        if (lower.endsWith(".css")) return "text/css";
+        if (lower.endsWith(".js")) return "application/javascript";
+        return "text/plain";
     }
 }

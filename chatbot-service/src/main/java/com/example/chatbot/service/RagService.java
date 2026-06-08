@@ -10,6 +10,7 @@ import com.example.chatbot.kafka.KnowledgeEvent;
 import com.example.chatbot.kafka.KnowledgeEventProducer;
 import com.example.chatbot.mapper.KnowledgeDocumentMapper;
 import com.example.chatbot.rag.RagProperties;
+import com.example.chatbot.rag.VectorIndexingService;
 import com.example.chatbot.rag.VectorRagService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class RagService {
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeEventProducer knowledgeEventProducer;
     private final VectorRagService vectorRagService;
+    private final VectorIndexingService vectorIndexingService;
     private final RagProperties ragProperties;
     private final FileServiceClient fileServiceClient;
 
@@ -129,6 +131,24 @@ public class RagService {
         }
 
         return retrieveKeywordReferences(userId, query, finalTopK);
+    }
+
+    public Map<String, Object> reindexUserDocuments(Long userId) {
+        List<KnowledgeDocument> documents = knowledgeDocumentMapper.selectList(
+                new LambdaQueryWrapper<KnowledgeDocument>()
+                        .eq(KnowledgeDocument::getUserId, userId)
+                        .eq(KnowledgeDocument::getEnabled, true)
+        );
+        int requested = 0;
+        for (KnowledgeDocument document : documents) {
+            vectorIndexingService.indexDocument(userId, document.getId());
+            requested++;
+        }
+        return Map.of(
+                "success", true,
+                "vectorEnabled", vectorIndexingService.isEnabled(),
+                "requested", requested
+        );
     }
 
     public KnowledgeDocument getDocument(Long userId, Long documentId) {
