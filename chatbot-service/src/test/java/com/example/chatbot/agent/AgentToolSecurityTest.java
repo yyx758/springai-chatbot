@@ -6,6 +6,7 @@ import com.example.chatbot.agent.tool.KnowledgeReadTools;
 import com.example.chatbot.dto.RagReference;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.mapper.ChatRecordMapper;
+import com.example.chatbot.mapper.KnowledgeDocumentMapper;
 import com.example.chatbot.service.RagService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,9 @@ class AgentToolSecurityTest {
     private RagService ragService;
 
     @Mock
+    private KnowledgeDocumentMapper knowledgeDocumentMapper;
+
+    @Mock
     private ChatRecordMapper chatRecordMapper;
 
     @Mock
@@ -45,7 +49,7 @@ class AgentToolSecurityTest {
     @Test
     @DisplayName("Knowledge tool reads userId from tool context and caps topK")
     void knowledgeToolUsesContextUserAndCapsTopK() {
-        KnowledgeReadTools tool = new KnowledgeReadTools(ragService, contextResolver, toolNotifier, auditService);
+        KnowledgeReadTools tool = new KnowledgeReadTools(ragService, knowledgeDocumentMapper, contextResolver, toolNotifier, auditService);
         ToolContext context = new ToolContext(Map.of(
                 AgentToolContextKeys.USER_ID, "7",
                 AgentToolContextKeys.SESSION_ID, "7_session"
@@ -71,18 +75,23 @@ class AgentToolSecurityTest {
     @Test
     @DisplayName("Tool schema does not expose userId or ToolContext to the model")
     void toolSchemaDoesNotExposeContext() {
-        KnowledgeReadTools tool = new KnowledgeReadTools(ragService, contextResolver, toolNotifier, auditService);
+        KnowledgeReadTools tool = new KnowledgeReadTools(ragService, knowledgeDocumentMapper, contextResolver, toolNotifier, auditService);
 
         ToolCallback[] callbacks = ToolCallbacks.from(tool);
 
-        assertEquals(1, callbacks.length);
-        String inputSchema = callbacks[0].getToolDefinition().inputSchema();
-        assertTrue(inputSchema.contains("query"));
-        assertTrue(inputSchema.contains("topK"));
-        assertFalse(inputSchema.contains("userId"));
-        assertFalse(inputSchema.contains("sessionId"));
-        assertFalse(inputSchema.contains("toolContext"));
-        assertFalse(inputSchema.contains("ToolContext"));
+        assertEquals(2, callbacks.length);
+        String searchSchema = "";
+        for (var cb : callbacks) {
+            if (cb.getToolDefinition().name().contains("search")) {
+                searchSchema = cb.getToolDefinition().inputSchema();
+            }
+        }
+        assertTrue(searchSchema.contains("query"));
+        assertTrue(searchSchema.contains("topK"));
+        assertFalse(searchSchema.contains("userId"));
+        assertFalse(searchSchema.contains("sessionId"));
+        assertFalse(searchSchema.contains("toolContext"));
+        assertFalse(searchSchema.contains("ToolContext"));
     }
 
     @Test
