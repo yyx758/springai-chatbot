@@ -56,7 +56,6 @@ public class AgentService {
     private final TimeTools timeTools;
     private final WorkspaceTools workspaceTools;
     private final WebTools webTools;
-    private final AgentToolNotifier toolNotifier;
 
     @Value("${app.agent.enabled:true}")
     private boolean agentEnabled;
@@ -79,8 +78,7 @@ public class AgentService {
             ChatHistoryTools chatHistoryTools,
             TimeTools timeTools,
             WorkspaceTools workspaceTools,
-            WebTools webTools,
-            AgentToolNotifier toolNotifier
+            WebTools webTools
     ) {
         this.openAiChatModel = getIfAvailable(openAiChatModelProvider, "OpenAI/DeepSeek");
         this.ollamaChatModel = getIfAvailable(ollamaChatModelProvider, "Ollama");
@@ -94,7 +92,6 @@ public class AgentService {
         this.timeTools = timeTools;
         this.workspaceTools = workspaceTools;
         this.webTools = webTools;
-        this.toolNotifier = toolNotifier;
     }
 
     public void streamAgent(ChatRequest request, SseEmitter emitter, String userId) {
@@ -118,11 +115,11 @@ public class AgentService {
         Map<String, Object> toolContext = new LinkedHashMap<>();
         toolContext.put(AgentToolContextKeys.USER_ID, userId);
         toolContext.put(AgentToolContextKeys.SESSION_ID, request.getSessionId());
+        toolContext.put(AgentToolContextKeys.EMITTER, emitter);
 
         Long userIdValue = Long.valueOf(userId);
         Long baselineKnowledgeDocumentId = latestKnowledgeDocumentId(userIdValue);
         StringBuilder fullResponse = new StringBuilder();
-        toolNotifier.bind(emitter);
         try {
             emitter.send(SseEmitter.event().name("agent_status")
                     .data(Map.of("status", "started")));
@@ -154,7 +151,6 @@ public class AgentService {
                                         : "";
                                 chatbotService.asyncSaveChatRecord(request.getSessionId(), request.getMessage(), savedResponse);
                                 sendStreamError(emitter, resolveErrorMessage(error));
-                                toolNotifier.clear();
                             },
                             () -> {
                                 chatbotService.asyncSaveChatRecord(request.getSessionId(), request.getMessage(), fullResponse.toString());
@@ -166,13 +162,11 @@ public class AgentService {
                                     log.warn("Agent completion event send failed: {}", e.getMessage());
                                 }
                                 emitter.complete();
-                                toolNotifier.clear();
                             }
                     );
         } catch (Exception e) {
             log.error("Agent initialization failed: {}", e.getMessage(), e);
             sendStreamError(emitter, resolveErrorMessage(e));
-            toolNotifier.clear();
         }
     }
 
@@ -209,9 +203,10 @@ public class AgentService {
                 When the user asks to search the web or read a web page, use web tools. If web tools are disabled or not configured, say that clearly.
                 If the system message says fetchWebPage has already been called for the current request, use that provided tool result and do not pretend to browse again.
                 Never say a document was saved into the knowledge base unless createKnowledgeDocument succeeded.
-                You must not delete anything directly. For deletion, call the request-delete tool and tell the user to confirm the pending action.
-                IMPORTANT: When a tool returns requiresConfirmation=true, do NOT generate any clickable links or URLs for confirmation.
-                The confirmation button is already displayed in the tool panel UI. Just tell the user to click the Confirm button in the panel above.
+                CRITICAL RULE: NEVER generate markdown links [text](url) or clickable URLs for any confirmation or action.
+                When a tool returns requiresConfirmation=true, the Confirm button is ALREADY rendered in the UI tool panel.
+                You MUST simply say "请点击上方确认按钮来完成操作" — do NOT generate any links, do NOT include any URLs.
+                You must not delete anything directly. For deletion, call the request-delete tool and tell the user to click the Confirm button.
                 Never claim that you deleted, sent, purchased, or executed a sensitive action unless the tool result confirms it.
                 Use tools to get real project or user data instead of guessing.
                 If a tool returns no useful data, say that clearly and continue with a conservative answer.

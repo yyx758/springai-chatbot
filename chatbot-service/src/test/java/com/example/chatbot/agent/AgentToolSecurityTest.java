@@ -64,8 +64,8 @@ class AgentToolSecurityTest {
         assertEquals(expected, result);
         verify(ragService).retrieveReferences(7L, "refund policy", 10);
         verify(auditService).success(eq(11L), any());
-        verify(toolNotifier).toolStarted("searchKnowledge");
-        verify(toolNotifier).toolCompleted("searchKnowledge");
+        verify(toolNotifier).toolStarted(any(), eq("searchKnowledge"));
+        verify(toolNotifier).toolCompleted(any(), eq("searchKnowledge"));
     }
 
     @Test
@@ -99,8 +99,8 @@ class AgentToolSecurityTest {
 
         verify(chatRecordMapper, never()).selectList(any());
         verify(auditService).failure(anyLong(), any(IllegalArgumentException.class));
-        verify(toolNotifier).toolStarted("getChatHistoryBySession");
-        verify(toolNotifier).toolFailed(eq("getChatHistoryBySession"), any(IllegalArgumentException.class));
+        verify(toolNotifier).toolStarted(any(), eq("getChatHistoryBySession"));
+        verify(toolNotifier).toolFailed(any(), eq("getChatHistoryBySession"), any(IllegalArgumentException.class));
     }
 
     @Test
@@ -130,6 +130,6 @@ class AgentToolSecurityTest {
         ArgumentCaptor<Wrapper<ChatRecord>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
         verify(chatRecordMapper).selectList(wrapperCaptor.capture());
         verify(auditService).success(eq(12L), any());
-        verify(toolNotifier).toolCompleted("getCurrentChatHistory");
+        verify(toolNotifier).toolCompleted(any(), eq("getCurrentChatHistory"));
     }
 }

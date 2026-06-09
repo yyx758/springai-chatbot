@@ -36,7 +36,7 @@ public class ChatHistoryTools {
             ToolContext toolContext
     ) {
         String toolName = "getCurrentChatHistory";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.READ_ONLY,
                 Map.of("limit", limit == null ? "" : limit));
         try {
@@ -55,11 +55,11 @@ public class ChatHistoryTools {
                     .map(this::toSafeMap)
                     .toList();
             auditService.success(auditId, Map.of("resultCount", result.size()));
-            toolNotifier.toolCompleted(toolName);
+            toolNotifier.toolCompleted(toolContext, toolName);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }
@@ -71,7 +71,7 @@ public class ChatHistoryTools {
             ToolContext toolContext
     ) {
         String toolName = "getChatHistoryBySession";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.READ_ONLY,
                 Map.of("sessionId", sessionId == null ? "" : sessionId, "limit", limit == null ? "" : limit));
         try {
@@ -89,11 +89,11 @@ public class ChatHistoryTools {
                     .map(this::toSafeMap)
                     .toList();
             auditService.success(auditId, Map.of("resultCount", result.size()));
-            toolNotifier.toolCompleted(toolName);
+            toolNotifier.toolCompleted(toolContext, toolName);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }

@@ -37,7 +37,7 @@ public class KnowledgeWriteTools {
             ToolContext toolContext
     ) {
         String toolName = "createKnowledgeDocument";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.LOW_RISK_WRITE,
                 Map.of("title", safe(title), "contentLength", content == null ? 0 : content.length(), "tags", safe(tags)));
         try {
@@ -59,12 +59,12 @@ public class KnowledgeWriteTools {
                 result.put("downloadUrl", "/api/files/download/" + document.getFileKey());
             }
             auditService.success(auditId, result);
-            toolNotifier.toolCompleted(toolName, result);
-            toolNotifier.knowledgeDocumentCreated(result);
+            toolNotifier.toolCompleted(toolContext, toolName, result);
+            toolNotifier.knowledgeDocumentCreated(toolContext, result);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }
@@ -76,7 +76,7 @@ public class KnowledgeWriteTools {
             ToolContext toolContext
     ) {
         String toolName = "requestDeleteKnowledgeDocument";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.REQUIRE_CONFIRMATION,
                 Map.of("documentId", documentId == null ? "" : documentId, "reason", safe(reason)));
         try {
@@ -92,11 +92,11 @@ public class KnowledgeWriteTools {
             result.put("expireTime", action.getExpireTime());
             result.put("confirmPath", "/api/chat/agent/actions/" + action.getId() + "/confirm");
             auditService.success(auditId, result);
-            toolNotifier.toolCompleted(toolName, result);
+            toolNotifier.toolCompleted(toolContext, toolName, result);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }

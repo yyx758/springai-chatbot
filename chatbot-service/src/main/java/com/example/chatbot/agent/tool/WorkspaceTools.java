@@ -39,7 +39,7 @@ public class WorkspaceTools {
             ToolContext toolContext
     ) {
         String toolName = "createWorkspaceFile";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.LOW_RISK_WRITE,
                 Map.of("relativePath", safe(relativePath), "contentLength", content == null ? 0 : content.length()));
         try {
@@ -53,12 +53,12 @@ public class WorkspaceTools {
             AgentWorkspaceFile file = workspaceService.createFile(userId, sessionId, request);
             Map<String, Object> result = workspaceService.toFileMap(file);
             auditService.success(auditId, result);
-            toolNotifier.toolCompleted(toolName, result);
-            toolNotifier.workspaceFileCreated(result);
+            toolNotifier.toolCompleted(toolContext, toolName, result);
+            toolNotifier.workspaceFileCreated(toolContext, result);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }
@@ -69,7 +69,7 @@ public class WorkspaceTools {
             ToolContext toolContext
     ) {
         String toolName = "readWorkspaceFile";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.READ_ONLY,
                 Map.of("relativePath", safe(relativePath)));
         try {
@@ -77,11 +77,11 @@ public class WorkspaceTools {
             AgentWorkspace workspace = workspaceService.getOrCreateWorkspace(userId, contextResolver.requireSessionId(toolContext));
             Map<String, Object> result = workspaceService.readFileContent(userId, workspace.getId(), relativePath);
             auditService.success(auditId, Map.of("relativePath", safe(relativePath)));
-            toolNotifier.toolCompleted(toolName);
+            toolNotifier.toolCompleted(toolContext, toolName);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }
@@ -94,7 +94,7 @@ public class WorkspaceTools {
             ToolContext toolContext
     ) {
         String toolName = "updateWorkspaceFile";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.LOW_RISK_WRITE,
                 Map.of("relativePath", safe(relativePath), "contentLength", content == null ? 0 : content.length()));
         try {
@@ -107,12 +107,12 @@ public class WorkspaceTools {
             AgentWorkspaceFile file = workspaceService.updateFile(userId, workspace.getId(), request);
             Map<String, Object> result = workspaceService.toFileMap(file);
             auditService.success(auditId, result);
-            toolNotifier.toolCompleted(toolName, result);
-            toolNotifier.workspaceFileUpdated(result);
+            toolNotifier.toolCompleted(toolContext, toolName, result);
+            toolNotifier.workspaceFileUpdated(toolContext, result);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }
@@ -124,7 +124,7 @@ public class WorkspaceTools {
             ToolContext toolContext
     ) {
         String toolName = "appendWorkspaceFile";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.LOW_RISK_WRITE,
                 Map.of("relativePath", safe(relativePath), "contentLength", content == null ? 0 : content.length()));
         try {
@@ -132,12 +132,12 @@ public class WorkspaceTools {
             AgentWorkspaceFile file = workspaceService.appendFile(userId, contextResolver.requireSessionId(toolContext), relativePath, content);
             Map<String, Object> result = workspaceService.toFileMap(file);
             auditService.success(auditId, result);
-            toolNotifier.toolCompleted(toolName, result);
-            toolNotifier.workspaceFileUpdated(result);
+            toolNotifier.toolCompleted(toolContext, toolName, result);
+            toolNotifier.workspaceFileUpdated(toolContext, result);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }
@@ -145,7 +145,7 @@ public class WorkspaceTools {
     @Tool(description = "List files in the current conversation workspace. Use this first when the user asks to inspect or modify an uploaded project.")
     public List<Map<String, Object>> listWorkspaceFiles(ToolContext toolContext) {
         String toolName = "listWorkspaceFiles";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.READ_ONLY, Map.of());
         try {
             Long userId = contextResolver.requireUserId(toolContext);
@@ -154,11 +154,11 @@ public class WorkspaceTools {
                     .map(workspaceService::toFileMap)
                     .toList();
             auditService.success(auditId, Map.of("resultCount", result.size()));
-            toolNotifier.toolCompleted(toolName);
+            toolNotifier.toolCompleted(toolContext, toolName);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }
@@ -172,7 +172,7 @@ public class WorkspaceTools {
             ToolContext toolContext
     ) {
         String toolName = "saveWorkspaceFileToKnowledge";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.LOW_RISK_WRITE,
                 Map.of("relativePath", safe(relativePath), "title", safe(title), "tags", safe(tags)));
         try {
@@ -192,13 +192,13 @@ public class WorkspaceTools {
             result.put("openPath", "/api/knowledge/documents/" + document.getId());
             result.put("downloadUrl", document.getFileKey() == null ? "" : "/api/files/download/" + document.getFileKey());
             auditService.success(auditId, result);
-            toolNotifier.toolCompleted(toolName, result);
-            toolNotifier.workspaceFileSavedToKnowledge(result);
-            toolNotifier.knowledgeDocumentCreated(result);
+            toolNotifier.toolCompleted(toolContext, toolName, result);
+            toolNotifier.workspaceFileSavedToKnowledge(toolContext, result);
+            toolNotifier.knowledgeDocumentCreated(toolContext, result);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }

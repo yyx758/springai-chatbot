@@ -34,7 +34,7 @@ public class KnowledgeReadTools {
             ToolContext toolContext
     ) {
         String toolName = "searchKnowledge";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.READ_ONLY,
                 Map.of("query", query == null ? "" : query, "topK", topK == null ? "" : topK));
         try {
@@ -42,11 +42,11 @@ public class KnowledgeReadTools {
             int finalTopK = topK == null || topK <= 0 ? DEFAULT_TOP_K : Math.min(topK, MAX_TOP_K);
             List<RagReference> result = ragService.retrieveReferences(userId, query, finalTopK);
             auditService.success(auditId, Map.of("resultCount", result.size()));
-            toolNotifier.toolCompleted(toolName);
+            toolNotifier.toolCompleted(toolContext, toolName);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }

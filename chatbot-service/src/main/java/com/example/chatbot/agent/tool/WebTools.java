@@ -29,19 +29,19 @@ public class WebTools {
             ToolContext toolContext
     ) {
         String toolName = "searchWeb";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         toolNotifier.webSearchStarted(Map.of("query", query == null ? "" : query));
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.READ_ONLY,
                 Map.of("query", query == null ? "" : query, "limit", limit == null ? "" : limit));
         try {
             Map<String, Object> result = webToolService.search(query, limit);
             auditService.success(auditId, Map.of("success", true));
-            toolNotifier.toolCompleted(toolName, result);
+            toolNotifier.toolCompleted(toolContext, toolName, result);
             toolNotifier.webSearchCompleted(result);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }
@@ -52,18 +52,18 @@ public class WebTools {
             ToolContext toolContext
     ) {
         String toolName = "fetchWebPage";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.READ_ONLY,
                 Map.of("url", url == null ? "" : url));
         try {
             Map<String, Object> result = webToolService.fetch(url);
             auditService.success(auditId, Map.of("success", true, "contentLength", result.get("contentLength")));
-            toolNotifier.toolCompleted(toolName);
+            toolNotifier.toolCompleted(toolContext, toolName);
             toolNotifier.webFetchCompleted(result);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }
@@ -75,7 +75,7 @@ public class WebTools {
             ToolContext toolContext
     ) {
         String toolName = "createWorkspaceFileFromWebPage";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.LOW_RISK_WRITE,
                 Map.of("url", url == null ? "" : url, "relativePath", relativePath == null ? "" : relativePath));
         try {
@@ -83,12 +83,12 @@ public class WebTools {
             String sessionId = contextResolver.requireSessionId(toolContext);
             Map<String, Object> result = webToolService.createWorkspaceFileFromWebPage(userId, sessionId, url, relativePath);
             auditService.success(auditId, result);
-            toolNotifier.toolCompleted(toolName, result);
+            toolNotifier.toolCompleted(toolContext, toolName, result);
             toolNotifier.workspaceFileCreated(result);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }

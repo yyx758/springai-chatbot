@@ -22,7 +22,7 @@ public class TimeTools {
     @Tool(description = "Get the current server time in ISO-8601 format.")
     public Map<String, Object> getCurrentTime(ToolContext toolContext) {
         String toolName = "getCurrentTime";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.READ_ONLY, Map.of());
         try {
             ZonedDateTime now = ZonedDateTime.now();
@@ -31,11 +31,11 @@ public class TimeTools {
                     "zone", now.getZone().toString()
             );
             auditService.success(auditId, result);
-            toolNotifier.toolCompleted(toolName);
+            toolNotifier.toolCompleted(toolContext, toolName);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }

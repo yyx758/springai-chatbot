@@ -31,7 +31,7 @@ public class FileReadTools {
             ToolContext toolContext
     ) {
         String toolName = "getFileInfo";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.READ_ONLY,
                 Map.of("fileKey", fileKey == null ? "" : fileKey));
         try {
@@ -39,15 +39,15 @@ public class FileReadTools {
             Map<String, Object> fileInfo = fileServiceClient.getFileInfo(fileKey, userId);
             if (fileInfo == null) {
                 auditService.success(auditId, Map.of("success", false));
-                toolNotifier.toolCompleted(toolName);
+                toolNotifier.toolCompleted(toolContext, toolName);
                 return Map.of("success", false, "error", "file not found or access denied");
             }
             auditService.success(auditId, Map.of("success", true));
-            toolNotifier.toolCompleted(toolName);
+            toolNotifier.toolCompleted(toolContext, toolName);
             return Map.of("success", true, "data", fileInfo);
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }
@@ -59,7 +59,7 @@ public class FileReadTools {
             ToolContext toolContext
     ) {
         String toolName = "listUserFiles";
-        toolNotifier.toolStarted(toolName);
+        toolNotifier.toolStarted(toolContext, toolName);
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.READ_ONLY,
                 Map.of("page", page == null ? "" : page, "size", size == null ? "" : size));
         try {
@@ -69,15 +69,15 @@ public class FileReadTools {
             Map<String, Object> files = fileServiceClient.listFiles(finalPage, finalSize, userId);
             if (files == null) {
                 auditService.success(auditId, Map.of("success", false));
-                toolNotifier.toolCompleted(toolName);
+                toolNotifier.toolCompleted(toolContext, toolName);
                 return Map.of("success", false, "error", "failed to list files");
             }
             auditService.success(auditId, Map.of("success", true));
-            toolNotifier.toolCompleted(toolName);
+            toolNotifier.toolCompleted(toolContext, toolName);
             return Map.of("success", true, "data", files);
         } catch (Exception e) {
             auditService.failure(auditId, e);
-            toolNotifier.toolFailed(toolName, e);
+            toolNotifier.toolFailed(toolContext, toolName, e);
             throw e;
         }
     }
