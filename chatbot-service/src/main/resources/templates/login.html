@@ -1619,7 +1619,7 @@
     function redirectByRole() {
         var user = JSON.parse(localStorage.getItem('ai_studio_user') || 'null');
         var role = user && user.role ? user.role : selectedRole;
-        if (role === 'admin') {
+        if (role === 'ADMIN') {
             window.location.replace('/admin');
         } else {
             window.location.replace('/chat');
