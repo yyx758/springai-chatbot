@@ -104,6 +104,7 @@ public class RagService {
     public List<RagReference> retrieveReferences(Long userId, String query, Integer topK) {
         String mode = ragProperties.getMode() == null ? "keyword" : ragProperties.getMode().trim().toLowerCase(Locale.ROOT);
         int finalTopK = normalizeTopK(topK);
+        log.info("[RAG] mode={}, query={}, topK={}", mode, query, finalTopK);
 
         if ("vector".equals(mode)) {
             try {
@@ -124,6 +125,7 @@ public class RagService {
             List<RagReference> keywordResults = retrieveKeywordReferences(userId, query, finalTopK);
             try {
                 List<RagReference> vectorResults = vectorRagService.retrieve(userId, query, finalTopK);
+                log.info("[RAG] hybrid: keyword={}, vector={}", keywordResults.size(), vectorResults.size());
                 return mergeReferences(vectorResults, keywordResults, finalTopK);
             } catch (Exception e) {
                 log.warn("Hybrid vector retrieval failed, using keyword results: {}", e.getMessage());
