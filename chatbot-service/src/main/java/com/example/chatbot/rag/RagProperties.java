@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.rag")
 public class RagProperties {
 
-    private String mode = "keyword";
+    private String mode = "hybrid";
     private boolean fallbackToKeyword = true;
     private Chunk chunk = new Chunk();
     private Vector vector = new Vector();
@@ -24,7 +24,7 @@ public class RagProperties {
 
     @Data
     public static class Vector {
-        private boolean enabled = false;
+        private boolean enabled = true;
         private String jdbcUrl = "";
         private String username = "";
         private String password = "";
@@ -37,8 +37,8 @@ public class RagProperties {
 
     @Data
     public static class Embedding {
-        private String provider = "remote-ollama";
-        private String model = "bge-m3";
+        private String provider = "openai-compatible";
+        private String model = "text-embedding-v4";
         private String baseUrl = "";
         private String embeddingsPath = "";
         private String apiKey = "";

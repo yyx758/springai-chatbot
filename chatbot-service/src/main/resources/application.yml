@@ -246,14 +246,14 @@ app:
       base-url: ${APP_FIRECRAWL_BASE_URL:https://api.firecrawl.dev}
       api-key: ${APP_FIRECRAWL_API_KEY:}
   rag:
-    mode: ${APP_RAG_MODE:keyword}
+    mode: ${APP_RAG_MODE:hybrid}
     fallback-to-keyword: true
     chunk:
       size: ${APP_RAG_CHUNK_SIZE:800}
       overlap: ${APP_RAG_CHUNK_OVERLAP:100}
       max-chunks-per-document: ${APP_RAG_MAX_CHUNKS_PER_DOCUMENT:200}
     vector:
-      enabled: ${APP_RAG_VECTOR_ENABLED:false}
+      enabled: ${APP_RAG_VECTOR_ENABLED:true}
       jdbc-url: ${APP_RAG_VECTOR_JDBC_URL:}
       username: ${APP_RAG_VECTOR_USERNAME:}
       password: ${APP_RAG_VECTOR_PASSWORD:}
@@ -263,10 +263,10 @@ app:
       similarity-threshold: ${APP_RAG_VECTOR_SIMILARITY_THRESHOLD:0.55}
       initialize-schema: ${APP_RAG_VECTOR_INITIALIZE_SCHEMA:true}
       embedding:
-        provider: ${APP_RAG_EMBEDDING_PROVIDER:remote-ollama}
-        model: ${APP_RAG_EMBEDDING_MODEL:bge-m3}
-        base-url: ${APP_RAG_EMBEDDING_BASE_URL:}
-        embeddings-path: ${APP_RAG_EMBEDDING_PATH:}
+        provider: ${APP_RAG_EMBEDDING_PROVIDER:openai-compatible}
+        model: ${APP_RAG_EMBEDDING_MODEL:text-embedding-v4}
+        base-url: ${APP_RAG_EMBEDDING_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+        embeddings-path: ${APP_RAG_EMBEDDING_PATH:/v1/embeddings}
         api-key: ${APP_RAG_EMBEDDING_API_KEY:}
         encoding-format: ${APP_RAG_EMBEDDING_ENCODING_FORMAT:float}
         timeout-ms: ${APP_RAG_EMBEDDING_TIMEOUT_MS:20000}
