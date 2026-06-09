@@ -9,8 +9,10 @@ import com.example.chatbot.agent.tool.TimeTools;
 import com.example.chatbot.agent.tool.WebTools;
 import com.example.chatbot.agent.tool.WorkspaceTools;
 import com.example.chatbot.dto.ChatRequest;
+import com.example.chatbot.dto.RagReference;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.entity.KnowledgeDocument;
+import com.example.chatbot.service.RagService;
 import com.example.chatbot.mapper.ChatRecordMapper;
 import com.example.chatbot.mapper.KnowledgeDocumentMapper;
 import com.example.chatbot.service.ChatbotService;
@@ -49,6 +51,7 @@ public class AgentService {
     private final ChatRecordMapper chatRecordMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final ChatbotService chatbotService;
+    private final RagService ragService;
     private final KnowledgeReadTools knowledgeReadTools;
     private final KnowledgeWriteTools knowledgeWriteTools;
     private final FileReadTools fileReadTools;
@@ -72,6 +75,7 @@ public class AgentService {
             ChatRecordMapper chatRecordMapper,
             KnowledgeDocumentMapper knowledgeDocumentMapper,
             ChatbotService chatbotService,
+            RagService ragService,
             KnowledgeReadTools knowledgeReadTools,
             KnowledgeWriteTools knowledgeWriteTools,
             FileReadTools fileReadTools,
@@ -85,6 +89,7 @@ public class AgentService {
         this.chatRecordMapper = chatRecordMapper;
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
         this.chatbotService = chatbotService;
+        this.ragService = ragService;
         this.knowledgeReadTools = knowledgeReadTools;
         this.knowledgeWriteTools = knowledgeWriteTools;
         this.fileReadTools = fileReadTools;
@@ -125,6 +130,7 @@ public class AgentService {
                     .data(Map.of("status", "started")));
 
             enrichWithMandatoryWebFetch(messages, request.getMessage(), new ToolContext(toolContext));
+            enrichWithAutoRag(messages, request.getMessage(), Long.valueOf(userId));
 
             ChatClient.create(model)
                     .prompt()
@@ -252,6 +258,24 @@ public class AgentService {
                     URL: %s
                     Error: %s
                     """.formatted(url, e.getMessage())));
+        }
+    }
+
+    private void enrichWithAutoRag(List<Message> messages, String userMessage, Long userId) {
+        if (userMessage == null || userMessage.isBlank()) {
+            return;
+        }
+        try {
+            List<RagReference> references = ragService.retrieveReferences(userId, userMessage, 3);
+            if (references == null || references.isEmpty()) {
+                return;
+            }
+            String knowledgePrompt = ragService.buildKnowledgePrompt(references);
+            if (knowledgePrompt != null && !knowledgePrompt.isBlank()) {
+                messages.add(new SystemMessage(knowledgePrompt));
+            }
+        } catch (Exception e) {
+            log.warn("Auto RAG enrichment failed: {}", e.getMessage());
         }
     }
 
