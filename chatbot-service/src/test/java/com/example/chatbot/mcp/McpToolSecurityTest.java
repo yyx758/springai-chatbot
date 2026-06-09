@@ -66,7 +66,7 @@ class McpToolSecurityTest {
                 .documentId(1L)
                 .title("Policy")
                 .snippet("hit")
-                .score(9)
+                .score(9.0)
                 .build();
         when(knowledgeReadTools.searchKnowledge(eq("refund policy"), eq(4), any()))
                 .thenReturn(List.of(reference));

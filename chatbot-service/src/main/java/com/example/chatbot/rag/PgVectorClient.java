@@ -146,7 +146,7 @@ public class PgVectorClient {
                             .documentId(rs.getLong("document_id"))
                             .title(rs.getString("title"))
                             .snippet(rs.getString("content"))
-                            .score((int) Math.round(score * 100))
+                            .score(score)
                             .build());
                 }
                 return results;

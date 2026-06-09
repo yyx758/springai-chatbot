@@ -32,6 +32,7 @@ public class RagService {
 
     private static final int DEFAULT_TOP_K = 3;
     private static final int MAX_TOP_K = 10;
+    private static final int RRF_K = 60;  // RRF 常数（Elasticsearch 默认值）
     private static final int SNIPPET_RADIUS = 80;
 
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
@@ -197,26 +198,44 @@ public class RagService {
                         .documentId(sd.document().getId())
                         .title(sd.document().getTitle())
                         .snippet(buildSnippet(sd.document().getContent(), keywords))
-                        .score(sd.score())
+                        .score((double) sd.score())
                         .build())
                 .collect(Collectors.toList());
     }
 
     private List<RagReference> mergeReferences(List<RagReference> vectorResults, List<RagReference> keywordResults, int topK) {
-        Map<Long, RagReference> merged = new LinkedHashMap<>();
-        for (RagReference reference : vectorResults) {
-            merged.put(reference.getDocumentId(), reference);
+        Map<Long, Double> rrfScores = new LinkedHashMap<>();
+        Map<Long, RagReference> bestReference = new LinkedHashMap<>();
+
+        // 关键词结果：按列表位置计算 rank（1-based）
+        for (int rank = 0; rank < keywordResults.size(); rank++) {
+            RagReference ref = keywordResults.get(rank);
+            double rrfScore = 1.0 / (RRF_K + rank + 1);
+            rrfScores.merge(ref.getDocumentId(), rrfScore, Double::sum);
+            bestReference.putIfAbsent(ref.getDocumentId(), ref);
         }
-        for (RagReference reference : keywordResults) {
-            merged.merge(reference.getDocumentId(), reference, (existing, incoming) -> {
-                int existingScore = existing.getScore() == null ? 0 : existing.getScore();
-                int incomingScore = incoming.getScore() == null ? 0 : incoming.getScore();
-                return incomingScore > existingScore ? incoming : existing;
-            });
+
+        // 向量结果：同样按位置计算 rank
+        for (int rank = 0; rank < vectorResults.size(); rank++) {
+            RagReference ref = vectorResults.get(rank);
+            double rrfScore = 1.0 / (RRF_K + rank + 1);
+            rrfScores.merge(ref.getDocumentId(), rrfScore, Double::sum);
+            bestReference.putIfAbsent(ref.getDocumentId(), ref);
         }
-        return merged.values().stream()
-                .sorted(Comparator.comparingInt((RagReference r) -> r.getScore() == null ? 0 : r.getScore()).reversed())
+
+        // 按 RRF 分数降序排列，取 topK
+        return rrfScores.entrySet().stream()
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
                 .limit(topK)
+                .map(entry -> {
+                    RagReference ref = bestReference.get(entry.getKey());
+                    return RagReference.builder()
+                            .documentId(ref.getDocumentId())
+                            .title(ref.getTitle())
+                            .snippet(ref.getSnippet())
+                            .score(entry.getValue())
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
 

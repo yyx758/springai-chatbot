@@ -10,5 +10,5 @@ public class RagReference {
     private Long documentId;
     private String title;
     private String snippet;
-    private Integer score;
+    private Double score;
 }

@@ -58,7 +58,7 @@ class AgentToolSecurityTest {
                 .documentId(1L)
                 .title("doc")
                 .snippet("hit")
-                .score(10)
+                .score(10.0)
                 .build());
         when(ragService.retrieveReferences(eq(7L), eq("refund policy"), eq(10))).thenReturn(expected);
         when(auditService.start(any(), eq("searchKnowledge"), eq(AgentToolLevel.READ_ONLY), any())).thenReturn(11L);
