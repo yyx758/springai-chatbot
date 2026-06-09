@@ -30,14 +30,14 @@ public class WebTools {
     ) {
         String toolName = "searchWeb";
         toolNotifier.toolStarted(toolContext, toolName);
-        toolNotifier.webSearchStarted(Map.of("query", query == null ? "" : query));
+        toolNotifier.webSearchStarted(toolContext, Map.of("query", query == null ? "" : query));
         Long auditId = auditService.start(toolContext, toolName, AgentToolLevel.READ_ONLY,
                 Map.of("query", query == null ? "" : query, "limit", limit == null ? "" : limit));
         try {
             Map<String, Object> result = webToolService.search(query, limit);
             auditService.success(auditId, Map.of("success", true));
             toolNotifier.toolCompleted(toolContext, toolName, result);
-            toolNotifier.webSearchCompleted(result);
+            toolNotifier.webSearchCompleted(toolContext, result);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
@@ -59,7 +59,7 @@ public class WebTools {
             Map<String, Object> result = webToolService.fetch(url);
             auditService.success(auditId, Map.of("success", true, "contentLength", result.get("contentLength")));
             toolNotifier.toolCompleted(toolContext, toolName);
-            toolNotifier.webFetchCompleted(result);
+            toolNotifier.webFetchCompleted(toolContext, result);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
@@ -84,7 +84,7 @@ public class WebTools {
             Map<String, Object> result = webToolService.createWorkspaceFileFromWebPage(userId, sessionId, url, relativePath);
             auditService.success(auditId, result);
             toolNotifier.toolCompleted(toolContext, toolName, result);
-            toolNotifier.workspaceFileCreated(result);
+            toolNotifier.workspaceFileCreated(toolContext, result);
             return result;
         } catch (Exception e) {
             auditService.failure(auditId, e);
