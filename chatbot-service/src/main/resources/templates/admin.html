@@ -904,10 +904,12 @@
             const resp = await authFetch('/api/auth/me');
             if (!resp.ok) { doLogout(); return; }
             const me = await resp.json();
+            console.log('[Admin] /api/auth/me response:', JSON.stringify(me));
             if (currentUser && currentUser.userId === me.userId) {
                 document.getElementById('adminName').textContent = me.displayName || me.username;
             }
             if (me.role !== 'ADMIN') {
+                console.warn('[Admin] Role mismatch, me.role =', me.role, 'typeof =', typeof me.role);
                 showToast('权限不足，仅管理员可访问', true);
                 window.location.href = '/chat';
                 return;
