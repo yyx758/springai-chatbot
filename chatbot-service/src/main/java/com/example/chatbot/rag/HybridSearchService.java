@@ -29,14 +29,10 @@ public class HybridSearchService {
     private final VectorRagService vectorRagService;
     private final HybridRanker hybridRanker;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
+    private final KeywordExtractor keywordExtractor;
 
     /**
      * 执行混合检索。
-     *
-     * @param userId  用户 ID
-     * @param query   用户查询
-     * @param topK    最终返回数量
-     * @return 融合排序后的 RagReference 列表
      */
     public List<RagReference> search(Long userId, String query, int topK) {
         // Step 1: 分析查询意图
@@ -57,10 +53,8 @@ public class HybridSearchService {
         return toRagReferences(selected);
     }
 
-    /**
-     * 向量检索：调用 Embedding API → PGVector 相似度搜索。
-     * 返回候选列表，不做阈值过滤（由 HybridRanker 处理）。
-     */
+    // ========== 向量检索 ==========
+
     private List<HybridCandidate> searchVector(Long userId, String query, int topK) {
         if (!vectorRagService.isEnabled()) {
             return List.of();
@@ -87,9 +81,8 @@ public class HybridSearchService {
         }
     }
 
-    /**
-     * 关键词检索：自研评分算法。
-     */
+    // ========== 关键词检索（优化版）==========
+
     private List<HybridCandidate> searchKeyword(Long userId, String query, int topK) {
         List<KnowledgeDocument> documents = knowledgeDocumentMapper.selectList(
                 new LambdaQueryWrapper<KnowledgeDocument>()
@@ -100,128 +93,127 @@ public class HybridSearchService {
             return List.of();
         }
 
-        List<String> keywords = buildKeywords(query);
-        List<ScoredDoc> scoredDocs = new ArrayList<>();
+        // 从 query 中提取各类关键词
+        List<String> queryBigrams = keywordExtractor.extractBigrams(query);
+        List<String> queryPhrases = keywordExtractor.extractQueryPhrases(query);
+        List<String> queryTechTerms = keywordExtractor.extractTechnicalTerms(query);
 
+        // 对每篇文档评分
+        List<KeywordMatchResult> scoredDocs = new ArrayList<>();
         for (KnowledgeDocument doc : documents) {
-            int score = calculateKeywordScore(doc, query, keywords);
-            List<String> matched = extractMatchedTerms(doc, keywords);
-            if (score > 0) {
-                scoredDocs.add(new ScoredDoc(doc, score, matched));
+            KeywordMatchResult result = scoreDocument(doc, query, queryBigrams, queryPhrases, queryTechTerms);
+            if (result.getKeywordScore() > 0) {
+                scoredDocs.add(result);
             }
         }
 
         // 按分数降序排列
-        scoredDocs.sort((a, b) -> Integer.compare(b.score, a.score));
+        scoredDocs.sort((a, b) -> Double.compare(b.getKeywordScore(), a.getKeywordScore()));
 
+        // 转换为 HybridCandidate
         List<HybridCandidate> candidates = new ArrayList<>();
         for (int rank = 0; rank < scoredDocs.size(); rank++) {
-            ScoredDoc sd = scoredDocs.get(rank);
+            KeywordMatchResult r = scoredDocs.get(rank);
             candidates.add(HybridCandidate.builder()
-                    .chunkId(sd.doc.getId() + "_0")
-                    .documentId(sd.doc.getId())
-                    .title(sd.doc.getTitle())
-                    .snippet(buildSnippet(sd.doc.getContent(), keywords))
+                    .chunkId(r.getDocumentId() + "_0")
+                    .documentId(r.getDocumentId())
+                    .title(r.getTitle())
+                    .snippet(r.getSnippet())
                     .keywordRank(rank + 1)
-                    .keywordScore((double) sd.score)
-                    .matchedTerms(sd.matchedTerms)
+                    .keywordScore(r.getKeywordScore())
+                    .matchedTerms(r.getMatchedTerms())
                     .build());
         }
         return candidates;
     }
 
-    // ========== 关键词评分逻辑（优化版）==========
-
     /**
-     * 优化后的关键词评分：区分泛词和专有词。
+     * 对单篇文档进行关键词评分。
+     * 使用 KeywordExtractor 提取高质量词，按规则加权打分。
      */
-    private int calculateKeywordScore(KnowledgeDocument doc, String query, List<String> keywords) {
+    private KeywordMatchResult scoreDocument(
+            KnowledgeDocument doc,
+            String query,
+            List<String> queryBigrams,
+            List<String> queryPhrases,
+            List<String> queryTechTerms) {
+
         String title = valueOrEmpty(doc.getTitle()).toLowerCase();
         String content = valueOrEmpty(doc.getContent()).toLowerCase();
-        String tags = valueOrEmpty(doc.getTags()).toLowerCase();
-        int score = 0;
 
-        // === 第一层：精确匹配（整个查询） ===
-        if (title.contains(query.toLowerCase())) score += 40;
-        if (content.contains(query.toLowerCase())) score += 30;
-        if (tags.contains(query.toLowerCase())) score += 20;
+        double score = 0;
+        List<KeywordMatchResult.MatchDetail> details = new ArrayList<>();
 
-        // === 第二层：高价值关键词匹配 ===
-        for (String keyword : keywords) {
-            if (keyword.length() < 2) continue;
-
-            boolean isHighValue = keyword.matches("[A-Z][a-zA-Z0-9]+") ||
-                    keyword.matches("[a-z]+_[a-z]+") ||
-                    keyword.matches("(?i)(docker|kubectl|psql|mysql|grep|curl|ssh)") ||
-                    keyword.matches("(?i)(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)");
-
-            boolean titleHit = title.contains(keyword);
-            boolean contentHit = content.contains(keyword);
-            boolean tagHit = tags.contains(keyword);
-
-            if (titleHit) {
-                score += isHighValue ? 8 : 4;
-            }
-            if (contentHit) {
-                score += isHighValue ? 3 : 1;
-            }
-            if (tagHit) {
-                score += isHighValue ? 5 : 2;
+        // ===== 1. queryPhrase 命中 title（+8）=====
+        for (String phrase : queryPhrases) {
+            if (title.contains(phrase)) {
+                score += 8;
+                details.add(KeywordMatchResult.MatchDetail.builder()
+                        .term(phrase).matchType("QUERY_PHRASE_IN_TITLE").score(8).build());
+            } else if (content.contains(phrase)) {
+                score += 4;
+                details.add(KeywordMatchResult.MatchDetail.builder()
+                        .term(phrase).matchType("QUERY_PHRASE_IN_CONTENT").score(4).build());
             }
         }
 
-        // === 第三层：连续短语命中加分 ===
-        if (keywords.size() >= 2) {
-            String twoGram = keywords.get(0).substring(0, Math.min(2, keywords.get(0).length()));
-            if (content.contains(twoGram) && title.contains(twoGram)) {
-                score += 3;  // 标题和正文都命中连续短语
+        // ===== 2. titlePhrase 命中 query（+8）=====
+        List<String> titlePhrases = keywordExtractor.extractPhrases(doc.getTitle());
+        for (String phrase : titlePhrases) {
+            if (query.toLowerCase().contains(phrase)) {
+                score += 8;
+                details.add(KeywordMatchResult.MatchDetail.builder()
+                        .term(phrase).matchType("TITLE_PHRASE_IN_QUERY").score(8).build());
             }
         }
 
-        // === 第四层：多个核心词共同命中加分 ===
-        long hitCount = keywords.stream()
-                .filter(kw -> kw.length() >= 2 && (title.contains(kw) || content.contains(kw)))
-                .count();
-        if (hitCount >= 3) {
-            score += 2;
+        // ===== 3. 高质量 2-gram 命中 title/content =====
+        for (String bigram : queryBigrams) {
+            if (title.contains(bigram)) {
+                score += 2;
+                details.add(KeywordMatchResult.MatchDetail.builder()
+                        .term(bigram).matchType("BIGRAM_IN_TITLE").score(2).build());
+            } else if (content.contains(bigram)) {
+                score += 1;
+                details.add(KeywordMatchResult.MatchDetail.builder()
+                        .term(bigram).matchType("BIGRAM_IN_CONTENT").score(1).build());
+            }
         }
 
-        return score;
+        // ===== 4. 英文技术词命中 =====
+        for (String term : queryTechTerms) {
+            if (title.contains(term.toLowerCase())) {
+                score += 8;
+                details.add(KeywordMatchResult.MatchDetail.builder()
+                        .term(term).matchType("TECHNICAL_IN_TITLE").score(8).build());
+            } else if (content.contains(term.toLowerCase())) {
+                score += 4;
+                details.add(KeywordMatchResult.MatchDetail.builder()
+                        .term(term).matchType("TECHNICAL_IN_CONTENT").score(4).build());
+            }
+        }
+
+        // 构建 matchedTerms（只保留真正参与评分的高质量词）
+        List<String> matchedTerms = details.stream()
+                .map(d -> d.getTerm())
+                .distinct()
+                .toList();
+
+        // 构建 snippet
+        String snippet = buildSnippet(content, queryBigrams);
+
+        return KeywordMatchResult.builder()
+                .chunkId(doc.getId() + "_0")
+                .documentId(doc.getId())
+                .title(doc.getTitle())
+                .snippet(snippet)
+                .keywordScore(score)
+                .matchedTerms(matchedTerms)
+                .matchedDetails(details)
+                .build();
     }
 
-    private List<String> extractMatchedTerms(KnowledgeDocument doc, List<String> keywords) {
-        String title = valueOrEmpty(doc.getTitle()).toLowerCase();
-        String content = valueOrEmpty(doc.getContent()).toLowerCase();
-        List<String> matched = new ArrayList<>();
-        for (String kw : keywords) {
-            if (kw.length() >= 2 && (title.contains(kw) || content.contains(kw))) {
-                matched.add(kw);
-            }
-        }
-        return matched;
-    }
-
-    // ========== 分词逻辑 ==========
-
-    private List<String> buildKeywords(String query) {
-        String normalized = query.toLowerCase();
-        List<String> keywords = new ArrayList<>();
-        keywords.add(normalized);
-        for (String token : normalized.split("[\\s,，。！？!?:：;；、]+")) {
-            if (token.length() >= 2) {
-                keywords.add(token);
-            }
-        }
-        if (!normalized.contains(" ") && normalized.length() >= 4) {
-            for (int i = 0; i < normalized.length() - 1; i++) {
-                String gram = normalized.substring(i, i + 2);
-                if (!gram.isBlank()) {
-                    keywords.add(gram);
-                }
-            }
-        }
-        return keywords.stream().distinct().toList();
-    }
+    // ========== snippet 提取 ==========
 
     private String buildSnippet(String content, List<String> keywords) {
         if (content == null || content.isBlank()) return "";
@@ -247,23 +239,16 @@ public class HybridSearchService {
     private void logVectorResults(String query, List<HybridCandidate> candidates) {
         for (HybridCandidate c : candidates) {
             log.info("[HybridRAG-Vector] query='{}', rank={}, chunkId={}, docId={}, title='{}', vectorScore={}",
-                    query.length() > 30 ? query.substring(0, 30) + "..." : query,
-                    c.getVectorRank(), c.getChunkId(), c.getDocumentId(),
-                    c.getTitle() != null && c.getTitle().length() > 25
-                            ? c.getTitle().substring(0, 25) + "..." : c.getTitle(),
-                    c.getVectorScore());
+                    truncate(query, 30), c.getVectorRank(), c.getChunkId(), c.getDocumentId(),
+                    truncate(c.getTitle(), 25), c.getVectorScore());
         }
     }
 
     private void logKeywordResults(String query, List<HybridCandidate> candidates) {
         for (HybridCandidate c : candidates) {
             log.info("[HybridRAG-Keyword] query='{}', rank={}, chunkId={}, docId={}, title='{}', keywordScore={}, matchedTerms={}",
-                    query.length() > 30 ? query.substring(0, 30) + "..." : query,
-                    c.getKeywordRank(), c.getChunkId(), c.getDocumentId(),
-                    c.getTitle() != null && c.getTitle().length() > 25
-                            ? c.getTitle().substring(0, 25) + "..." : c.getTitle(),
-                    c.getKeywordScore(),
-                    c.getMatchedTerms());
+                    truncate(query, 30), c.getKeywordRank(), c.getChunkId(), c.getDocumentId(),
+                    truncate(c.getTitle(), 25), c.getKeywordScore(), c.getMatchedTerms());
         }
     }
 
@@ -273,10 +258,16 @@ public class HybridSearchService {
         return value == null ? "" : value;
     }
 
+    private String truncate(String s, int maxLen) {
+        if (s == null) return "";
+        return s.length() > maxLen ? s.substring(0, maxLen) + "..." : s;
+    }
+
     private List<RagReference> toRagReferences(List<HybridCandidate> candidates) {
         List<RagReference> refs = new ArrayList<>();
         for (HybridCandidate c : candidates) {
             refs.add(RagReference.builder()
+                    .chunkId(c.getChunkId())
                     .documentId(c.getDocumentId())
                     .title(c.getTitle())
                     .snippet(c.getSnippet())
@@ -285,6 +276,4 @@ public class HybridSearchService {
         }
         return refs;
     }
-
-    private record ScoredDoc(KnowledgeDocument doc, int score, List<String> matchedTerms) {}
 }
