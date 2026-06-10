@@ -154,7 +154,6 @@ public class HybridSearchService {
         String queryLower = query.toLowerCase();
 
         double score = 0;
-        List<KeywordMatchResult.MatchDetail> details = new ArrayList<>();
         List<String> allHitTerms = new ArrayList<>();
 
         // ===== 第一层：英文技术词（最高优先级） =====
@@ -162,13 +161,9 @@ public class HybridSearchService {
             String termLower = term.toLowerCase();
             if (title.contains(termLower)) {
                 score += 8;
-                details.add(KeywordMatchResult.MatchDetail.builder()
-                        .term(term).matchType(KeywordMatchResult.MatchType.TECH_IN_TITLE).score(8).build());
                 allHitTerms.add(term);
             } else if (content.contains(termLower)) {
                 score += 4;
-                details.add(KeywordMatchResult.MatchDetail.builder()
-                        .term(term).matchType(KeywordMatchResult.MatchType.TECH_IN_CONTENT).score(4).build());
                 allHitTerms.add(term);
             }
         }
@@ -178,13 +173,9 @@ public class HybridSearchService {
         for (String phrase : queryPhrases) {
             if (title.contains(phrase)) {
                 score += 8;
-                details.add(KeywordMatchResult.MatchDetail.builder()
-                        .term(phrase).matchType(KeywordMatchResult.MatchType.PHRASE_IN_TITLE).score(8).build());
                 allHitTerms.add(phrase);
             } else if (content.contains(phrase)) {
                 score += 4;
-                details.add(KeywordMatchResult.MatchDetail.builder()
-                        .term(phrase).matchType(KeywordMatchResult.MatchType.PHRASE_IN_CONTENT).score(4).build());
                 allHitTerms.add(phrase);
             }
         }
@@ -193,8 +184,6 @@ public class HybridSearchService {
         for (String phrase : titlePhrases) {
             if (queryLower.contains(phrase) && !allHitTerms.contains(phrase)) {
                 score += 8;
-                details.add(KeywordMatchResult.MatchDetail.builder()
-                        .term(phrase).matchType(KeywordMatchResult.MatchType.TITLE_PHRASE_IN_QUERY).score(8).build());
                 allHitTerms.add(phrase);
             }
         }
@@ -203,7 +192,6 @@ public class HybridSearchService {
         // 如果已有 phrase/tech 命中，则 bigrams 只作为兜底
         boolean hasHighValueHit = !allHitTerms.isEmpty();
 
-        List<String> coveredTerms = new ArrayList<>();
         List<String> ignoredTerms = new ArrayList<>();
 
         if (!hasHighValueHit) {
@@ -211,13 +199,9 @@ public class HybridSearchService {
             for (String bigram : queryBigrams) {
                 if (title.contains(bigram)) {
                     score += 2;
-                    details.add(KeywordMatchResult.MatchDetail.builder()
-                            .term(bigram).matchType(KeywordMatchResult.MatchType.BIGRAM_IN_TITLE).score(2).build());
                     allHitTerms.add(bigram);
                 } else if (content.contains(bigram)) {
                     score += 1;
-                    details.add(KeywordMatchResult.MatchDetail.builder()
-                            .term(bigram).matchType(KeywordMatchResult.MatchType.BIGRAM_IN_CONTENT).score(1).build());
                     allHitTerms.add(bigram);
                 }
             }
@@ -241,7 +225,6 @@ public class HybridSearchService {
                 .matchedTerms(coverage.matched())
                 .coveredTerms(coverage.covered())
                 .ignoredTerms(ignoredTerms)
-                .matchedDetails(details)
                 .build();
     }
 

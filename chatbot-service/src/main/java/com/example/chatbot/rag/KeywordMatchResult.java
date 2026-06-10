@@ -31,22 +31,6 @@ public class KeywordMatchResult {
     /** 被过滤的低质量词（停用词、虚词等，不参与评分） */
     private List<String> ignoredTerms;
 
-    /** 每个匹配词的详细信息 */
-    private List<MatchDetail> matchDetails;
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class MatchDetail {
-        /** 匹配的词 */
-        private String term;
-        /** 匹配类型 */
-        private MatchType matchType;
-        /** 贡献分数 */
-        private double score;
-    }
-
     public enum MatchType {
         TECH_IN_TITLE,
         TECH_IN_CONTENT,
