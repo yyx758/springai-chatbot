@@ -39,13 +39,19 @@ public class HybridCandidate {
     /** 加权 RRF 融合分数 */
     private double rrfScore;
 
-    /** 最终分数（当前 = rrfScore） */
+    /** 规则加成分数（当前为 0，预留扩展） */
+    private double ruleBoost;
+
+    /** 最终分数 = rrfScore + ruleBoost */
     private double finalScore;
 
     /** 是否被最终过滤选中（进入 prompt） */
     private boolean selected;
 
-    /** 关键词匹配到的高价值词（参与评分） */
+    /** 选中或过滤的原因 */
+    private SelectReason selectedReason;
+
+    /** 关键词匹配到的高价值词 */
     private List<String> matchedTerms;
 
     /** 被长词覆盖的短碎片（不参与评分） */

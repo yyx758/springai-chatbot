@@ -1,10 +1,12 @@
 package com.example.chatbot.rag;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,32 +14,21 @@ import java.util.Map;
 /**
  * 混合检索融合排序器。
  * <p>
- * 职责：
- * 1. 将向量检索和关键词检索的候选结果按 chunkId 合并
+ * 流程：
+ * 1. 按 chunkId 合并向量和关键词候选
  * 2. 计算加权 RRF 分数
- * 3. 根据向量分数 + 关键词命中进行最终过滤
- * 4. 输出进入 prompt 的最终结果
+ * 3. 规则型 rerank/filter 判断 selected
+ * 4. 返回最终进入 prompt 的结果
  */
 @Component
+@RequiredArgsConstructor
 @Slf4j
 public class HybridRanker {
 
-    private static final int RRF_K = 60;
-    private static final int FINAL_TOP_K = 5;
-
-    // 最终过滤阈值
-    private static final double STRONG_THRESHOLD = 0.55;
-    private static final double MEDIUM_THRESHOLD = 0.35;
-    private static final double FALLBACK_THRESHOLD = 0.45;
+    private final HybridRagProperties properties;
 
     /**
      * 执行完整的融合排序流程。
-     *
-     * @param vectorCandidates   向量检索结果（已按相似度排序）
-     * @param keywordCandidates  关键词检索结果（已按评分排序）
-     * @param queryIntent        查询意图（包含权重）
-     * @param finalTopK          最终返回数量
-     * @return 最终进入 prompt 的候选结果
      */
     public List<HybridCandidate> rank(
             List<HybridCandidate> vectorCandidates,
@@ -45,9 +36,7 @@ public class HybridRanker {
             QueryIntent queryIntent,
             int finalTopK) {
 
-        if (finalTopK <= 0) {
-            finalTopK = FINAL_TOP_K;
-        }
+        int effectiveTopK = finalTopK > 0 ? finalTopK : properties.getFinalTopK();
 
         // Step 1: 按 chunkId 合并候选
         Map<String, HybridCandidate> merged = mergeCandidatesByChunkId(vectorCandidates, keywordCandidates);
@@ -61,8 +50,8 @@ public class HybridRanker {
                 .sorted(Comparator.comparingDouble(HybridCandidate::getRrfScore).reversed())
                 .toList();
 
-        // Step 4: 最终过滤
-        List<HybridCandidate> selected = filterFinalResults(ranked, finalTopK);
+        // Step 4: 规则型 rerank/filter
+        List<HybridCandidate> selected = applyRuleBasedRerankAndFilter(ranked, effectiveTopK);
 
         // Step 5: 打印完整日志
         logFinalRanking(ranked, selected, queryIntent);
@@ -70,25 +59,20 @@ public class HybridRanker {
         return selected;
     }
 
-    /**
-     * 按 chunkId 合并向量和关键词候选结果。
-     * 同一个 chunk 可能被两个检索器都命中。
-     */
+    // ========== Step 1: 按 chunkId 合并 ==========
+
     private Map<String, HybridCandidate> mergeCandidatesByChunkId(
             List<HybridCandidate> vectorCandidates,
             List<HybridCandidate> keywordCandidates) {
 
         Map<String, HybridCandidate> merged = new LinkedHashMap<>();
 
-        // 先放入向量结果
         for (HybridCandidate vc : vectorCandidates) {
             merged.put(vc.getChunkId(), vc);
         }
 
-        // 合并关键词结果
         for (HybridCandidate kc : keywordCandidates) {
             merged.merge(kc.getChunkId(), kc, (existing, incoming) -> {
-                // 合并：保留向量的 snippet，补充关键词的 matchedTerms
                 return HybridCandidate.builder()
                         .chunkId(existing.getChunkId())
                         .documentId(existing.getDocumentId() != null ? existing.getDocumentId() : incoming.getDocumentId())
@@ -106,10 +90,8 @@ public class HybridRanker {
         return merged;
     }
 
-    /**
-     * 计算加权 RRF 分数。
-     * score = vectorWeight / (k + vectorRank) + keywordWeight / (k + keywordRank)
-     */
+    // ========== Step 2: 加权 RRF ==========
+
     private void calculateWeightedRrf(
             Map<String, HybridCandidate> merged,
             List<HybridCandidate> vectorCandidates,
@@ -117,103 +99,140 @@ public class HybridRanker {
             double vectorWeight,
             double keywordWeight) {
 
-        // 向量部分
+        int k = properties.getRrfK();
+
         for (int rank = 0; rank < vectorCandidates.size(); rank++) {
             HybridCandidate vc = vectorCandidates.get(rank);
             HybridCandidate candidate = merged.get(vc.getChunkId());
             if (candidate != null) {
-                double vectorRrf = vectorWeight / (RRF_K + rank + 1);
-                candidate.setRrfScore(candidate.getRrfScore() + vectorRrf);
+                candidate.setRrfScore(candidate.getRrfScore() + vectorWeight / (k + rank + 1));
             }
         }
 
-        // 关键词部分
         for (int rank = 0; rank < keywordCandidates.size(); rank++) {
             HybridCandidate kc = keywordCandidates.get(rank);
             HybridCandidate candidate = merged.get(kc.getChunkId());
             if (candidate != null) {
-                double keywordRrf = keywordWeight / (RRF_K + rank + 1);
-                candidate.setRrfScore(candidate.getRrfScore() + keywordRrf);
+                candidate.setRrfScore(candidate.getRrfScore() + keywordWeight / (k + rank + 1));
             }
         }
 
-        // finalScore 暂时 = rrfScore
+        // finalScore = rrfScore + ruleBoost（当前 ruleBoost = 0）
         for (HybridCandidate candidate : merged.values()) {
-            candidate.setFinalScore(candidate.getRrfScore());
+            candidate.setRuleBoost(properties.getDefaultRuleBoost());
+            candidate.setFinalScore(candidate.getRrfScore() + candidate.getRuleBoost());
         }
     }
 
+    // ========== Step 4: 规则型 rerank/filter ==========
+
     /**
-     * 最终过滤规则：
-     * 1. vectorScore >= 0.55 → 强相关，直接保留
-     * 2. 0.35 <= vectorScore < 0.55 → 中等，关键词也命中则保留
-     * 3. vectorScore < 0.35 → 弱相关，仅专有词命中时保留
-     * 4. 只有关键词命中的高分结果也保留
-     * 5. 全部被过滤时 fallback 保留最高分 1 条
+     * 基于规则的 rerank + filter，逐条判断 selected 和 selectedReason。
      */
-    private List<HybridCandidate> filterFinalResults(List<HybridCandidate> ranked, int finalTopK) {
+    private List<HybridCandidate> applyRuleBasedRerankAndFilter(
+            List<HybridCandidate> ranked, int finalTopK) {
+
         List<HybridCandidate> selected = new ArrayList<>();
+        Map<Long, Integer> docChunkCount = new HashMap<>();
         HybridCandidate bestFiltered = null;
 
         for (HybridCandidate c : ranked) {
-            boolean pass = false;
+            // 规则 7: finalTopK 限制
+            if (selected.size() >= finalTopK) {
+                c.setSelected(false);
+                c.setSelectedReason(SelectReason.FILTERED_EXCEED_FINAL_TOP_K);
+                continue;
+            }
+
+            // 规则 1: 空内容过滤
+            if (isEmptyContent(c)) {
+                c.setSelected(false);
+                c.setSelectedReason(SelectReason.FILTERED_EMPTY_CONTENT);
+                bestFiltered = pickBest(bestFiltered, c);
+                continue;
+            }
+
+            // 规则 6: 同文档 chunk 限制（在强向量之前检查）
+            int docCount = docChunkCount.getOrDefault(c.getDocumentId(), 0);
+            if (docCount >= properties.getMaxChunksPerDocument()) {
+                c.setSelected(false);
+                c.setSelectedReason(SelectReason.FILTERED_SAME_DOCUMENT_LIMIT);
+                bestFiltered = pickBest(bestFiltered, c);
+                continue;
+            }
 
             Double vs = c.getVectorScore();
             Integer kr = c.getKeywordRank();
 
-            if (vs != null && vs >= STRONG_THRESHOLD) {
-                // 强相关：直接保留
-                pass = true;
-            } else if (vs != null && vs >= MEDIUM_THRESHOLD) {
-                // 中等相关：关键词也命中则保留
-                pass = (kr != null);
-            } else if (vs != null && vs < MEDIUM_THRESHOLD) {
-                // 弱相关：仅专有词命中时保留
-                pass = hasHighValueKeywordHit(c);
-            } else if (kr != null && c.getKeywordScore() != null && c.getKeywordScore() > 20) {
-                // 仅关键词命中且高分
-                pass = true;
-            }
-
-            if (pass) {
+            // 规则 2: 强向量相关
+            if (vs != null && vs >= properties.getStrongVectorThreshold()) {
                 c.setSelected(true);
+                c.setSelectedReason(SelectReason.SELECTED_STRONG_VECTOR);
+                docChunkCount.merge(c.getDocumentId(), 1, Integer::sum);
                 selected.add(c);
-            } else {
-                c.setSelected(false);
-                // 记录最高分的被过滤候选，用于 fallback
-                if (bestFiltered == null || c.getFinalScore() > bestFiltered.getFinalScore()) {
-                    bestFiltered = c;
-                }
+                continue;
             }
 
-            if (selected.size() >= finalTopK) {
-                break;
+            // 规则 3: 中等向量 + 关键词辅助
+            if (vs != null && vs >= properties.getMediumVectorThreshold() && kr != null
+                    && hasNonStopWordKeyword(c)) {
+                c.setSelected(true);
+                c.setSelectedReason(SelectReason.SELECTED_VECTOR_AND_KEYWORD);
+                docChunkCount.merge(c.getDocumentId(), 1, Integer::sum);
+                selected.add(c);
+                continue;
             }
+
+            // 规则 4: 关键词强命中
+            if (hasStrongKeywordSignal(c)) {
+                c.setSelected(true);
+                c.setSelectedReason(SelectReason.SELECTED_STRONG_KEYWORD);
+                docChunkCount.merge(c.getDocumentId(), 1, Integer::sum);
+                selected.add(c);
+                continue;
+            }
+
+            // 规则 5: 弱相关过滤
+            c.setSelected(false);
+            c.setSelectedReason(SelectReason.FILTERED_NO_VALID_SIGNAL);
+            bestFiltered = pickBest(bestFiltered, c);
         }
 
-        // fallback：全部被过滤时保留最高分 1 条
-        if (selected.isEmpty() && bestFiltered != null) {
+        // 规则 8: fallback 兜底
+        if (selected.isEmpty() && bestFiltered != null
+                && bestFiltered.getVectorScore() != null
+                && bestFiltered.getVectorScore() >= properties.getFallbackVectorThreshold()) {
             bestFiltered.setSelected(true);
+            bestFiltered.setSelectedReason(SelectReason.SELECTED_FALLBACK_BEST_VECTOR);
             selected.add(bestFiltered);
-            log.info("[HybridRAG-Final] fallback: all filtered, keeping best candidate chunkId={}", bestFiltered.getChunkId());
+            log.info("[HybridRAG-Final] fallback: all filtered, keeping best vector candidate chunkId={}",
+                    bestFiltered.getChunkId());
         }
 
         return selected;
     }
 
     /**
-     * 判断是否命中了高价值关键词（类名、方法名、命令、配置项等）。
+     * 选择两个候选中 finalScore 更高的那个。
+     * 修复 Java 值传递问题：返回新对象而非修改原引用。
      */
-    private boolean hasHighValueKeywordHit(HybridCandidate c) {
+    private HybridCandidate pickBest(HybridCandidate current, HybridCandidate candidate) {
+        if (current == null) return candidate;
+        return candidate.getFinalScore() > current.getFinalScore() ? candidate : current;
+    }
+
+    // ========== 规则辅助方法 ==========
+
+    private boolean isEmptyContent(HybridCandidate c) {
+        return c.getSnippet() == null || c.getSnippet().isBlank();
+    }
+
+    private boolean hasNonStopWordKeyword(HybridCandidate c) {
         if (c.getMatchedTerms() == null || c.getMatchedTerms().isEmpty()) {
             return false;
         }
         for (String term : c.getMatchedTerms()) {
-            // PascalCase 类名、snake_case、SQL 关键字、命令词
-            if (term.matches("[A-Z][a-zA-Z0-9]+") ||
-                term.matches("[a-z]+_[a-z]+") ||
-                term.matches("(?i)(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)") ||
-                term.matches("(?i)(docker|kubectl|psql|mysql|grep|curl|ssh)")) {
+            if (term.length() >= 2) {
                 return true;
             }
         }
@@ -221,8 +240,30 @@ public class HybridRanker {
     }
 
     /**
-     * 打印完整融合排序日志。
+     * 关键词强命中判断：
+     * keywordScore >= strongKeywordThreshold 且 matchedTerms 中存在高质量词
      */
+    private boolean hasStrongKeywordSignal(HybridCandidate c) {
+        if (c.getKeywordScore() == null || c.getKeywordScore() < properties.getStrongKeywordThreshold()) {
+            return false;
+        }
+        if (c.getMatchedTerms() == null || c.getMatchedTerms().isEmpty()) {
+            return false;
+        }
+        for (String term : c.getMatchedTerms()) {
+            if (term.matches("[A-Z][a-zA-Z0-9]+") ||                      // PascalCase
+                term.matches("[a-z]+_[a-z]+") ||                           // snake_case
+                term.matches("(?i)(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)") || // SQL
+                term.matches("(?i)(docker|kubectl|psql|mysql|grep|curl|ssh)") || // 命令
+                term.length() >= 4) {                                       // 长短语
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ========== 日志 ==========
+
     private void logFinalRanking(
             List<HybridCandidate> ranked,
             List<HybridCandidate> selected,
@@ -233,19 +274,20 @@ public class HybridRanker {
             boolean isSelected = selected.contains(c);
             log.info("[HybridRAG-Final] rank={}, chunkId={}, docId={}, title='{}', "
                             + "vectorRank={}, vectorScore={}, keywordRank={}, keywordScore={}, "
-                            + "rrfScore={}, finalScore={}, selected={}",
+                            + "rrfScore={}, ruleBoost={}, finalScore={}, selected={}, selectedReason={}",
                     i + 1,
                     c.getChunkId(),
                     c.getDocumentId(),
-                    c.getTitle() != null && c.getTitle().length() > 30
-                            ? c.getTitle().substring(0, 30) + "..." : c.getTitle(),
+                    preview(c.getTitle(), 30),
                     c.getVectorRank(),
                     c.getVectorScore(),
                     c.getKeywordRank(),
                     c.getKeywordScore(),
                     String.format("%.6f", c.getRrfScore()),
+                    String.format("%.6f", c.getRuleBoost()),
                     String.format("%.6f", c.getFinalScore()),
-                    isSelected);
+                    isSelected,
+                    c.getSelectedReason());
         }
 
         log.info("[HybridRAG-Final] total candidates={}, selected={}, "
@@ -254,5 +296,16 @@ public class HybridRanker {
                 queryIntent.getQueryType(),
                 queryIntent.getVectorWeight(),
                 queryIntent.getKeywordWeight());
+    }
+
+    // ========== 工具方法 ==========
+
+    /**
+     * 文本预览：截断 + 去除多余空白。
+     */
+    public static String preview(String text, int maxLen) {
+        if (text == null) return "";
+        String cleaned = text.replaceAll("\\s+", " ").trim();
+        return cleaned.length() > maxLen ? cleaned.substring(0, maxLen) + "..." : cleaned;
     }
 }

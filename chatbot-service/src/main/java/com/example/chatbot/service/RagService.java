@@ -236,18 +236,41 @@ public class RagService {
 
     public String buildKnowledgePrompt(List<RagReference> references) {
         if (references == null || references.isEmpty()) {
+            log.info("[HybridRAG-Prompt] selectedChunks=0, no context injected");
             return "";
         }
+
+        log.info("[HybridRAG-Prompt] selectedChunks={}", references.size());
+
         StringBuilder builder = new StringBuilder();
         builder.append("以下是可用知识片段，请优先基于这些内容回答，并在答案中尽量保持事实一致：\n");
         for (int i = 0; i < references.size(); i++) {
             RagReference reference = references.get(i);
+            String contentPreview = preview(reference.getSnippet(), 300);
+            log.info("[HybridRAG-PromptChunk] index={}, chunkId={}, docId={}, title='{}', score={}, contentPreview='{}'",
+                    i + 1,
+                    reference.getChunkId(),
+                    reference.getDocumentId(),
+                    reference.getTitle(),
+                    reference.getScore(),
+                    contentPreview);
             builder.append("[").append(i + 1).append("] ")
                     .append(reference.getTitle()).append("\n")
                     .append(reference.getSnippet()).append("\n");
         }
         builder.append("如果知识片段无法覆盖问题，请明确说明并给出保守回答。");
-        return builder.toString();
+
+        String context = builder.toString();
+        log.info("[HybridRAG-PromptContext] contextLength={}, contextPreview='{}'",
+                context.length(), preview(context, 500));
+
+        return context;
+    }
+
+    private String preview(String text, int maxLen) {
+        if (text == null) return "";
+        String cleaned = text.replaceAll("\\s+", " ").trim();
+        return cleaned.length() > maxLen ? cleaned.substring(0, maxLen) + "..." : cleaned;
     }
 
     private int normalizeTopK(Integer topK) {
