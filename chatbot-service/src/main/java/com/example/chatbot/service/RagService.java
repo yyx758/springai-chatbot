@@ -41,6 +41,7 @@ public class RagService {
     private final VectorIndexingService vectorIndexingService;
     private final RagProperties ragProperties;
     private final FileServiceClient fileServiceClient;
+    private final com.example.chatbot.rag.HybridSearchService hybridSearchService;
 
     public KnowledgeDocument createDocument(Long userId, KnowledgeDocumentCreateRequest request) {
         String indexStatus = vectorRagService.isEnabled() ? "PENDING_INDEX" : "VECTOR_DISABLED";
@@ -122,15 +123,7 @@ public class RagService {
         }
 
         if ("hybrid".equals(mode)) {
-            List<RagReference> keywordResults = retrieveKeywordReferences(userId, query, finalTopK);
-            try {
-                List<RagReference> vectorResults = vectorRagService.retrieve(userId, query, finalTopK);
-                log.info("[RAG] hybrid: keyword={}, vector={}", keywordResults.size(), vectorResults.size());
-                return mergeReferences(vectorResults, keywordResults, finalTopK);
-            } catch (Exception e) {
-                log.warn("Hybrid vector retrieval failed, using keyword results: {}", e.getMessage());
-                return keywordResults;
-            }
+            return hybridSearchService.search(userId, query, finalTopK);
         }
 
         return retrieveKeywordReferences(userId, query, finalTopK);
