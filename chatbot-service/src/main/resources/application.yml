@@ -260,7 +260,7 @@ app:
       table-name: ${APP_RAG_VECTOR_TABLE:ai_studio_knowledge_vectors}
       dimensions: ${APP_RAG_VECTOR_DIMENSIONS:1024}
       top-k: ${APP_RAG_VECTOR_TOP_K:5}
-      similarity-threshold: ${APP_RAG_VECTOR_SIMILARITY_THRESHOLD:0.55}
+      similarity-threshold: ${APP_RAG_VECTOR_SIMILARITY_THRESHOLD:0.3}
       initialize-schema: ${APP_RAG_VECTOR_INITIALIZE_SCHEMA:true}
       embedding:
         provider: ${APP_RAG_EMBEDDING_PROVIDER:openai-compatible}
