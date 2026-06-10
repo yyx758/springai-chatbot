@@ -122,6 +122,30 @@ public class PgVectorClient {
         if (!isEnabled()) {
             return List.of();
         }
+
+        // 先查无阈值过滤的原始分数，用于调试
+        String debugSql = """
+                SELECT document_id, title, round((1 - (embedding <=> ?::vector))::numeric, 4) AS score
+                FROM %s WHERE user_id = ?
+                ORDER BY embedding <=> ?::vector LIMIT 5
+                """.formatted(tableName());
+        try (Connection conn = newConnection();
+             PreparedStatement dps = conn.prepareStatement(debugSql)) {
+            dps.setString(1, queryVector);
+            dps.setLong(2, userId);
+            dps.setString(3, queryVector);
+            try (ResultSet drs = dps.executeQuery()) {
+                while (drs.next()) {
+                    log.info("[VectorRAG-Debug] docId={}, title='{}', rawScore={}",
+                            drs.getLong("document_id"),
+                            drs.getString("title"),
+                            drs.getDouble("score"));
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[VectorRAG-Debug] query failed: {}", e.getMessage());
+        }
+
         String sql = """
                 SELECT document_id, title, content, 1 - (embedding <=> ?::vector) AS score
                 FROM %s
