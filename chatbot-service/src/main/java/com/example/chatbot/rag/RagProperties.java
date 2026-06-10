@@ -31,7 +31,7 @@ public class RagProperties {
         private String tableName = "ai_studio_knowledge_vectors";
         private int dimensions = 1024;
         private int topK = 5;
-        private double similarityThreshold = 0.55;
+        private double similarityThreshold = 0.3;
         private boolean initializeSchema = true;
     }
 
