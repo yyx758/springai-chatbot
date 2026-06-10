@@ -45,6 +45,9 @@ public class HybridCandidate {
     /** 是否被最终过滤选中（进入 prompt） */
     private boolean selected;
 
-    /** 关键词匹配到的高价值词 */
+    /** 关键词匹配到的高价值词（参与评分） */
     private List<String> matchedTerms;
+
+    /** 被长词覆盖的短碎片（不参与评分） */
+    private List<String> coveredTerms;
 }

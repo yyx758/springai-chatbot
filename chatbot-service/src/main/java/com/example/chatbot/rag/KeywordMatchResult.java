@@ -21,8 +21,18 @@ public class KeywordMatchResult {
     private String title;
     private String snippet;
     private double keywordScore;
+
+    /** 真正参与评分的高质量词 */
     private List<String> matchedTerms;
-    private List<MatchDetail> matchedDetails;
+
+    /** 被长词覆盖的短碎片（不参与评分，仅用于调试） */
+    private List<String> coveredTerms;
+
+    /** 被过滤的低质量词（停用词、虚词等，不参与评分） */
+    private List<String> ignoredTerms;
+
+    /** 每个匹配词的详细信息 */
+    private List<MatchDetail> matchDetails;
 
     @Data
     @Builder
@@ -31,10 +41,19 @@ public class KeywordMatchResult {
     public static class MatchDetail {
         /** 匹配的词 */
         private String term;
-        /** 匹配类型：QUERY_PHRASE_IN_TITLE, TITLE_PHRASE_IN_QUERY, BIGRAM_IN_TITLE,
-         *  BIGRAM_IN_CONTENT, TECHNICAL_IN_TITLE, TECHNICAL_IN_CONTENT */
-        private String matchType;
+        /** 匹配类型 */
+        private MatchType matchType;
         /** 贡献分数 */
         private double score;
+    }
+
+    public enum MatchType {
+        TECH_IN_TITLE,
+        TECH_IN_CONTENT,
+        PHRASE_IN_TITLE,
+        PHRASE_IN_CONTENT,
+        TITLE_PHRASE_IN_QUERY,
+        BIGRAM_IN_TITLE,
+        BIGRAM_IN_CONTENT
     }
 }

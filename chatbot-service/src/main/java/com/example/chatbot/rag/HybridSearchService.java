@@ -122,6 +122,7 @@ public class HybridSearchService {
                     .keywordRank(rank + 1)
                     .keywordScore(r.getKeywordScore())
                     .matchedTerms(r.getMatchedTerms())
+                    .coveredTerms(r.getCoveredTerms())
                     .build());
         }
         return candidates;
@@ -130,6 +131,16 @@ public class HybridSearchService {
     /**
      * 对单篇文档进行关键词评分。
      * 使用 KeywordExtractor 提取高质量词，按规则加权打分。
+     */
+    /**
+     * 对单篇文档进行关键词评分。
+     * <p>
+     * 评分策略（三层层级）：
+     * 1. technicalTerms（最高优先级）：命中 title +8, content +4
+     * 2. phrases（次高优先级）：queryPhrase 命中 title +8, content +4; titlePhrase 命中 query +8
+     * 3. bigrams（兜底）：仅当 1 和 2 都无命中时才启用，title +2, content +1
+     * <p>
+     * 最长匹配抑制：如果"健身计划"命中，则"健身计、身计划、健身、身计、计划"被覆盖，不参与评分。
      */
     private KeywordMatchResult scoreDocument(
             KnowledgeDocument doc,
@@ -140,64 +151,83 @@ public class HybridSearchService {
 
         String title = valueOrEmpty(doc.getTitle()).toLowerCase();
         String content = valueOrEmpty(doc.getContent()).toLowerCase();
+        String queryLower = query.toLowerCase();
 
         double score = 0;
         List<KeywordMatchResult.MatchDetail> details = new ArrayList<>();
+        List<String> allHitTerms = new ArrayList<>();
 
-        // ===== 1. queryPhrase 命中 title（+8）=====
+        // ===== 第一层：英文技术词（最高优先级） =====
+        for (String term : queryTechTerms) {
+            String termLower = term.toLowerCase();
+            if (title.contains(termLower)) {
+                score += 8;
+                details.add(KeywordMatchResult.MatchDetail.builder()
+                        .term(term).matchType(KeywordMatchResult.MatchType.TECH_IN_TITLE).score(8).build());
+                allHitTerms.add(term);
+            } else if (content.contains(termLower)) {
+                score += 4;
+                details.add(KeywordMatchResult.MatchDetail.builder()
+                        .term(term).matchType(KeywordMatchResult.MatchType.TECH_IN_CONTENT).score(4).build());
+                allHitTerms.add(term);
+            }
+        }
+
+        // ===== 第二层：中文短语（次高优先级） =====
+        // 从 query 中提取的短语
         for (String phrase : queryPhrases) {
             if (title.contains(phrase)) {
                 score += 8;
                 details.add(KeywordMatchResult.MatchDetail.builder()
-                        .term(phrase).matchType("QUERY_PHRASE_IN_TITLE").score(8).build());
+                        .term(phrase).matchType(KeywordMatchResult.MatchType.PHRASE_IN_TITLE).score(8).build());
+                allHitTerms.add(phrase);
             } else if (content.contains(phrase)) {
                 score += 4;
                 details.add(KeywordMatchResult.MatchDetail.builder()
-                        .term(phrase).matchType("QUERY_PHRASE_IN_CONTENT").score(4).build());
+                        .term(phrase).matchType(KeywordMatchResult.MatchType.PHRASE_IN_CONTENT).score(4).build());
+                allHitTerms.add(phrase);
             }
         }
-
-        // ===== 2. titlePhrase 命中 query（+8）=====
+        // 从 title 中提取的短语
         List<String> titlePhrases = keywordExtractor.extractPhrases(doc.getTitle());
         for (String phrase : titlePhrases) {
-            if (query.toLowerCase().contains(phrase)) {
+            if (queryLower.contains(phrase) && !allHitTerms.contains(phrase)) {
                 score += 8;
                 details.add(KeywordMatchResult.MatchDetail.builder()
-                        .term(phrase).matchType("TITLE_PHRASE_IN_QUERY").score(8).build());
+                        .term(phrase).matchType(KeywordMatchResult.MatchType.TITLE_PHRASE_IN_QUERY).score(8).build());
+                allHitTerms.add(phrase);
             }
         }
 
-        // ===== 3. 高质量 2-gram 命中 title/content =====
-        for (String bigram : queryBigrams) {
-            if (title.contains(bigram)) {
-                score += 2;
-                details.add(KeywordMatchResult.MatchDetail.builder()
-                        .term(bigram).matchType("BIGRAM_IN_TITLE").score(2).build());
-            } else if (content.contains(bigram)) {
-                score += 1;
-                details.add(KeywordMatchResult.MatchDetail.builder()
-                        .term(bigram).matchType("BIGRAM_IN_CONTENT").score(1).build());
+        // ===== 最长匹配抑制 =====
+        // 如果已有 phrase/tech 命中，则 bigrams 只作为兜底
+        boolean hasHighValueHit = !allHitTerms.isEmpty();
+
+        List<String> coveredTerms = new ArrayList<>();
+        List<String> ignoredTerms = new ArrayList<>();
+
+        if (!hasHighValueHit) {
+            // 没有高质量命中，启用 bigrams 兜底
+            for (String bigram : queryBigrams) {
+                if (title.contains(bigram)) {
+                    score += 2;
+                    details.add(KeywordMatchResult.MatchDetail.builder()
+                            .term(bigram).matchType(KeywordMatchResult.MatchType.BIGRAM_IN_TITLE).score(2).build());
+                    allHitTerms.add(bigram);
+                } else if (content.contains(bigram)) {
+                    score += 1;
+                    details.add(KeywordMatchResult.MatchDetail.builder()
+                            .term(bigram).matchType(KeywordMatchResult.MatchType.BIGRAM_IN_CONTENT).score(1).build());
+                    allHitTerms.add(bigram);
+                }
             }
+        } else {
+            // 已有高质量命中，bigrams 不再加分，只记录为 ignored
+            ignoredTerms.addAll(queryBigrams);
         }
 
-        // ===== 4. 英文技术词命中 =====
-        for (String term : queryTechTerms) {
-            if (title.contains(term.toLowerCase())) {
-                score += 8;
-                details.add(KeywordMatchResult.MatchDetail.builder()
-                        .term(term).matchType("TECHNICAL_IN_TITLE").score(8).build());
-            } else if (content.contains(term.toLowerCase())) {
-                score += 4;
-                details.add(KeywordMatchResult.MatchDetail.builder()
-                        .term(term).matchType("TECHNICAL_IN_CONTENT").score(4).build());
-            }
-        }
-
-        // 构建 matchedTerms（只保留真正参与评分的高质量词）
-        List<String> matchedTerms = details.stream()
-                .map(d -> d.getTerm())
-                .distinct()
-                .toList();
+        // ===== 最终 matchedTerms：只保留参与评分的词 =====
+        KeywordExtractor.CoverageResult coverage = keywordExtractor.removeTermsCoveredByLongerTerms(allHitTerms);
 
         // 构建 snippet
         String snippet = buildSnippet(content, queryBigrams);
@@ -208,7 +238,9 @@ public class HybridSearchService {
                 .title(doc.getTitle())
                 .snippet(snippet)
                 .keywordScore(score)
-                .matchedTerms(matchedTerms)
+                .matchedTerms(coverage.matched())
+                .coveredTerms(coverage.covered())
+                .ignoredTerms(ignoredTerms)
                 .matchedDetails(details)
                 .build();
     }
@@ -246,9 +278,9 @@ public class HybridSearchService {
 
     private void logKeywordResults(String query, List<HybridCandidate> candidates) {
         for (HybridCandidate c : candidates) {
-            log.info("[HybridRAG-Keyword] query='{}', rank={}, chunkId={}, docId={}, title='{}', keywordScore={}, matchedTerms={}",
+            log.info("[HybridRAG-Keyword] query='{}', rank={}, chunkId={}, docId={}, title='{}', keywordScore={}, matchedTerms={}, coveredTerms={}",
                     truncate(query, 30), c.getKeywordRank(), c.getChunkId(), c.getDocumentId(),
-                    truncate(c.getTitle(), 25), c.getKeywordScore(), c.getMatchedTerms());
+                    truncate(c.getTitle(), 25), c.getKeywordScore(), c.getMatchedTerms(), c.getCoveredTerms());
         }
     }
 

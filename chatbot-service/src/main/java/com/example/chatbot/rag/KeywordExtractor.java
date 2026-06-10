@@ -74,19 +74,18 @@ public class KeywordExtractor {
     }
 
     /**
-     * 提取 3~6 字中文短语。
-     * 从连续中文序列中切分出 3~6 字子串。
+     * 提取 3~8 字中文短语。
+     * 从连续中文序列中切分出 3~8 字子串。
      */
     public List<String> extractPhrases(String text) {
         if (text == null || text.isBlank()) return List.of();
         String normalized = text.toLowerCase();
         List<String> phrases = new ArrayList<>();
 
-        // 提取连续中文序列，然后切分
         Matcher matcher = Pattern.compile("[\\u4e00-\\u9fff]+").matcher(normalized);
         while (matcher.find()) {
             String sequence = matcher.group();
-            for (int len = Math.min(6, sequence.length()); len >= 3; len--) {
+            for (int len = Math.min(8, sequence.length()); len >= 3; len--) {
                 for (int i = 0; i <= sequence.length() - len; i++) {
                     String phrase = sequence.substring(i, i + len);
                     if (!STOP_WORDS.contains(phrase) && !isOnlyFillerChars(phrase)) {
@@ -98,6 +97,44 @@ public class KeywordExtractor {
 
         return phrases.stream().distinct().toList();
     }
+
+    /**
+     * 最长匹配抑制：如果长词命中，抑制被它覆盖的短碎片。
+     * <p>
+     * 例如输入 [健身计划, 健身计, 身计划, 健身, 身计, 计划]
+     * 如果"健身计划"命中了 title/content：
+     * → matchedTerms = [健身计划]
+     * → coveredTerms = [健身计, 身计划, 健身, 身计, 计划]
+     */
+    public CoverageResult removeTermsCoveredByLongerTerms(List<String> allTerms) {
+        // 按长度从长到短排序
+        List<String> sorted = allTerms.stream()
+                .sorted((a, b) -> Integer.compare(b.length(), a.length()))
+                .distinct()
+                .toList();
+
+        List<String> matched = new ArrayList<>();
+        List<String> covered = new ArrayList<>();
+
+        for (String term : sorted) {
+            boolean isCovered = false;
+            for (String kept : matched) {
+                if (kept.contains(term)) {
+                    isCovered = true;
+                    break;
+                }
+            }
+            if (isCovered) {
+                covered.add(term);
+            } else {
+                matched.add(term);
+            }
+        }
+
+        return new CoverageResult(matched, covered);
+    }
+
+    public record CoverageResult(List<String> matched, List<String> covered) {}
 
     /**
      * 提取英文技术标识符。
