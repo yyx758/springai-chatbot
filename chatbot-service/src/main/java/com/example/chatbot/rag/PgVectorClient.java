@@ -147,7 +147,7 @@ public class PgVectorClient {
         }
 
         String sql = """
-                SELECT document_id, title, content, 1 - (embedding <=> ?::vector) AS score
+                SELECT id, document_id, title, content, 1 - (embedding <=> ?::vector) AS score
                 FROM %s
                 WHERE user_id = ?
                   AND (1 - (embedding <=> ?::vector)) >= ?
@@ -167,6 +167,7 @@ public class PgVectorClient {
                 while (rs.next()) {
                     double score = rs.getDouble("score");
                     results.add(RagReference.builder()
+                            .chunkId(rs.getString("id"))
                             .documentId(rs.getLong("document_id"))
                             .title(rs.getString("title"))
                             .snippet(rs.getString("content"))

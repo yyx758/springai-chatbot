@@ -70,8 +70,9 @@ public class HybridSearchService {
             List<HybridCandidate> candidates = new ArrayList<>();
             for (int rank = 0; rank < vectorRefs.size(); rank++) {
                 RagReference ref = vectorRefs.get(rank);
+                String chunkId = ref.getChunkId() != null ? ref.getChunkId() : ref.getDocumentId() + "_0";
                 candidates.add(HybridCandidate.builder()
-                        .chunkId(ref.getDocumentId() + "_0")  // 简化：chunkIndex=0
+                        .chunkId(chunkId)
                         .documentId(ref.getDocumentId())
                         .title(ref.getTitle())
                         .snippet(ref.getSnippet())
