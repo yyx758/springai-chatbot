@@ -30,4 +30,8 @@ public class ChatRecord {
 
     private String sessionId;
 
+    private String eventId;
+
+    private Long userId;
+
 } 

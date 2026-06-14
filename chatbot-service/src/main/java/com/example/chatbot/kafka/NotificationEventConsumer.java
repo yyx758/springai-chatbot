@@ -48,10 +48,9 @@ public class NotificationEventConsumer {
             log.warn("【Kafka Consumer-通知】业务异常，跳过消息: {}", e.getMessage());
             ack.acknowledge();
         } catch (Exception e) {
-            // 系统异常，记录日志后 ACK（避免无限重试）
             log.error("【Kafka Consumer-通知】事件处理失败，Type: {}, To: {}, Error: {}",
                     event.getEventType(), event.getToEmail(), e.getMessage(), e);
-            ack.acknowledge();
+            throw new IllegalStateException("notification event failed", e);
         }
     }
 }

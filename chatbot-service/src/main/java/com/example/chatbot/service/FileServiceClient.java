@@ -30,8 +30,8 @@ public class FileServiceClient {
     @Value("${file.service.url:http://localhost:8081}")
     private String fileServiceUrl;
 
-    public FileServiceClient() {
-        this.restTemplate = new RestTemplate();
+    public FileServiceClient(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
     }
 
     /**

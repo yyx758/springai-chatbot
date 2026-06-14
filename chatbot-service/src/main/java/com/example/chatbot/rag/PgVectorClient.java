@@ -3,13 +3,15 @@ package com.example.chatbot.rag;
 import com.example.chatbot.dto.RagReference;
 import com.example.chatbot.entity.KnowledgeDocument;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import jakarta.annotation.PreDestroy;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -24,9 +26,11 @@ public class PgVectorClient {
 
     private final RagProperties ragProperties;
     private final ObjectMapper objectMapper;
+    private HikariDataSource dataSource;
 
     @PostConstruct
     public void initializeSchemaIfNeeded() {
+        initializeDataSourceIfNeeded();
         if (!isEnabled() || !ragProperties.getVector().isInitializeSchema()) {
             return;
         }
@@ -62,6 +66,13 @@ public class PgVectorClient {
         return vector.isEnabled()
                 && vector.getJdbcUrl() != null && !vector.getJdbcUrl().isBlank()
                 && ragProperties.getEmbedding().getBaseUrl() != null && !ragProperties.getEmbedding().getBaseUrl().isBlank();
+    }
+
+    @PreDestroy
+    public void close() {
+        if (dataSource != null) {
+            dataSource.close();
+        }
     }
 
     public void indexDocument(KnowledgeDocument document, List<DocumentChunk> chunks, List<List<Double>> embeddings) {
@@ -194,8 +205,28 @@ public class PgVectorClient {
     }
 
     private Connection newConnection() throws Exception {
+        initializeDataSourceIfNeeded();
+        if (dataSource == null) {
+            throw new IllegalStateException("PGVector datasource is not enabled");
+        }
+        return dataSource.getConnection();
+    }
+
+    private synchronized void initializeDataSourceIfNeeded() {
+        if (!isEnabled() || dataSource != null) {
+            return;
+        }
         RagProperties.Vector vector = ragProperties.getVector();
-        return DriverManager.getConnection(vector.getJdbcUrl(), vector.getUsername(), vector.getPassword());
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(vector.getJdbcUrl());
+        config.setUsername(vector.getUsername());
+        config.setPassword(vector.getPassword());
+        config.setMaximumPoolSize(3);
+        config.setMinimumIdle(0);
+        config.setConnectionTimeout(3000);
+        config.setValidationTimeout(2000);
+        config.setPoolName("pgvector-rag-pool");
+        dataSource = new HikariDataSource(config);
     }
 
     private String tableName() {

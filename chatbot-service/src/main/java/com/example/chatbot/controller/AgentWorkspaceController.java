@@ -29,7 +29,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/agent/workspaces")
-@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class AgentWorkspaceController {
 

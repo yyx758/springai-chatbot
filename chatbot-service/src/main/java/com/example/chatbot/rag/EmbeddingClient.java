@@ -20,6 +20,7 @@ public class EmbeddingClient {
 
     private final RagProperties ragProperties;
     private final ObjectMapper objectMapper;
+    private final RestTemplate restTemplate;
 
     public List<Double> embed(String text) {
         RagProperties.Embedding embedding = ragProperties.getEmbedding();
@@ -62,7 +63,6 @@ public class EmbeddingClient {
     }
 
     private JsonNode postJson(String url, Map<String, Object> body) {
-        RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         String apiKey = ragProperties.getEmbedding().getApiKey();

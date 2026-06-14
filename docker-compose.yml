@@ -104,6 +104,25 @@ services:
       timeout: 5s
       retries: 5
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    container_name: chatbot-elasticsearch
+    profiles:
+      - elasticsearch
+    ports:
+      - "9200:9200"
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
   # ============================================
   # 应用层
   # ============================================
@@ -145,6 +164,9 @@ services:
       APP_RAG_EMBEDDING_MODEL: ${APP_RAG_EMBEDDING_MODEL:-text-embedding-v4}
       APP_RAG_EMBEDDING_BASE_URL: ${APP_RAG_EMBEDDING_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode}
       APP_RAG_EMBEDDING_API_KEY: ${APP_RAG_EMBEDDING_API_KEY:-}
+      APP_RAG_ELASTICSEARCH_ENABLED: ${APP_RAG_ELASTICSEARCH_ENABLED:-false}
+      APP_RAG_ELASTICSEARCH_BASE_URL: ${APP_RAG_ELASTICSEARCH_BASE_URL:-http://elasticsearch:9200}
+      APP_RAG_ELASTICSEARCH_INDEX: ${APP_RAG_ELASTICSEARCH_INDEX:-ai_studio_knowledge}
       # SMTP 邮件配置
       SMTP_HOST: ${SMTP_HOST:-smtp.qq.com}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -222,3 +244,4 @@ volumes:
   nacos-data:
   file-uploads:
   pgvector-data:
+  elasticsearch-data:

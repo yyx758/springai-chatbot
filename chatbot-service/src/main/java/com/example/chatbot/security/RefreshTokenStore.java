@@ -5,7 +5,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -18,10 +17,14 @@ public class RefreshTokenStore {
     private long refreshTokenExpireMs;
 
     private static final String KEY_PREFIX = "refresh_token:";
+    private static final String USER_INDEX_PREFIX = "refresh_token_user:";
 
     public void store(String token, Long userId) {
         String key = KEY_PREFIX + token;
         redisTemplate.opsForValue().set(key, userId, refreshTokenExpireMs, TimeUnit.MILLISECONDS);
+        String userIndexKey = USER_INDEX_PREFIX + userId;
+        redisTemplate.opsForSet().add(userIndexKey, token);
+        redisTemplate.expire(userIndexKey, refreshTokenExpireMs, TimeUnit.MILLISECONDS);
     }
 
     public Long getUserIdAndInvalidate(String token) {
@@ -30,18 +33,16 @@ public class RefreshTokenStore {
         if (userId == null) {
             return null;
         }
+        redisTemplate.opsForSet().remove(USER_INDEX_PREFIX + userId, token);
         return Long.valueOf(String.valueOf(userId));
     }
 
     public void revokeAllForUser(Long userId) {
-        Set<String> keys = redisTemplate.keys(KEY_PREFIX + "*");
-        if (keys != null) {
-            for (String key : keys) {
-                Object stored = redisTemplate.opsForValue().get(key);
-                if (stored != null && String.valueOf(stored).equals(String.valueOf(userId))) {
-                    redisTemplate.delete(key);
-                }
-            }
+        String userIndexKey = USER_INDEX_PREFIX + userId;
+        java.util.Set<Object> tokens = redisTemplate.opsForSet().members(userIndexKey);
+        if (tokens != null) {
+            tokens.forEach(token -> redisTemplate.delete(KEY_PREFIX + token));
         }
+        redisTemplate.delete(userIndexKey);
     }
 }

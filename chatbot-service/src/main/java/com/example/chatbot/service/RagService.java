@@ -10,6 +10,7 @@ import com.example.chatbot.kafka.KnowledgeEvent;
 import com.example.chatbot.kafka.KnowledgeEventProducer;
 import com.example.chatbot.mapper.KnowledgeDocumentMapper;
 import com.example.chatbot.rag.RagProperties;
+import com.example.chatbot.rag.ElasticsearchRagService;
 import com.example.chatbot.rag.VectorIndexingService;
 import com.example.chatbot.rag.VectorRagService;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class RagService {
     private final KnowledgeEventProducer knowledgeEventProducer;
     private final VectorRagService vectorRagService;
     private final VectorIndexingService vectorIndexingService;
+    private final ElasticsearchRagService elasticsearchRagService;
     private final RagProperties ragProperties;
     private final FileServiceClient fileServiceClient;
     private final com.example.chatbot.rag.HybridSearchService hybridSearchService;
@@ -138,11 +140,13 @@ public class RagService {
         int requested = 0;
         for (KnowledgeDocument document : documents) {
             vectorIndexingService.indexDocument(userId, document.getId());
+            elasticsearchRagService.indexDocument(userId, document.getId());
             requested++;
         }
         return Map.of(
                 "success", true,
                 "vectorEnabled", vectorIndexingService.isEnabled(),
+                "elasticsearchEnabled", elasticsearchRagService.isEnabled(),
                 "requested", requested
         );
     }

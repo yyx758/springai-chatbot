@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -17,7 +18,7 @@ class WebToolsSecurityTest {
     @BeforeEach
     void setUp() {
         WebToolsProperties properties = new WebToolsProperties();
-        service = new WebToolService(properties, new ObjectMapper(), Mockito.mock(AgentWorkspaceService.class));
+        service = new WebToolService(properties, new ObjectMapper(), Mockito.mock(AgentWorkspaceService.class), new RestTemplate());
     }
 
     @Test

@@ -10,18 +10,15 @@ import com.example.chatbot.agent.tool.WebTools;
 import com.example.chatbot.agent.tool.WorkspaceTools;
 import com.example.chatbot.dto.ChatRequest;
 import com.example.chatbot.dto.RagReference;
-import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.entity.KnowledgeDocument;
 import com.example.chatbot.service.RagService;
-import com.example.chatbot.mapper.ChatRecordMapper;
 import com.example.chatbot.mapper.KnowledgeDocumentMapper;
+import com.example.chatbot.service.ChatContextService;
 import com.example.chatbot.service.ChatbotService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.ollama.OllamaChatModel;
@@ -31,8 +28,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,9 +43,9 @@ public class AgentService {
 
     private final OpenAiChatModel openAiChatModel;
     private final OllamaChatModel ollamaChatModel;
-    private final ChatRecordMapper chatRecordMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final ChatbotService chatbotService;
+    private final ChatContextService chatContextService;
     private final RagService ragService;
     private final KnowledgeReadTools knowledgeReadTools;
     private final KnowledgeWriteTools knowledgeWriteTools;
@@ -63,18 +58,15 @@ public class AgentService {
     @Value("${app.agent.enabled:true}")
     private boolean agentEnabled;
 
-    @Value("${app.agent.max-history:5}")
-    private int maxHistory;
-
     @Value("${spring.ai.openai.api-key:}")
     private String openAiApiKey;
 
     public AgentService(
             ObjectProvider<OpenAiChatModel> openAiChatModelProvider,
             ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
-            ChatRecordMapper chatRecordMapper,
             KnowledgeDocumentMapper knowledgeDocumentMapper,
             ChatbotService chatbotService,
+            ChatContextService chatContextService,
             RagService ragService,
             KnowledgeReadTools knowledgeReadTools,
             KnowledgeWriteTools knowledgeWriteTools,
@@ -86,9 +78,9 @@ public class AgentService {
     ) {
         this.openAiChatModel = getIfAvailable(openAiChatModelProvider, "OpenAI/DeepSeek");
         this.ollamaChatModel = getIfAvailable(ollamaChatModelProvider, "Ollama");
-        this.chatRecordMapper = chatRecordMapper;
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
         this.chatbotService = chatbotService;
+        this.chatContextService = chatContextService;
         this.ragService = ragService;
         this.knowledgeReadTools = knowledgeReadTools;
         this.knowledgeWriteTools = knowledgeWriteTools;
@@ -177,23 +169,11 @@ public class AgentService {
     }
 
     private List<Message> buildMessages(ChatRequest request, String userId) {
-        List<Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(buildSystemPrompt()));
-
-        List<ChatRecord> history = chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
-                .eq(ChatRecord::getSessionId, request.getSessionId())
-                .orderByDesc(ChatRecord::getCreatedTime)
-                .last("LIMIT " + Math.max(0, maxHistory)));
-
-        history.stream()
-                .sorted(Comparator.comparing(ChatRecord::getCreatedTime))
-                .forEach(record -> {
-                    messages.add(new UserMessage(record.getUserMessage()));
-                    messages.add(new AssistantMessage(record.getBotResponse()));
-                });
-
-        messages.add(new UserMessage(request.getMessage()));
-        return messages;
+        return chatContextService.buildConversationMessages(
+                request.getSessionId(),
+                request.getMessage(),
+                buildSystemPrompt()
+        );
     }
 
     private String buildSystemPrompt() {

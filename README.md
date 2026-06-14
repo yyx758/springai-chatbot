@@ -25,6 +25,7 @@
 | 微服务 | Spring Cloud Gateway + Nacos | 统一入口、JWT 鉴权、服务注册发现 |
 | 消息队列 | Kafka (KRaft 模式) | 事件驱动异步通信，手动 ACK + 死信队列 |
 | 向量数据库 | PGVector | 语义向量检索（HNSW 索引 + 余弦相似度） |
+| 搜索引擎 | Elasticsearch 8.15 | RAG 关键词召回，生产默认启用，可自动降级 |
 | ORM | MyBatis-Plus 3.5 | 分页、Lambda 查询 |
 | 数据库 | MySQL 8.0 + Flyway | 持久化 + 版本管理 |
 | 缓存 | Redis 7 | 聊天历史缓存、Token 存储、验证码 |
@@ -65,6 +66,10 @@
                          │                         │  PGVector  │    │
                          │                         │ 向量检索    │    │
                          │                         └────────────┘    │
+                         │                         ┌────────────┐    │
+                         │                         │ElasticSearch│   │
+                         │                         │关键词召回   │    │
+                         │                         └────────────┘    │
                          └──────────────────────────────────────────────┘
 ```
 
@@ -93,9 +98,10 @@
 
 - **关键词评分**：自研三层评分模型（标题 40 / 正文 30 / 标签 20）+ 中文 2-gram 子词切分
 - **向量检索**：PGVector HNSW 索引 + 余弦相似度，边界感知分块（chunk_size=800, overlap=100）
-- **混合模式**：融合关键词与向量结果，按分数去重排序
-- **自动降级**：向量检索失败时 fallback 到关键词模式
-- **事件驱动索引**：文档变更通过 Kafka 异步触发向量索引更新
+- **Elasticsearch 关键词召回**：优先使用 ES `multi_match` 检索标题、标签、正文，标题权重最高
+- **混合模式**：PGVector 语义召回 + Elasticsearch/MySQL 关键词召回 + HybridRanker 融合排序
+- **自动降级**：ES 不可用时回退 MySQL FULLTEXT；向量检索失败时 fallback 到关键词模式
+- **事件驱动索引**：文档变更通过 Kafka 异步触发 PGVector 与 Elasticsearch 索引更新
 
 ### 三、多模型对话
 
@@ -225,6 +231,9 @@ docker compose down           # 停止容器，保留数据
 | `SPRING_AI_OPENAI_ENABLED` | 是否启用 DeepSeek | 否 |
 | `SPRING_AI_OLLAMA_BASE_URL` | Ollama 地址 | 否 |
 | `APP_RAG_MODE` | RAG 模式：keyword / vector / hybrid | 否 |
+| `APP_RAG_ELASTICSEARCH_ENABLED` | 是否启用 Elasticsearch 关键词召回，生产默认 true | 否 |
+| `APP_RAG_ELASTICSEARCH_BASE_URL` | Elasticsearch 地址，生产默认 http://elasticsearch:9200 | 否 |
+| `APP_RAG_ELASTICSEARCH_INDEX` | Elasticsearch 索引名，默认 ai_studio_knowledge | 否 |
 | `APP_AGENT_ENABLED` | 是否启用 Agent | 否 |
 | `APP_MCP_SERVER_ENABLED` | 是否启用 MCP Server | 否 |
 
@@ -281,6 +290,7 @@ GET    /api/knowledge/documents              文档列表
 GET    /api/knowledge/documents/{id}         文档详情
 DELETE /api/knowledge/documents/{id}         删除文档
 POST   /api/knowledge/search                 检索测试
+POST   /api/knowledge/reindex                重建当前用户的 PGVector/ES 索引
 ```
 
 ### 文件接口 `/api/files`
@@ -362,12 +372,40 @@ cd /opt/springai-chatbot
 docker compose up -d --build chatbot-service
 ```
 
+### Elasticsearch RAG
+
+生产配置 `docker-compose.prod.yml` 已默认启动 Elasticsearch，并默认开启 ES 关键词召回：
+
+```yaml
+APP_RAG_ELASTICSEARCH_ENABLED: ${APP_RAG_ELASTICSEARCH_ENABLED:-true}
+APP_RAG_ELASTICSEARCH_BASE_URL: ${APP_RAG_ELASTICSEARCH_BASE_URL:-http://elasticsearch:9200}
+APP_RAG_ELASTICSEARCH_INDEX: ${APP_RAG_ELASTICSEARCH_INDEX:-ai_studio_knowledge}
+```
+
+确认是否已开启：
+
+```bash
+docker compose -f docker-compose.prod.yml ps elasticsearch
+curl -sS http://127.0.0.1:9200/_cluster/health
+docker exec chatbot-service sh -c 'printenv | grep APP_RAG_ELASTICSEARCH'
+```
+
+已有知识库文档需要登录后触发一次索引重建：
+
+```http
+POST /api/knowledge/reindex
+Authorization: Bearer <access-token>
+```
+
+4GB 单机上 ES heap 配置为 384m。若线上内存压力过大，可以在 `.env` 中设置 `APP_RAG_ELASTICSEARCH_ENABLED=false` 后重启 `chatbot-service`，链路会自动回退到 MySQL FULLTEXT 关键词召回。
+
 ### 生产环境
 
-生产配置 `docker-compose.prod.yml` 针对 2GB 内存服务器优化：
+生产配置 `docker-compose.prod.yml` 针对小内存服务器优化：
 - JVM SerialGC + 堆限制（chatbot 256MB, gateway/file-service 128MB）
 - Redis maxmemory 32MB + allkeys-lru
 - MySQL 关闭 performance schema
+- Elasticsearch 单节点运行，heap 384MB，仅监听宿主机 `127.0.0.1:9200`
 - 所有密码通过环境变量注入，不硬编码
 
 ---

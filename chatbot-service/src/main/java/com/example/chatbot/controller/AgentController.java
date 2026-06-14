@@ -19,7 +19,6 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/chat/agent")
-@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 @Slf4j
 public class AgentController {

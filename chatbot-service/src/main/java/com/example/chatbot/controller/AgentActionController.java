@@ -16,7 +16,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/chat/agent/actions")
-@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class AgentActionController {
 

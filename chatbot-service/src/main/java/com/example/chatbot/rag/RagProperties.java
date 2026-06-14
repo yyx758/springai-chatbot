@@ -13,6 +13,7 @@ public class RagProperties {
     private boolean fallbackToKeyword = true;
     private Chunk chunk = new Chunk();
     private Vector vector = new Vector();
+    private Elasticsearch elasticsearch = new Elasticsearch();
     private Embedding embedding = new Embedding();
 
     @Data
@@ -33,6 +34,18 @@ public class RagProperties {
         private int topK = 5;
         private double similarityThreshold = 0.3;
         private boolean initializeSchema = true;
+    }
+
+    @Data
+    public static class Elasticsearch {
+        private boolean enabled = false;
+        private String baseUrl = "http://localhost:9200";
+        private String indexName = "ai_studio_knowledge";
+        private String username = "";
+        private String password = "";
+        private String apiKey = "";
+        private int topK = 20;
+        private boolean initializeIndex = true;
     }
 
     @Data

@@ -70,13 +70,24 @@ public class FileController {
 
     /**
      * 文件下载（检查所属权）
+     * 不再信任 query 参数中的 userId，只信任 Gateway 注入的 Header。
      */
     @GetMapping("/download/{*fileKey}")
     public void download(@PathVariable String fileKey,
                          @RequestHeader(value = "X-Auth-UserId", required = false) Long headerUserId,
-                         @RequestParam(value = "userId", required = false) Long paramUserId,
                          HttpServletResponse response) {
-        Long userId = headerUserId != null ? headerUserId : paramUserId;
+        // 不信任 query 参数，只使用 Header
+        if (headerUserId == null || headerUserId <= 0) {
+            try {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write("{\"success\":false,\"error\":\"未登录或登录已过期\"}");
+            } catch (Exception e) {
+                log.warn("【FileController】发送 401 响应失败", e);
+            }
+            return;
+        }
+        Long userId = headerUserId;
         if (fileKey.startsWith("/")) {
             fileKey = fileKey.substring(1);
         }

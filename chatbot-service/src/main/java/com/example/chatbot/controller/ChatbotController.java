@@ -20,7 +20,6 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/chat")
-@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 @Slf4j
 public class ChatbotController {

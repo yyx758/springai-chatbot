@@ -25,11 +25,14 @@ import java.util.List;
 @Slf4j
 public class HybridSearchService {
 
+    private static final int KEYWORD_CANDIDATE_LIMIT = 200;
+
     private final QueryIntentAnalyzer intentAnalyzer;
     private final VectorRagService vectorRagService;
     private final HybridRanker hybridRanker;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KeywordExtractor keywordExtractor;
+    private final ElasticsearchRagService elasticsearchRagService;
 
     /**
      * 执行混合检索。
@@ -84,10 +87,13 @@ public class HybridSearchService {
     // ========== 关键词检索（优化版）==========
 
     private List<HybridCandidate> searchKeyword(Long userId, String query, int topK) {
-        List<KnowledgeDocument> documents = knowledgeDocumentMapper.selectList(
-                new LambdaQueryWrapper<KnowledgeDocument>()
-                        .eq(KnowledgeDocument::getUserId, userId)
-                        .eq(KnowledgeDocument::getEnabled, true));
+        List<HybridCandidate> elasticsearchCandidates = elasticsearchRagService.searchKeywordCandidates(
+                userId, query, Math.max(topK * 4, KEYWORD_CANDIDATE_LIMIT));
+        if (!elasticsearchCandidates.isEmpty()) {
+            return elasticsearchCandidates;
+        }
+
+        List<KnowledgeDocument> documents = loadKeywordCandidates(userId, query);
 
         if (documents.isEmpty()) {
             return List.of();
@@ -126,6 +132,25 @@ public class HybridSearchService {
                     .build());
         }
         return candidates;
+    }
+
+    private List<KnowledgeDocument> loadKeywordCandidates(Long userId, String query) {
+        try {
+            List<KnowledgeDocument> candidates = knowledgeDocumentMapper.searchFulltextCandidates(
+                    userId, query, KEYWORD_CANDIDATE_LIMIT);
+            if (!candidates.isEmpty()) {
+                return candidates;
+            }
+        } catch (Exception e) {
+            log.warn("[HybridRAG] fulltext candidate search failed, falling back to limited scan: {}", e.getMessage());
+        }
+        return knowledgeDocumentMapper.selectList(
+                new LambdaQueryWrapper<KnowledgeDocument>()
+                        .eq(KnowledgeDocument::getUserId, userId)
+                        .eq(KnowledgeDocument::getEnabled, true)
+                        .orderByDesc(KnowledgeDocument::getUpdatedTime)
+                        .orderByDesc(KnowledgeDocument::getId)
+                        .last("LIMIT " + KEYWORD_CANDIDATE_LIMIT));
     }
 
     /**

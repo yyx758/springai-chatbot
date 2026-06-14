@@ -29,6 +29,7 @@ public class WebToolService {
     private final WebToolsProperties properties;
     private final ObjectMapper objectMapper;
     private final AgentWorkspaceService workspaceService;
+    private final RestTemplate restTemplate;
 
     public Map<String, Object> search(String query, Integer limit) {
         ensureEnabled();
@@ -104,7 +105,7 @@ public class WebToolService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(properties.getFirecrawl().getApiKey());
         try {
-            String response = new RestTemplate().postForObject(url, new HttpEntity<>(body, headers), String.class);
+            String response = restTemplate.postForObject(url, new HttpEntity<>(body, headers), String.class);
             return objectMapper.readTree(response);
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "web tool request failed: " + e.getMessage(), e);

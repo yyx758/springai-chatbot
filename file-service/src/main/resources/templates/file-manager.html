@@ -1137,8 +1137,27 @@
     }
 
     // Download file
-    function downloadFile(fileKey) {
-        window.open(`${API_BASE}/download/${fileKey}?userId=${encodeURIComponent(currentUserId)}`, '_blank');
+    async function downloadFile(fileKey) {
+        const response = await fileApiFetch(`${API_BASE}/download/${fileKey}`);
+        if (!response.ok) {
+            showToast('文件下载失败或无权访问', 'error');
+            return;
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileKey.split('/').pop() || 'download';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    async function loadPreviewImage(fileKey, imgElement) {
+        const response = await fileApiFetch(`${API_BASE}/download/${fileKey}`);
+        if (!response.ok) return;
+        imgElement.src = URL.createObjectURL(await response.blob());
     }
 
     // Show file detail
@@ -1180,8 +1199,12 @@
                         <span class="detail-label">上传时间</span>
                         <span class="detail-value">${formatDate(file.createdTime)}</span>
                     </div>
-                    ${isImage ? `<img src="${API_BASE}/download/${file.fileKey}?userId=${encodeURIComponent(currentUserId)}" class="preview-image" alt="preview">` : ''}
+                    ${isImage ? `<img data-file-key="${file.fileKey}" class="preview-image" alt="preview">` : ''}
                 `;
+                const preview = document.querySelector('.preview-image[data-file-key]');
+                if (preview) {
+                    loadPreviewImage(preview.dataset.fileKey, preview);
+                }
                 document.getElementById('previewModal').classList.add('active');
             } else {
                 showToast('获取文件信息失败', 'error');

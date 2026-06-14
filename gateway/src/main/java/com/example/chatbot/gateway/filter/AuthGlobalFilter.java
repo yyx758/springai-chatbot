@@ -86,6 +86,11 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
             // 将用户信息注入请求 Header，传递给下游服务
             ServerHttpRequest mutatedRequest = request.mutate()
+                    .headers(headers -> {
+                        headers.remove("X-Auth-UserId");
+                        headers.remove("X-Auth-Username");
+                        headers.remove("X-Auth-Role");
+                    })
                     .header("X-Auth-UserId", String.valueOf(userId))
                     .header("X-Auth-Username", username)
                     .header("X-Auth-Role", role)

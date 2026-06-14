@@ -2,6 +2,7 @@ package com.example.chatbot.kafka;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.example.chatbot.service.ChatEventOutboxService;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 public class ChatEventProducer {
 
     private final KafkaTemplate<String, ChatEvent> kafkaTemplate;
+    private final ChatEventOutboxService outboxService;
 
     private static final int MAX_RETRIES = 3;
     private static final long SEND_TIMEOUT_SECONDS = 5;
@@ -47,8 +49,9 @@ public class ChatEventProducer {
                         attempt, MAX_RETRIES, event.getSessionId(), e);
 
                 if (attempt == MAX_RETRIES) {
-                    log.error("【Kafka Producer】消息发送最终失败，SessionId: {}，消息将丢失。生产环境应写入本地消息表做补偿",
+                    log.error("【Kafka Producer】消息发送最终失败，写入 outbox 等待补偿，SessionId: {}",
                             event.getSessionId());
+                    outboxService.savePending(event, e.getMessage());
                 }
             }
         }

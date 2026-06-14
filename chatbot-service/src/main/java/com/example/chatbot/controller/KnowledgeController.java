@@ -19,7 +19,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/knowledge")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class KnowledgeController {
 
     private final RagService ragService;

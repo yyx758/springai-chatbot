@@ -23,6 +23,9 @@ public class ChatEvent implements Serializable {
     /** 事件类型：CHAT_COMPLETED / CHAT_ERROR */
     private String eventType;
 
+    /** 全局事件 ID，用于 outbox 补偿和消费者幂等 */
+    private String eventId;
+
     /** 会话 ID */
     private String sessionId;
 

@@ -45,7 +45,7 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: ${SPRING_DATASOURCE_PASSWORD:}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
 
 # MyBatis-Plus
 mybatis-plus:
@@ -61,6 +61,10 @@ file:
     local:
       base-path: ./uploads
       url-prefix: /api/files
+
+app:
+  cors:
+    allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:9000,http://127.0.0.1:9000,http://111.229.127.171:9000}
 
 # 日志
 logging:

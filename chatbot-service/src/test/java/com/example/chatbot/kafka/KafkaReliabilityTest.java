@@ -2,6 +2,8 @@ package com.example.chatbot.kafka;
 
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.mapper.ChatRecordMapper;
+import com.example.chatbot.service.ChatContextService;
+import com.example.chatbot.service.ChatEventOutboxService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -14,7 +16,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.kafka.support.Acknowledgment;
@@ -34,9 +35,9 @@ import static org.mockito.Mockito.*;
  * 1. 生产者：发送成功（第 1 次成功）
  * 2. 生产者：前 2 次失败、第 3 次成功（重试生效）
  * 3. 生产者：3 次全部失败（最终失败，不抛异常）
- * 4. 消费者：正常消费（MySQL 写入 + Redis 删除）
+ * 4. 消费者：正常消费（MySQL 写入 + 上下文缓存维护）
  * 5. 消费者：消费异常时由 DefaultErrorHandler 接管（不手动 catch）
- * 6. 消费者：Redis 删除失败不影响主流程
+ * 6. 消费者：上下文缓存维护失败不影响主流程
  * 7. 消费者：SSE 协议残留清洗
  * 8. 消费者：图片数据 fileKey / Base64 模式
  */
@@ -51,7 +52,10 @@ class KafkaReliabilityTest {
     private ChatRecordMapper chatRecordMapper;
 
     @Mock
-    private RedisTemplate<String, Object> redisTemplate;
+    private ChatContextService chatContextService;
+
+    @Mock
+    private ChatEventOutboxService outboxService;
 
     @Mock
     private Acknowledgment acknowledgment;
@@ -63,8 +67,8 @@ class KafkaReliabilityTest {
     @SuppressWarnings("unchecked")
     @BeforeEach
     void setUp() {
-        producer = new ChatEventProducer(kafkaTemplate);
-        consumer = new ChatEventConsumer(chatRecordMapper, redisTemplate);
+        producer = new ChatEventProducer(kafkaTemplate, outboxService);
+        consumer = new ChatEventConsumer(chatRecordMapper, chatContextService);
 
         RecordMetadata metadata = new RecordMetadata(
                 new TopicPartition("chat.events", 0), 0L, 0, 0L, 0, 0);
@@ -120,7 +124,7 @@ class KafkaReliabilityTest {
     }
 
     @Test
-    @DisplayName("生产者：3 次全部失败，不抛异常（静默失败）")
+    @DisplayName("生产者：3 次全部失败，写入 outbox 等待补偿")
     void producer_allAttemptsFail_noException() {
         ChatEvent event = buildTestEvent();
         when(kafkaTemplate.send(anyString(), anyString(), any(ChatEvent.class)))
@@ -129,18 +133,17 @@ class KafkaReliabilityTest {
         assertDoesNotThrow(() -> producer.sendChatEvent(event));
 
         verify(kafkaTemplate, times(3)).send(anyString(), anyString(), any(ChatEvent.class));
+        verify(outboxService).savePending(eq(event), anyString());
     }
 
     // ========== 消费者测试 ==========
 
     @Test
-    @DisplayName("消费者：正常消费 — MySQL 写入 + Redis 缓存删除")
+    @DisplayName("消费者：正常消费 — MySQL 写入 + 上下文缓存维护")
     void consumer_normalFlow() {
         ChatEvent event = buildTestEvent();
         ConsumerRecord<String, ChatEvent> record = new ConsumerRecord<>(
                 "chat.events", 0, 0L, "test-session-001", event);
-
-        when(redisTemplate.delete(anyString())).thenReturn(true);
 
         consumer.onChatEvent(record, acknowledgment);
 
@@ -152,8 +155,7 @@ class KafkaReliabilityTest {
         assertEquals("你好", saved.getUserMessage());
         assertEquals("你好！有什么可以帮助你的？", saved.getBotResponse());
 
-        // 验证 Redis 缓存删除
-        verify(redisTemplate).delete("chat:history:test-session-001");
+        verify(chatContextService).appendPersistedRecordToCache(saved);
 
         // 验证手动 ACK
         verify(acknowledgment).acknowledge();
@@ -173,17 +175,18 @@ class KafkaReliabilityTest {
                 () -> consumer.onChatEvent(record, acknowledgment));
 
         verify(acknowledgment, never()).acknowledge();
-        verify(redisTemplate, never()).delete(anyString());
+        verify(chatContextService, never()).appendPersistedRecordToCache(any());
     }
 
     @Test
-    @DisplayName("消费者：Redis 删除失败不影响主流程")
-    void consumer_redisFailureDoesNotAffectMainFlow() {
+    @DisplayName("消费者：上下文缓存维护失败不影响主流程")
+    void consumer_contextCacheFailureDoesNotAffectMainFlow() {
         ChatEvent event = buildTestEvent();
         ConsumerRecord<String, ChatEvent> record = new ConsumerRecord<>(
                 "chat.events", 0, 0L, "test-session-003", event);
 
-        when(redisTemplate.delete(anyString())).thenThrow(new RuntimeException("Redis 超时"));
+        doThrow(new RuntimeException("Redis 超时"))
+                .when(chatContextService).appendPersistedRecordToCache(any(ChatRecord.class));
 
         assertDoesNotThrow(() -> consumer.onChatEvent(record, acknowledgment));
 
@@ -202,8 +205,6 @@ class KafkaReliabilityTest {
                 .build();
         ConsumerRecord<String, ChatEvent> record = new ConsumerRecord<>(
                 "chat.events", 0, 0L, "test-sse", event);
-
-        when(redisTemplate.delete(anyString())).thenReturn(true);
 
         consumer.onChatEvent(record, acknowledgment);
 
@@ -225,8 +226,6 @@ class KafkaReliabilityTest {
         ConsumerRecord<String, ChatEvent> record = new ConsumerRecord<>(
                 "chat.events", 0, 0L, "test-img", event);
 
-        when(redisTemplate.delete(anyString())).thenReturn(true);
-
         consumer.onChatEvent(record, acknowledgment);
 
         ArgumentCaptor<ChatRecord> captor = ArgumentCaptor.forClass(ChatRecord.class);
@@ -235,7 +234,7 @@ class KafkaReliabilityTest {
     }
 
     @Test
-    @DisplayName("消费者：图片数据 — Base64 模式（兼容旧格式）")
+    @DisplayName("消费者：图片数据 — imageBytes 不再写入 Base64")
     void consumer_imageData_base64Mode() {
         byte[] fakeImage = new byte[]{(byte) 0x89, (byte) 0x50, (byte) 0x4E, (byte) 0x47};
         ChatEvent event = ChatEvent.builder()
@@ -249,12 +248,10 @@ class KafkaReliabilityTest {
         ConsumerRecord<String, ChatEvent> record = new ConsumerRecord<>(
                 "chat.events", 0, 0L, "test-img-b64", event);
 
-        when(redisTemplate.delete(anyString())).thenReturn(true);
-
         consumer.onChatEvent(record, acknowledgment);
 
         ArgumentCaptor<ChatRecord> captor = ArgumentCaptor.forClass(ChatRecord.class);
         verify(chatRecordMapper).insert(captor.capture());
-        assertTrue(captor.getValue().getImageData().startsWith("data:image/png;base64,"));
+        assertNull(captor.getValue().getImageData());
     }
 }

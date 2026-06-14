@@ -136,9 +136,8 @@ public class FileService {
      */
     public boolean canAccess(FileRecord record, Long userId) {
         if (record == null) return false;
-        if (userId == null || userId == 0) return true; // 未登录用户暂时放行（兼容旧调用）
-        // 文件上传者为 0（未认证时上传的旧数据）也放行
-        if (record.getUploaderId() == null || record.getUploaderId() == 0) return true;
+        if (userId == null || userId <= 0) return false;
+        if (record.getUploaderId() == null || record.getUploaderId() <= 0) return false;
         return record.getUploaderId().equals(userId);
     }
 

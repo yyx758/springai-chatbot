@@ -35,6 +35,9 @@ class HybridRagServiceTest {
     private VectorIndexingService vectorIndexingService;
 
     @Mock
+    private ElasticsearchRagService elasticsearchRagService;
+
+    @Mock
     private FileServiceClient fileServiceClient;
 
     @Mock
@@ -46,7 +49,7 @@ class HybridRagServiceTest {
         RagProperties properties = new RagProperties();
         properties.setMode("hybrid");
         RagService ragService = new RagService(knowledgeDocumentMapper, knowledgeEventProducer, vectorRagService,
-                vectorIndexingService, properties, fileServiceClient, hybridSearchService);
+                vectorIndexingService, elasticsearchRagService, properties, fileServiceClient, hybridSearchService);
 
         RagReference expected = RagReference.builder()
                 .documentId(1L).title("Redis 配置").score(0.05).build();
@@ -66,7 +69,7 @@ class HybridRagServiceTest {
         properties.setMode("vector");
         properties.setFallbackToKeyword(true);
         RagService ragService = new RagService(knowledgeDocumentMapper, knowledgeEventProducer, vectorRagService,
-                vectorIndexingService, properties, fileServiceClient, hybridSearchService);
+                vectorIndexingService, elasticsearchRagService, properties, fileServiceClient, hybridSearchService);
         KnowledgeDocument document = KnowledgeDocument.builder()
                 .id(1L)
                 .userId(7L)
@@ -90,7 +93,7 @@ class HybridRagServiceTest {
         RagProperties properties = new RagProperties();
         properties.setMode("hybrid");
         RagService ragService = new RagService(knowledgeDocumentMapper, knowledgeEventProducer, vectorRagService,
-                vectorIndexingService, properties, fileServiceClient, hybridSearchService);
+                vectorIndexingService, elasticsearchRagService, properties, fileServiceClient, hybridSearchService);
 
         when(hybridSearchService.search(eq(7L), eq("Redis怎么配置"), eq(3))).thenReturn(List.of(
                 RagReference.builder().documentId(2L).title("Redis 缓存策略").score(0.03).build(),

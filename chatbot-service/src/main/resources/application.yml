@@ -270,9 +270,29 @@ app:
         api-key: ${APP_RAG_EMBEDDING_API_KEY:}
         encoding-format: ${APP_RAG_EMBEDDING_ENCODING_FORMAT:float}
         timeout-ms: ${APP_RAG_EMBEDDING_TIMEOUT_MS:20000}
+    elasticsearch:
+      enabled: ${APP_RAG_ELASTICSEARCH_ENABLED:false}
+      base-url: ${APP_RAG_ELASTICSEARCH_BASE_URL:http://localhost:9200}
+      index-name: ${APP_RAG_ELASTICSEARCH_INDEX:ai_studio_knowledge}
+      username: ${APP_RAG_ELASTICSEARCH_USERNAME:}
+      password: ${APP_RAG_ELASTICSEARCH_PASSWORD:}
+      api-key: ${APP_RAG_ELASTICSEARCH_API_KEY:}
+      top-k: ${APP_RAG_ELASTICSEARCH_TOP_K:50}
+      initialize-index: ${APP_RAG_ELASTICSEARCH_INITIALIZE_INDEX:true}
   chatbot:
     rag-enabled: true
     rag-top-k: 3
+    context:
+      recent-window-size: ${APP_CHATBOT_CONTEXT_RECENT_WINDOW_SIZE:6}
+      redis-cache-size: ${APP_CHATBOT_CONTEXT_REDIS_CACHE_SIZE:30}
+      relevant-history-enabled: ${APP_CHATBOT_CONTEXT_RELEVANT_HISTORY_ENABLED:true}
+      relevant-history-candidate-size: ${APP_CHATBOT_CONTEXT_RELEVANT_HISTORY_CANDIDATE_SIZE:50}
+      relevant-history-top-k: ${APP_CHATBOT_CONTEXT_RELEVANT_HISTORY_TOP_K:3}
+      summary-enabled: ${APP_CHATBOT_CONTEXT_SUMMARY_ENABLED:true}
+      summary-trigger-records: ${APP_CHATBOT_CONTEXT_SUMMARY_TRIGGER_RECORDS:12}
+      summary-refresh-every-records: ${APP_CHATBOT_CONTEXT_SUMMARY_REFRESH_EVERY_RECORDS:6}
+      summary-max-chars: ${APP_CHATBOT_CONTEXT_SUMMARY_MAX_CHARS:1200}
+      max-context-chars: ${APP_CHATBOT_CONTEXT_MAX_CONTEXT_CHARS:12000}
     system-prompt: |
       你是 AI Studio 的智能助手。请遵守以下规则：
 

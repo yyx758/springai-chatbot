@@ -1,10 +1,11 @@
 package com.example.chatbot.kafka;
 
 import com.example.chatbot.rag.VectorIndexingService;
+import com.example.chatbot.rag.ElasticsearchRagService;
+import com.example.chatbot.service.ChatContextService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
@@ -19,8 +20,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class KnowledgeEventConsumer {
 
-    private final RedisTemplate<String, Object> redisTemplate;
     private final VectorIndexingService vectorIndexingService;
+    private final ElasticsearchRagService elasticsearchRagService;
+    private final ChatContextService chatContextService;
 
     @KafkaListener(
             topics = KafkaTopicConfig.TOPIC_KNOWLEDGE_EVENTS,
@@ -43,8 +45,7 @@ public class KnowledgeEventConsumer {
         } catch (Exception e) {
             log.error("【Kafka Consumer-知识库】事件处理失败，UserId: {}, Error: {}",
                     event.getUserId(), e.getMessage(), e);
-            // ACK 消息避免无限重试
-            ack.acknowledge();
+            throw new IllegalStateException("knowledge event failed", e);
         }
     }
 
@@ -54,12 +55,8 @@ public class KnowledgeEventConsumer {
      */
     private void invalidateUserChatCache(Long userId) {
         try {
-            String pattern = "chat:history:" + userId + "_*";
-            java.util.Set<String> keys = redisTemplate.keys(pattern);
-            if (keys != null && !keys.isEmpty()) {
-                redisTemplate.delete(keys);
-                log.info("【Kafka Consumer-知识库】已清除 {} 个缓存键，UserId: {}", keys.size(), userId);
-            }
+            chatContextService.evictUserContext(userId);
+            log.info("【Kafka Consumer-知识库】已清除用户上下文缓存，UserId: {}", userId);
         } catch (Exception e) {
             log.warn("【Kafka Consumer-知识库】缓存清除失败，UserId: {}, Error: {}", userId, e.getMessage());
         }
@@ -71,10 +68,12 @@ public class KnowledgeEventConsumer {
         }
         if ("KNOWLEDGE_DELETED".equals(event.getEventType())) {
             vectorIndexingService.deleteDocument(event.getUserId(), event.getDocumentId());
+            elasticsearchRagService.deleteDocument(event.getUserId(), event.getDocumentId());
             return;
         }
         if ("KNOWLEDGE_CREATED".equals(event.getEventType()) || "KNOWLEDGE_UPDATED".equals(event.getEventType())) {
             vectorIndexingService.indexDocument(event.getUserId(), event.getDocumentId());
+            elasticsearchRagService.indexDocument(event.getUserId(), event.getDocumentId());
         }
     }
 }

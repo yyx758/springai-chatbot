@@ -4,12 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.chatbot.dto.ChatRequest;
-import com.example.chatbot.dto.RagReference;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.kafka.ChatEvent;
 import com.example.chatbot.kafka.ChatEventProducer;
 import com.example.chatbot.mapper.ChatRecordMapper;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.*;
 import org.springframework.ai.chat.model.ChatModel;
@@ -21,7 +19,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MimeType;
 import org.springframework.util.MimeTypeUtils;
@@ -31,10 +28,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -44,18 +39,14 @@ public class ChatbotService {
     private final OllamaChatModel ollamaChatModel;
     private final ChatModel visionChatModel;
     private final ChatRecordMapper chatRecordMapper;
-    private final RedisTemplate<String, Object> redisTemplate;
-    private final ObjectMapper objectMapper;
-    private final RagService ragService;
     private final ChatEventProducer chatEventProducer;
     private final FileServiceClient fileServiceClient;
+    private final ChatContextService chatContextService;
 
     private final Semaphore ollamaSemaphore = new Semaphore(1);
 
     @Value("${app.chatbot.system-prompt}")
     private String systemPrompt;
-    @Value("${app.chatbot.max-history:5}")
-    private int maxHistory;
     @Value("${spring.ai.openai.api-key:}")
     private String openAiApiKey;
     @Value("${app.chatbot.rag-enabled:true}")
@@ -71,18 +62,14 @@ public class ChatbotService {
             ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
             @org.springframework.beans.factory.annotation.Qualifier("visionChatModel") ObjectProvider<ChatModel> visionChatModelProvider,
             ChatRecordMapper chatRecordMapper,
-            RedisTemplate<String, Object> redisTemplate,
-            ObjectMapper objectMapper,
-            RagService ragService,
             ChatEventProducer chatEventProducer,
-            FileServiceClient fileServiceClient
+            FileServiceClient fileServiceClient,
+            ChatContextService chatContextService
     ) {
         this.chatRecordMapper = chatRecordMapper;
-        this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
-        this.ragService = ragService;
         this.chatEventProducer = chatEventProducer;
         this.fileServiceClient = fileServiceClient;
+        this.chatContextService = chatContextService;
 
         // 使用 try-catch 包裹 getIfAvailable()，防止 Bean 创建失败（如网络不通）导致整个应用崩溃
         OpenAiChatModel openAi = null;
@@ -129,96 +116,19 @@ public class ChatbotService {
             Boolean useRag,
             Integer ragTopK
     ) {
-        List<Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(systemPrompt));
-        List<RagReference> references = Collections.emptyList();
-
-        if (shouldUseRag(useRag)) {
-            try {
-                references = ragService.retrieveReferences(Long.valueOf(userId), userInput, resolveTopK(ragTopK));
-                if (!references.isEmpty()) {
-                    messages.add(new SystemMessage(ragService.buildKnowledgePrompt(references)));
-                }
-            } catch (Exception e) {
-                log.warn("RAG 检索失败，已降级为普通对话: {}", e.getMessage());
-            }
-        }
-
-        String key = "chat:history:" + sessionId;
-        List<ChatRecord> history = Collections.emptyList();
-        boolean cacheHit = false;
-        int historyLimit = Math.max(1, maxHistory);
-
-        // --- 1. 尝试从 Redis 读取并计时 ---
-        try {
-            long redisStart = System.nanoTime();
-            List<Object> rawHistory = redisTemplate.opsForList().range(key, 0, -1);
-            long redisEnd = System.nanoTime();
-            long redisTimeUs = (redisEnd - redisStart) / 1000; // 转换为微秒
-
-            if (rawHistory != null && !rawHistory.isEmpty()) {
-                // 【场景 A：缓存命中】
-                history = rawHistory.stream()
-                        .map(obj -> objectMapper.convertValue(obj, ChatRecord.class))
-                        .collect(Collectors.toList());
-
-                cacheHit = true;
-                log.info("【性能监控】Redis 命中！读取 {} 条记录，耗时: {} 微秒 (μs)",
-                        history.size(), redisTimeUs);
-            } else {
-                log.warn("【性能监控】Redis 未命中，正在查询 MySQL...");
-            }
-        } catch (Exception e) {
-            // Redis 不可用时不要阻塞对话流程，直接降级到数据库
-            log.warn("Redis 不可用，已降级到 MySQL 查询: {}", e.getMessage());
-            try {
-                redisTemplate.delete(key);
-            } catch (Exception deleteException) {
-                log.warn("Redis 聊天历史缓存删除失败，SessionId: {}, Error: {}", sessionId, deleteException.getMessage());
-            }
-        }
-
-        if (!cacheHit) {
-            long dbStart = System.nanoTime();
-            history = chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
-                    .eq(ChatRecord::getSessionId, sessionId)
-                    .orderByDesc(ChatRecord::getCreatedTime)
-                    .last("LIMIT " + historyLimit));
-            Collections.reverse(history);
-            long dbEnd = System.nanoTime();
-
-            long dbTimeUs = (dbEnd - dbStart) / 1000; // 转换为微秒
-
-            log.info("【性能监控】MySQL 查询完成，获取 {} 条记录，耗时: {} 微秒 (μs)",
-                    history.size(), dbTimeUs);
-
-            // 异步补偿：既然库里有，顺手写回 Redis，下次就快了
-            if (!history.isEmpty()) {
-                final List<ChatRecord> finalHistory = history;
-                CompletableFuture.runAsync(() -> {
-                    try {
-                        redisTemplate.delete(key);
-                        redisTemplate.opsForList().rightPushAll(key, finalHistory.toArray());
-                        redisTemplate.expire(key, 2, java.util.concurrent.TimeUnit.HOURS);
-                    } catch (Exception e) {
-                        log.warn("Redis 写回失败: {}", e.getMessage());
-                    }
-                });
-            }
-        }
-
-        // 3. 构建消息对象
-        history.forEach(r -> {
-            messages.add(new UserMessage(r.getUserMessage()));
-            messages.add(new AssistantMessage(r.getBotResponse()));
-        });
-
-        messages.add(new UserMessage(userInput));
-        return new ConversationContext(messages, references);
+        return chatContextService.buildConversationContext(
+                sessionId,
+                userInput,
+                userId,
+                systemPrompt,
+                useRag,
+                ragTopK,
+                ragEnabledDefault,
+                ragTopKDefault
+        );
     }
-
     /**
-     * 发送聊天事件到 Kafka（替代原来的 @Async 直接持久化）
+     * 鍙戦€佽亰澶╀簨浠跺埌 Kafka（替代原来的 @Async 直接持久化）
      * 优势：消息不丢失、支持重试、支持多实例扩展
      */
     public void asyncSaveChatRecord(String sessionId, String userMsg, String botRes) {
@@ -229,11 +139,13 @@ public class ChatbotService {
                                               byte[] imageBytes, String imageMimeType) {
         ChatEvent event = ChatEvent.builder()
                 .eventType("CHAT_COMPLETED")
+                .eventId(UUID.randomUUID().toString().replace("-", ""))
                 .sessionId(sessionId)
                 .userMessage(userMsg)
                 .botResponse(botRes)
                 .imageBytes(imageBytes)
                 .imageMimeType(imageMimeType)
+                .userId(resolveUserIdFromSession(sessionId))
                 .eventTime(LocalDateTime.now())
                 .build();
 
@@ -511,14 +423,14 @@ public class ChatbotService {
         }
 
         // 从文件服务获取图片信息
-        Map<String, Object> fileInfo = fileServiceClient.getFileInfo(imageFileKey);
+        Map<String, Object> fileInfo = fileServiceClient.getFileInfo(imageFileKey, Long.valueOf(userId));
         if (fileInfo == null) {
             sendStreamError(emitter, "文件不存在: " + imageFileKey);
             return;
         }
 
         // 获取图片二进制数据
-        byte[] imageBytes = fileServiceClient.getFileBytes(imageFileKey);
+        byte[] imageBytes = fileServiceClient.getFileBytes(imageFileKey, Long.valueOf(userId));
         if (imageBytes == null || imageBytes.length == 0) {
             sendStreamError(emitter, "文件下载失败: " + imageFileKey);
             return;
@@ -687,14 +599,24 @@ public class ChatbotService {
                                                String imageFileKey, String imageMimeType) {
         ChatEvent event = ChatEvent.builder()
                 .eventType("CHAT_COMPLETED")
+                .eventId(UUID.randomUUID().toString().replace("-", ""))
                 .sessionId(sessionId)
                 .userMessage(userMsg)
                 .botResponse(botRes)
                 .imageFileKey(imageFileKey)
                 .imageMimeType(imageMimeType)
+                .userId(resolveUserIdFromSession(sessionId))
                 .eventTime(LocalDateTime.now())
                 .build();
         chatEventProducer.sendChatEvent(event);
+    }
+
+    private String resolveUserIdFromSession(String sessionId) {
+        if (sessionId == null) {
+            return null;
+        }
+        int split = sessionId.indexOf('_');
+        return split > 0 ? sessionId.substring(0, split) : null;
     }
 
     private MimeType resolveImageMimeType(String contentType) {
@@ -759,7 +681,7 @@ public class ChatbotService {
         LambdaQueryWrapper<ChatRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ChatRecord::getSessionId, sessionId);
         chatRecordMapper.delete(wrapper);
-        redisTemplate.delete("chat:history:" + sessionId);
+        chatContextService.evictSessionContext(sessionId);
         log.info("会话已成功删除: {}", sessionId);
         return true;
     }
@@ -780,17 +702,4 @@ public class ChatbotService {
         }
     }
 
-    private boolean shouldUseRag(Boolean requestUseRag) {
-        return requestUseRag == null ? ragEnabledDefault : requestUseRag;
-    }
-
-    private Integer resolveTopK(Integer requestTopK) {
-        if (requestTopK == null || requestTopK <= 0) {
-            return ragTopKDefault;
-        }
-        return requestTopK;
-    }
-
-    private record ConversationContext(List<Message> messages, List<RagReference> references) {
-    }
 }

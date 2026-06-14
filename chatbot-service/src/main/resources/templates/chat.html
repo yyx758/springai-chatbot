@@ -13,6 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
 
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2024,7 +2025,7 @@
 
     function renderAssistantBubble(targetBubble, fullText, toolEvents, pendingActions, fallbackHtml, documentCards, workspaceCards) {
         const toolHtml = renderAgentToolPanel(toolEvents, pendingActions, documentCards, workspaceCards);
-        const contentHtml = fullText ? marked.parse(fullText) : (fallbackHtml || '');
+        const contentHtml = fullText ? sanitizeHtml(marked.parse(fullText)) : sanitizeHtml(fallbackHtml || '');
         targetBubble.innerHTML = toolHtml + contentHtml;
         targetBubble.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
         scrollToBottom();
@@ -2133,10 +2134,29 @@
         currentWorkspaceId = file.workspaceId;
     }
 
-    function downloadKnowledgeFile(fileKey) {
+    async function downloadKnowledgeFile(fileKey) {
         if (!fileKey) return;
-        const userId = currentUser && currentUser.userId ? currentUser.userId : 0;
-        window.open(`${FILE_SERVICE_BASE}/download/${fileKey}?userId=${userId}`, '_blank');
+        const response = await fileServiceFetch(`${FILE_SERVICE_BASE}/download/${fileKey}`);
+        if (!response.ok) {
+            showToast('文件下载失败或无权访问');
+            return;
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileKey.split('/').pop() || 'download';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    async function fileKeyToObjectUrl(fileKey) {
+        if (!fileKey) return '';
+        const response = await fileServiceFetch(`${FILE_SERVICE_BASE}/download/${fileKey}`);
+        if (!response.ok) return '';
+        return URL.createObjectURL(await response.blob());
     }
 
     async function openKnowledgeDocument(documentId) {
@@ -2159,7 +2179,7 @@
             const doc = await response.json();
             titleEl.textContent = doc.title || 'Knowledge document';
             metaEl.textContent = `Document #${doc.id || documentId} · ${doc.indexStatus || 'UNKNOWN'}`;
-            contentEl.innerHTML = marked.parse(doc.content || '');
+            contentEl.innerHTML = sanitizeHtml(marked.parse(doc.content || ''));
             contentEl.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
             if (doc.fileKey) {
                 downloadBtn.style.display = 'inline-flex';
@@ -2193,7 +2213,7 @@
             const file = result.file || {};
             titleEl.textContent = file.fileName || path;
             metaEl.textContent = `${file.relativePath || path} · v${file.version || 1}`;
-            contentEl.innerHTML = marked.parse(file.content || '');
+            contentEl.innerHTML = sanitizeHtml(marked.parse(file.content || ''));
             contentEl.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
             downloadBtn.style.display = 'inline-flex';
             downloadBtn.onclick = () => downloadWorkspaceFile(workspaceId, encodedPath);
@@ -2849,7 +2869,7 @@
         if (rawHtml) {
             displayContent = content;
         } else if (type === 'bot' && (!id || !id.startsWith('ai_'))) {
-            displayContent = marked.parse(content);
+            displayContent = sanitizeHtml(marked.parse(content));
         } else {
             displayContent = content;
         }
@@ -2861,31 +2881,40 @@
 
     function scrollToBottom() { messagesContainer.scrollTop = messagesContainer.scrollHeight; }
 
+    function sanitizeHtml(html) {
+        if (window.DOMPurify) {
+            return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+        }
+        return escapeHtml(String(html || ''));
+    }
+
     function loadSessionHistory() {
         if (!activeSessionId) return;
         clearReferences();
         authFetch(`/api/chat/history/${encodeURIComponent(activeSessionId)}`)
             .then(r => r.json())
-            .then(records => {
+            .then(async records => {
                 if (records && records.length > 0) {
                     if (document.getElementById('emptyState')) document.getElementById('emptyState').remove();
                     messagesContainer.querySelectorAll('.message').forEach(node => node.remove());
-                    records.forEach(r => {
+                    for (const r of records) {
                         let userHtml = '';
                         if (r.imageData) {
                             // 处理 filekey:xxx 格式（新方式）或 data:image/xxx 格式（旧方式）
                             let imgSrc = r.imageData;
                             if (r.imageData.startsWith('filekey:')) {
                                 const fileKey = r.imageData.substring(8); // 去掉 'filekey:' 前缀
-                                imgSrc = FILE_SERVICE_BASE + '/download/' + fileKey + '?userId=' + (currentUser ? currentUser.userId : 0);
+                                imgSrc = await fileKeyToObjectUrl(fileKey);
                             }
-                            userHtml += `<img src="${imgSrc}" class="msg-image" alt="uploaded image"><br>`;
+                            if (imgSrc) {
+                                userHtml += `<img src="${imgSrc}" class="msg-image" alt="uploaded image"><br>`;
+                            }
                         }
                         if (r.userMessage) userHtml += escapeHtml(r.userMessage);
                         else if (r.imageData) userHtml += '<span style="color:var(--warm-400);" class="small">[图片]</span>';
                         addMessage(userHtml || escapeHtml(r.userMessage || ''), 'user', '', true);
                         addMessage(r.botResponse, 'bot');
-                    });
+                    }
                 }
             });
     }
