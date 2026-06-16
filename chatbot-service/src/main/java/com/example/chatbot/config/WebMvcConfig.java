@@ -10,9 +10,7 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import java.security.SecureRandom;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -54,19 +52,12 @@ public class WebMvcConfig implements WebMvcConfigurer {
      */
     private static class SecurityHeadersInterceptor implements HandlerInterceptor {
 
-        private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-
         private static final Set<String> EXCLUDED_PATHS = new HashSet<>(Arrays.asList(
                 "/api/auth/login",
                 "/api/auth/register",
                 "/api/chat/health",
                 "/favicon.ico",
                 "/static/"
-        ));
-
-        // HTML page paths that should never be cached (CSP nonce is per-request)
-        private static final Set<String> HTML_PAGE_PATHS = new HashSet<>(Arrays.asList(
-                "/chat", "/login", "/admin"
         ));
 
         @Override
@@ -76,35 +67,27 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 return true;
             }
 
-            String nonce = createNonce();
-            request.setAttribute("cspNonce", nonce);
-            response.setHeader("Content-Security-Policy", cspValue(nonce));
+            response.setHeader("Content-Security-Policy", cspValue());
             response.setHeader("X-Frame-Options", "DENY");
             response.setHeader("X-Content-Type-Options", "nosniff");
             response.setHeader("X-XSS-Protection", "1; mode=block");
-            // 防止 Cloudflare 缓存 HTML 页面（CSP nonce 每次请求不同，缓存会导致 nonce 不匹配）
-            if (path.endsWith(".html") || path.endsWith("/") || HTML_PAGE_PATHS.contains(path)) {
-                response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-                response.setHeader("Pragma", "no-cache");
-            }
             return true;
         }
 
-        private String createNonce() {
-            byte[] bytes = new byte[16];
-            SECURE_RANDOM.nextBytes(bytes);
-            return Base64.getEncoder().encodeToString(bytes);
-        }
-
-        private String cspValue(String nonce) {
+        private String cspValue() {
+            // 说明：策略中同时包含 nonce 与 'unsafe-inline' 时，浏览器会忽略 'unsafe-inline'，
+            // 导致内联脚本必须携带与响应头完全一致的 nonce。而 nonce 每次请求都变化，
+            // 一旦经过 Cloudflare/浏览器缓存（缓存的 HTML 里是旧 nonce，新响应头是新 nonce），
+            // 所有内联脚本都会被拦截（switchRole is not defined）。
+            // 这里移除 nonce，仅依赖 'unsafe-inline'，内联脚本在任何缓存场景下都能执行。
             return "default-src 'self'; " +
-                    "script-src 'self' 'unsafe-inline' 'nonce-" + nonce + "' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; " +
-                    "script-src-elem 'self' 'unsafe-inline' 'nonce-" + nonce + "' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; " +
+                    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; " +
+                    "script-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; " +
                     "script-src-attr 'unsafe-inline'; " +
-                    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " +
+                    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://gs.jurieo.com; " +
                     "img-src 'self' data: blob:; " +
-                    "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " +
-                    "connect-src 'self' https://static.cloudflareinsights.com; " +
+                    "font-src 'self' data: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://gs.jurieo.com; " +
+                    "connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; " +
                     "frame-ancestors 'none'; " +
                     "base-uri 'self'; " +
                     "form-action 'self'";
