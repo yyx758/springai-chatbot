@@ -94,6 +94,7 @@ spring:
               - ${APP_CORS_ALLOWED_ORIGIN:http://localhost:9000}
               - ${APP_CORS_ALLOWED_ORIGIN_ALT:http://127.0.0.1:9000}
               - ${APP_CORS_ALLOWED_ORIGIN_PROD:http://111.229.127.171:9000}
+              - ${APP_CORS_CLOUDFLARE_DOMAIN:https://example.com}
             allowedMethods: "*"
             allowedHeaders: "*"
             allowCredentials: true

@@ -10,7 +10,9 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -52,16 +54,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
      */
     private static class SecurityHeadersInterceptor implements HandlerInterceptor {
 
-        private static final String CSP_VALUE =
-                "default-src 'self'; " +
-                "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " +
-                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " +
-                "img-src 'self' data: blob:; " +
-                "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " +
-                "connect-src 'self'; " +
-                "frame-ancestors 'none'; " +
-                "base-uri 'self'; " +
-                "form-action 'self'";
+        private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
         private static final Set<String> EXCLUDED_PATHS = new HashSet<>(Arrays.asList(
                 "/api/auth/login",
@@ -71,6 +64,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 "/static/"
         ));
 
+        // HTML page paths that should never be cached (CSP nonce is per-request)
+        private static final Set<String> HTML_PAGE_PATHS = new HashSet<>(Arrays.asList(
+                "/chat", "/login", "/admin"
+        ));
+
         @Override
         public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
             String path = request.getRequestURI();
@@ -78,11 +76,38 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 return true;
             }
 
-            response.setHeader("Content-Security-Policy", CSP_VALUE);
+            String nonce = createNonce();
+            request.setAttribute("cspNonce", nonce);
+            response.setHeader("Content-Security-Policy", cspValue(nonce));
             response.setHeader("X-Frame-Options", "DENY");
             response.setHeader("X-Content-Type-Options", "nosniff");
             response.setHeader("X-XSS-Protection", "1; mode=block");
+            // 防止 Cloudflare 缓存 HTML 页面（CSP nonce 每次请求不同，缓存会导致 nonce 不匹配）
+            if (path.endsWith(".html") || path.endsWith("/") || HTML_PAGE_PATHS.contains(path)) {
+                response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+                response.setHeader("Pragma", "no-cache");
+            }
             return true;
+        }
+
+        private String createNonce() {
+            byte[] bytes = new byte[16];
+            SECURE_RANDOM.nextBytes(bytes);
+            return Base64.getEncoder().encodeToString(bytes);
+        }
+
+        private String cspValue(String nonce) {
+            return "default-src 'self'; " +
+                    "script-src 'self' 'unsafe-inline' 'nonce-" + nonce + "' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; " +
+                    "script-src-elem 'self' 'unsafe-inline' 'nonce-" + nonce + "' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; " +
+                    "script-src-attr 'unsafe-inline'; " +
+                    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " +
+                    "img-src 'self' data: blob:; " +
+                    "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " +
+                    "connect-src 'self' https://static.cloudflareinsights.com; " +
+                    "frame-ancestors 'none'; " +
+                    "base-uri 'self'; " +
+                    "form-action 'self'";
         }
     }
 }
