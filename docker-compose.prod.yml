@@ -214,6 +214,8 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       APP_JWT_SECRET: ${APP_JWT_SECRET:?APP_JWT_SECRET is required}
+      APP_CORS_CLOUDFLARE_DOMAIN: ${APP_CORS_CLOUDFLARE_DOMAIN:-https://yyyyx.top}
+      APP_CORS_CLOUDFLARE_DOMAIN_WWW: ${APP_CORS_CLOUDFLARE_DOMAIN_WWW:-https://www.yyyyx.top}
       JAVA_OPTS: "-Xms64m -Xmx128m -XX:+UseSerialGC -XX:MaxRAM=160m"
     depends_on:
       - chatbot-service
