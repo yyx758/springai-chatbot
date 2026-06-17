@@ -36,33 +36,6 @@ public class ChatEventOutboxService {
     @Value("${app.chat.outbox.send-timeout-seconds:5}")
     private long sendTimeoutSeconds;
 
-    public void savePending(ChatEvent event, String errorMessage) {
-        ensureEventId(event);
-        ChatEventOutbox existed = outboxMapper.selectOne(new LambdaQueryWrapper<ChatEventOutbox>()
-                .eq(ChatEventOutbox::getEventId, event.getEventId())
-                .last("LIMIT 1"));
-        if (existed != null) {
-            return;
-        }
-        try {
-            ChatEventOutbox outbox = ChatEventOutbox.builder()
-                    .eventId(event.getEventId())
-                    .sessionId(event.getSessionId())
-                    .payloadJson(objectMapper.writeValueAsString(event))
-                    .status(STATUS_PENDING)
-                    .retryCount(0)
-                    .lastError(limit(errorMessage))
-                    .nextRetryTime(LocalDateTime.now())
-                    .createdTime(LocalDateTime.now())
-                    .build();
-            outboxMapper.insert(outbox);
-            log.warn("Chat event saved to outbox, eventId={}, sessionId={}", event.getEventId(), event.getSessionId());
-        } catch (Exception e) {
-            log.error("Chat event outbox save failed, eventId={}, sessionId={}",
-                    event.getEventId(), event.getSessionId(), e);
-        }
-    }
-
     @Scheduled(fixedDelayString = "${app.chat.outbox.dispatch-delay-ms:5000}")
     public void dispatchPendingEvents() {
         List<ChatEventOutbox> events = outboxMapper.selectList(new LambdaQueryWrapper<ChatEventOutbox>()

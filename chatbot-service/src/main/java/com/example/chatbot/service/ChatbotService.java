@@ -6,7 +6,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.chatbot.dto.ChatRequest;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.kafka.ChatEvent;
-import com.example.chatbot.kafka.ChatEventProducer;
 import com.example.chatbot.mapper.ChatRecordMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.*;
@@ -39,7 +38,7 @@ public class ChatbotService {
     private final OllamaChatModel ollamaChatModel;
     private final ChatModel visionChatModel;
     private final ChatRecordMapper chatRecordMapper;
-    private final ChatEventProducer chatEventProducer;
+    private final ChatRecordPersistenceService chatRecordPersistenceService;
     private final FileServiceClient fileServiceClient;
     private final ChatContextService chatContextService;
 
@@ -62,12 +61,12 @@ public class ChatbotService {
             ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
             @org.springframework.beans.factory.annotation.Qualifier("visionChatModel") ObjectProvider<ChatModel> visionChatModelProvider,
             ChatRecordMapper chatRecordMapper,
-            ChatEventProducer chatEventProducer,
+            ChatRecordPersistenceService chatRecordPersistenceService,
             FileServiceClient fileServiceClient,
             ChatContextService chatContextService
     ) {
         this.chatRecordMapper = chatRecordMapper;
-        this.chatEventProducer = chatEventProducer;
+        this.chatRecordPersistenceService = chatRecordPersistenceService;
         this.fileServiceClient = fileServiceClient;
         this.chatContextService = chatContextService;
 
@@ -128,8 +127,7 @@ public class ChatbotService {
         );
     }
     /**
-     * 鍙戦€佽亰澶╀簨浠跺埌 Kafka（替代原来的 @Async 直接持久化）
-     * 优势：消息不丢失、支持重试、支持多实例扩展
+     * 保存聊天记录和 outbox 事件（事务内原子写入）
      */
     public void asyncSaveChatRecord(String sessionId, String userMsg, String botRes) {
         asyncSaveChatRecordWithImage(sessionId, userMsg, botRes, null, null);
@@ -149,7 +147,14 @@ public class ChatbotService {
                 .eventTime(LocalDateTime.now())
                 .build();
 
-        chatEventProducer.sendChatEvent(event);
+        try {
+            ChatRecord chatRecord = chatRecordPersistenceService.saveChatAndOutbox(event);
+            chatContextService.appendPersistedRecordToCache(chatRecord);
+            log.info("【ChatbotService】聊天记录保存成功，RecordId: {}, SessionId: {}",
+                    chatRecord.getId(), sessionId);
+        } catch (Exception e) {
+            log.error("【ChatbotService】聊天记录保存失败，SessionId: {}", sessionId, e);
+        }
     }
 
     public List<ChatRecord> getChatHistory(String sessionId, String userId) {
@@ -593,7 +598,7 @@ public class ChatbotService {
     }
 
     /**
-     * 发送聊天事件到 Kafka（fileKey 模式，不传图片字节）
+     * 发送聊天事件（fileKey 模式，不传图片字节）
      */
     public void asyncSaveChatRecordWithFileKey(String sessionId, String userMsg, String botRes,
                                                String imageFileKey, String imageMimeType) {
@@ -608,7 +613,15 @@ public class ChatbotService {
                 .userId(resolveUserIdFromSession(sessionId))
                 .eventTime(LocalDateTime.now())
                 .build();
-        chatEventProducer.sendChatEvent(event);
+
+        try {
+            ChatRecord chatRecord = chatRecordPersistenceService.saveChatAndOutbox(event);
+            chatContextService.appendPersistedRecordToCache(chatRecord);
+            log.info("【ChatbotService】聊天记录保存成功（fileKey），RecordId: {}, SessionId: {}",
+                    chatRecord.getId(), sessionId);
+        } catch (Exception e) {
+            log.error("【ChatbotService】聊天记录保存失败（fileKey），SessionId: {}", sessionId, e);
+        }
     }
 
     private String resolveUserIdFromSession(String sessionId) {
