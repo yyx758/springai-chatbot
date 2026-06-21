@@ -3,7 +3,9 @@ package com.example.chatbot.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.chatbot.dto.RagReference;
 import com.example.chatbot.entity.ChatRecord;
+import com.example.chatbot.entity.ChatSessionSummary;
 import com.example.chatbot.mapper.ChatRecordMapper;
+import com.example.chatbot.mapper.ChatSessionSummaryMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -36,12 +38,14 @@ import java.util.stream.Collectors;
 public class ChatContextService {
 
     private static final String HISTORY_KEY_PREFIX = "chat:history:";
+    private static final String HISTORY_ID_KEY_PREFIX = "chat:history:ids:";
     private static final String SUMMARY_KEY_PREFIX = "chat:summary:";
     private static final String SUMMARY_META_KEY_PREFIX = "chat:summary:meta:";
     private static final String SESSION_INDEX_PREFIX = "chat:sessions:";
     private static final long CACHE_TTL_HOURS = 2;
 
     private final ChatRecordMapper chatRecordMapper;
+    private final ChatSessionSummaryMapper chatSessionSummaryMapper;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
     private final RagService ragService;
@@ -54,6 +58,7 @@ public class ChatContextService {
 
     public ChatContextService(
             ChatRecordMapper chatRecordMapper,
+            ChatSessionSummaryMapper chatSessionSummaryMapper,
             RedisTemplate<String, Object> redisTemplate,
             ObjectMapper objectMapper,
             RagService ragService,
@@ -62,6 +67,7 @@ public class ChatContextService {
             ObjectProvider<OllamaChatModel> ollamaChatModelProvider
     ) {
         this.chatRecordMapper = chatRecordMapper;
+        this.chatSessionSummaryMapper = chatSessionSummaryMapper;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.ragService = ragService;
@@ -101,19 +107,44 @@ public class ChatContextService {
     }
 
     public void appendPersistedRecordToCache(ChatRecord chatRecord) {
+        appendPersistedRecordToCache(chatRecord, false);
+    }
+
+    public void appendPersistedRecordToCacheStrict(ChatRecord chatRecord) {
+        appendPersistedRecordToCache(chatRecord, true);
+    }
+
+    private void appendPersistedRecordToCache(ChatRecord chatRecord, boolean failFast) {
         String key = historyKey(chatRecord.getSessionId());
+        String idKey = historyIdKey(chatRecord.getSessionId());
         int cacheSize = positive(properties.getRedisCacheSize(), 30);
         try {
+            if (isRecordAlreadyCached(key, idKey, chatRecord)) {
+                redisTemplate.expire(key, CACHE_TTL_HOURS, TimeUnit.HOURS);
+                redisTemplate.expire(idKey, CACHE_TTL_HOURS, TimeUnit.HOURS);
+                indexSession(chatRecord.getSessionId());
+                log.debug("Redis chat history already cached, SessionId: {}, RecordId: {}",
+                        chatRecord.getSessionId(), chatRecord.getId());
+                return;
+            }
             redisTemplate.opsForList().rightPush(key, chatRecord);
+            if (chatRecord.getId() != null) {
+                redisTemplate.opsForZSet().add(idKey, chatRecord.getId(), chatRecord.getId());
+            }
             redisTemplate.opsForList().trim(key, -cacheSize, -1);
+            trimHistoryIdIndex(idKey, cacheSize);
             redisTemplate.expire(key, CACHE_TTL_HOURS, TimeUnit.HOURS);
+            redisTemplate.expire(idKey, CACHE_TTL_HOURS, TimeUnit.HOURS);
             indexSession(chatRecord.getSessionId());
-            refreshSummaryIfNeededAsync(chatRecord.getSessionId());
             log.debug("Redis chat history appended, SessionId: {}, CacheSize: {}", chatRecord.getSessionId(), cacheSize);
         } catch (Exception e) {
             log.warn("Redis chat history append failed, evicting cache. SessionId: {}, Error: {}",
                     chatRecord.getSessionId(), e.getMessage());
             evictSessionContext(chatRecord.getSessionId());
+            if (failFast) {
+                throw new IllegalStateException("Redis chat history append failed, sessionId="
+                        + chatRecord.getSessionId(), e);
+            }
         }
     }
 
@@ -124,6 +155,11 @@ public class ChatContextService {
             log.warn("Redis history cache delete failed, SessionId: {}, Error: {}", sessionId, e.getMessage());
         }
         try {
+            redisTemplate.delete(historyIdKey(sessionId));
+        } catch (Exception e) {
+            log.warn("Redis history id cache delete failed, SessionId: {}, Error: {}", sessionId, e.getMessage());
+        }
+        try {
             redisTemplate.delete(summaryKey(sessionId));
         } catch (Exception e) {
             log.warn("Redis summary cache delete failed, SessionId: {}, Error: {}", sessionId, e.getMessage());
@@ -132,6 +168,15 @@ public class ChatContextService {
             redisTemplate.delete(summaryMetaKey(sessionId));
         } catch (Exception e) {
             log.warn("Redis summary meta cache delete failed, SessionId: {}, Error: {}", sessionId, e.getMessage());
+        }
+    }
+
+    public void deleteSessionContext(String sessionId) {
+        evictSessionContext(sessionId);
+        try {
+            chatSessionSummaryMapper.deleteBySessionId(sessionId);
+        } catch (Exception e) {
+            log.warn("Persistent summary delete failed, SessionId: {}, Error: {}", sessionId, e.getMessage());
         }
     }
 
@@ -207,11 +252,20 @@ public class ChatContextService {
         List<ChatRecord> cacheRecords = new ArrayList<>(history);
         CompletableFuture.runAsync(() -> {
             String key = historyKey(sessionId);
+            String idKey = historyIdKey(sessionId);
             try {
                 redisTemplate.delete(key);
+                redisTemplate.delete(idKey);
                 redisTemplate.opsForList().rightPushAll(key, cacheRecords.toArray());
+                for (ChatRecord record : cacheRecords) {
+                    if (record.getId() != null) {
+                        redisTemplate.opsForZSet().add(idKey, record.getId(), record.getId());
+                    }
+                }
                 redisTemplate.opsForList().trim(key, -positive(properties.getRedisCacheSize(), 30), -1);
+                trimHistoryIdIndex(idKey, positive(properties.getRedisCacheSize(), 30));
                 redisTemplate.expire(key, CACHE_TTL_HOURS, TimeUnit.HOURS);
+                redisTemplate.expire(idKey, CACHE_TTL_HOURS, TimeUnit.HOURS);
                 indexSession(sessionId);
             } catch (Exception e) {
                 log.warn("Redis history cache write-back failed, SessionId: {}, Error: {}", sessionId, e.getMessage());
@@ -219,7 +273,37 @@ public class ChatContextService {
         });
     }
 
-    private void refreshSummaryIfNeededAsync(String sessionId) {
+    private boolean isRecordAlreadyCached(String key, String idKey, ChatRecord chatRecord) {
+        Long recordId = chatRecord.getId();
+        if (recordId == null) {
+            return false;
+        }
+        Double score = redisTemplate.opsForZSet().score(idKey, recordId);
+        if (score != null) {
+            return true;
+        }
+        List<Object> rawHistory = redisTemplate.opsForList().range(key, 0, -1);
+        if (rawHistory == null || rawHistory.isEmpty()) {
+            return false;
+        }
+        for (Object rawRecord : rawHistory) {
+            ChatRecord cachedRecord = toChatRecord(rawRecord);
+            if (recordId.equals(cachedRecord.getId())) {
+                redisTemplate.opsForZSet().add(idKey, recordId, recordId);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void trimHistoryIdIndex(String idKey, int cacheSize) {
+        Long size = redisTemplate.opsForZSet().size(idKey);
+        if (size != null && size > cacheSize) {
+            redisTemplate.opsForZSet().removeRange(idKey, 0, size - cacheSize - 1);
+        }
+    }
+
+    public void refreshSummaryIfNeededAsync(String sessionId) {
         if (!properties.isSummaryEnabled()) {
             return;
         }
@@ -239,37 +323,33 @@ public class ChatContextService {
                 return;
             }
             Long lastSummarizedRecordId = readLastSummarizedRecordId(sessionId);
-            if (lastSummarizedRecordId != null && latestRecordId - lastSummarizedRecordId < refreshEvery) {
+            String existingSummary = readSummary(sessionId);
+            boolean hasExistingSummary = existingSummary != null && !existingSummary.isBlank();
+            List<ChatRecord> incrementalHistory = selectIncrementalHistory(
+                    history, hasExistingSummary ? lastSummarizedRecordId : null);
+            if (incrementalHistory.isEmpty()) {
                 return;
             }
-            String summary = generateSummary(history);
+            if (hasExistingSummary && incrementalHistory.size() < refreshEvery) {
+                return;
+            }
+            String summary = generateSummary(existingSummary, incrementalHistory);
             if (summary == null || summary.isBlank()) {
                 return;
             }
-            redisTemplate.opsForValue().set(summaryKey(sessionId), limit(summary, properties.getSummaryMaxChars()),
-                    CACHE_TTL_HOURS, TimeUnit.HOURS);
-            redisTemplate.opsForValue().set(summaryMetaKey(sessionId), latestRecordId,
-                    CACHE_TTL_HOURS, TimeUnit.HOURS);
+            persistSummary(sessionId, summary, latestRecordId);
         } catch (Exception e) {
             log.warn("Conversation summary refresh skipped. SessionId: {}, Error: {}", sessionId, e.getMessage());
         }
     }
 
-    private String generateSummary(List<ChatRecord> history) {
+    private String generateSummary(String existingSummary, List<ChatRecord> incrementalHistory) {
         ChatModel model = resolveSummaryModel();
         if (model == null) {
             return "";
         }
         try {
-            String transcript = history.stream()
-                    .map(this::toSummaryLine)
-                    .collect(Collectors.joining("\n"));
-            List<Message> messages = List.of(
-                    new SystemMessage("Summarize customer-service chat history. Keep only goals, user preferences, facts, constraints, and open follow-ups."),
-                    new UserMessage("Summarize the following chat history in Chinese within "
-                            + positive(properties.getSummaryMaxChars(), 1200)
-                            + " characters. Do not invent facts:\n\n" + transcript)
-            );
+            List<Message> messages = buildSummaryPrompt(existingSummary, incrementalHistory);
             String text = model.call(new Prompt(messages)).getResult().getOutput().getText();
             return text == null ? "" : text.trim();
         } catch (Exception e) {
@@ -292,11 +372,18 @@ public class ChatContextService {
         }
         try {
             Object value = redisTemplate.opsForValue().get(summaryKey(sessionId));
-            return value == null ? "" : String.valueOf(value);
+            if (value != null) {
+                return String.valueOf(value);
+            }
         } catch (Exception e) {
             log.warn("Redis summary read failed, SessionId: {}, Error: {}", sessionId, e.getMessage());
+        }
+        ChatSessionSummary persisted = loadPersistedSummary(sessionId);
+        if (persisted == null || persisted.getSummary() == null) {
             return "";
         }
+        cacheSummary(sessionId, persisted.getSummary(), persisted.getLastSummarizedRecordId());
+        return persisted.getSummary();
     }
 
     private List<ChatRecord> selectRelevantHistory(List<ChatRecord> olderHistory, Set<Long> excludedIds, String userInput) {
@@ -451,12 +538,52 @@ public class ChatContextService {
         return HISTORY_KEY_PREFIX + sessionId;
     }
 
+    private String historyIdKey(String sessionId) {
+        return HISTORY_ID_KEY_PREFIX + sessionId;
+    }
+
     private String summaryKey(String sessionId) {
         return SUMMARY_KEY_PREFIX + sessionId;
     }
 
     private String summaryMetaKey(String sessionId) {
         return SUMMARY_META_KEY_PREFIX + sessionId;
+    }
+
+    private void persistSummary(String sessionId, String summary, Long latestRecordId) {
+        String limitedSummary = limit(summary, properties.getSummaryMaxChars());
+        ChatSessionSummary entity = ChatSessionSummary.builder()
+                .sessionId(sessionId)
+                .userId(resolveUserId(sessionId))
+                .summary(limitedSummary)
+                .lastSummarizedRecordId(latestRecordId)
+                .build();
+        chatSessionSummaryMapper.upsertSummary(entity);
+        cacheSummary(sessionId, limitedSummary, latestRecordId);
+    }
+
+    private ChatSessionSummary loadPersistedSummary(String sessionId) {
+        try {
+            return chatSessionSummaryMapper.selectBySessionId(sessionId);
+        } catch (Exception e) {
+            log.warn("Persistent summary read failed, SessionId: {}, Error: {}", sessionId, e.getMessage());
+            return null;
+        }
+    }
+
+    private void cacheSummary(String sessionId, String summary, Long lastSummarizedRecordId) {
+        try {
+            if (summary != null && !summary.isBlank()) {
+                redisTemplate.opsForValue().set(summaryKey(sessionId),
+                        limit(summary, properties.getSummaryMaxChars()), CACHE_TTL_HOURS, TimeUnit.HOURS);
+            }
+            if (lastSummarizedRecordId != null) {
+                redisTemplate.opsForValue().set(summaryMetaKey(sessionId),
+                        lastSummarizedRecordId, CACHE_TTL_HOURS, TimeUnit.HOURS);
+            }
+        } catch (Exception e) {
+            log.warn("Redis summary cache write failed, SessionId: {}, Error: {}", sessionId, e.getMessage());
+        }
     }
 
     private Long latestRecordId(List<ChatRecord> history) {
@@ -468,15 +595,53 @@ public class ChatContextService {
     }
 
     private Long readLastSummarizedRecordId(String sessionId) {
-        Object value = redisTemplate.opsForValue().get(summaryMetaKey(sessionId));
-        if (value == null) {
-            return null;
-        }
         try {
-            return Long.valueOf(String.valueOf(value));
-        } catch (NumberFormatException e) {
+            Object value = redisTemplate.opsForValue().get(summaryMetaKey(sessionId));
+            if (value != null) {
+                return Long.valueOf(String.valueOf(value));
+            }
+        } catch (Exception e) {
+            log.warn("Redis summary meta read failed, SessionId: {}, Error: {}", sessionId, e.getMessage());
+        }
+        ChatSessionSummary persisted = loadPersistedSummary(sessionId);
+        if (persisted == null) {
             return null;
         }
+        cacheSummary(sessionId, persisted.getSummary(), persisted.getLastSummarizedRecordId());
+        return persisted.getLastSummarizedRecordId();
+    }
+
+    List<ChatRecord> selectIncrementalHistory(List<ChatRecord> history, Long lastSummarizedRecordId) {
+        if (lastSummarizedRecordId == null) {
+            return history;
+        }
+        return history.stream()
+                .filter(record -> record.getId() != null && record.getId() > lastSummarizedRecordId)
+                .toList();
+    }
+
+    List<Message> buildSummaryPrompt(String existingSummary, List<ChatRecord> incrementalHistory) {
+        String transcript = incrementalHistory.stream()
+                .map(this::toSummaryLine)
+                .collect(Collectors.joining("\n"));
+        String safeExistingSummary = existingSummary == null ? "" : existingSummary.trim();
+        String task = safeExistingSummary.isBlank()
+                ? "Summarize the following new chat history in Chinese within "
+                : "Merge the existing summary and the new chat history into an updated Chinese summary within ";
+        StringBuilder userPrompt = new StringBuilder(task)
+                .append(positive(properties.getSummaryMaxChars(), 2000))
+                .append(" characters. Keep only durable goals, user preferences, facts, constraints, decisions, and open follow-ups. ")
+                .append("Do not invent facts. Drop resolved small talk and duplicated details.");
+        if (!safeExistingSummary.isBlank()) {
+            userPrompt.append("\n\nExisting summary:\n")
+                    .append(limit(safeExistingSummary, positive(properties.getSummaryMaxChars(), 2000)));
+        }
+        userPrompt.append("\n\nNew chat history since last summary:\n")
+                .append(transcript);
+        return List.of(
+                new SystemMessage("You maintain a rolling long-term memory for a customer-service chat. Preserve stable facts and unresolved work; remove stale or redundant details."),
+                new UserMessage(userPrompt.toString())
+        );
     }
 
     public void evictUserContext(Long userId) {

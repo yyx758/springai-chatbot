@@ -12,6 +12,7 @@
 - [环境变量](#环境变量)
 - [API 文档](#api-文档)
 - [安全设计](#安全设计)
+- [文档导航](#文档导航)
 - [部署](#部署)
 
 ---
@@ -233,7 +234,7 @@ docker compose down           # 停止容器，保留数据
 | `APP_RAG_MODE` | RAG 模式：keyword / vector / hybrid | 否 |
 | `APP_RAG_ELASTICSEARCH_ENABLED` | 是否启用 Elasticsearch 关键词召回，生产默认 true | 否 |
 | `APP_RAG_ELASTICSEARCH_BASE_URL` | Elasticsearch 地址，生产默认 http://elasticsearch:9200 | 否 |
-| `APP_RAG_ELASTICSEARCH_INDEX` | Elasticsearch 索引名，默认 ai_studio_knowledge | 否 |
+| `APP_RAG_ELASTICSEARCH_INDEX` | Elasticsearch 索引名，默认 ai_studio_knowledge_v3 | 否 |
 | `APP_AGENT_ENABLED` | 是否启用 Agent | 否 |
 | `APP_MCP_SERVER_ENABLED` | 是否启用 MCP Server | 否 |
 
@@ -340,6 +341,12 @@ DELETE /api/admin/users/{id}          删除用户
 
 ---
 
+## 文档导航
+
+项目专题文档统一入口见 [docs/README.md](docs/README.md)。历史教程和阶段报告已归档到 [docs/archive/legacy-md/](docs/archive/legacy-md/)，当前实现以根 README、AGENTS.md 和 docs 顶层专题文档为准。
+
+---
+
 ## 部署
 
 ### 本地开发
@@ -379,7 +386,7 @@ docker compose up -d --build chatbot-service
 ```yaml
 APP_RAG_ELASTICSEARCH_ENABLED: ${APP_RAG_ELASTICSEARCH_ENABLED:-true}
 APP_RAG_ELASTICSEARCH_BASE_URL: ${APP_RAG_ELASTICSEARCH_BASE_URL:-http://elasticsearch:9200}
-APP_RAG_ELASTICSEARCH_INDEX: ${APP_RAG_ELASTICSEARCH_INDEX:-ai_studio_knowledge}
+APP_RAG_ELASTICSEARCH_INDEX: ${APP_RAG_ELASTICSEARCH_INDEX:-ai_studio_knowledge_v3}
 ```
 
 确认是否已开启：

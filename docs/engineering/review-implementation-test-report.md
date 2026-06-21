@@ -4,7 +4,7 @@
 
 ## 执行范围
 
-本次按 `docs/project-optimization-review.md` 的高优先级问题做代码改造，重点覆盖安全边界、Kafka 可靠性、Redis 生产风险、RAG 检索性能和 HTTP 客户端稳定性。
+本次按 [项目待优化审阅文档](project-optimization-review.md) 的高优先级问题做代码改造，重点覆盖安全边界、Kafka 可靠性、Redis 生产风险、RAG 检索性能和 HTTP 客户端稳定性。
 
 ## review.md 条目状态
 

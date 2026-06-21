@@ -27,11 +27,17 @@ public class PgVectorClient {
     private final RagProperties ragProperties;
     private final ObjectMapper objectMapper;
     private HikariDataSource dataSource;
+    private volatile boolean available = true;
 
     @PostConstruct
     public void initializeSchemaIfNeeded() {
-        initializeDataSourceIfNeeded();
         if (!isEnabled() || !ragProperties.getVector().isInitializeSchema()) {
+            return;
+        }
+        try {
+            initializeDataSourceIfNeeded();
+        } catch (Exception e) {
+            markUnavailable("PGVector datasource initialization failed", e);
             return;
         }
         try (Connection connection = newConnection();
@@ -57,13 +63,14 @@ public class PgVectorClient {
                     .formatted(table, table));
             log.info("PGVector schema initialized, table={}", table);
         } catch (Exception e) {
-            log.warn("PGVector schema initialization skipped/failed: {}", e.getMessage());
+            markUnavailable("PGVector schema initialization skipped/failed", e);
         }
     }
 
     public boolean isEnabled() {
         RagProperties.Vector vector = ragProperties.getVector();
-        return vector.isEnabled()
+        return available
+                && vector.isEnabled()
                 && vector.getJdbcUrl() != null && !vector.getJdbcUrl().isBlank()
                 && ragProperties.getEmbedding().getBaseUrl() != null && !ragProperties.getEmbedding().getBaseUrl().isBlank();
     }
@@ -192,6 +199,41 @@ public class PgVectorClient {
         }
     }
 
+    public List<RagReference> searchRawTopK(Long userId, String queryVector, int topK) {
+        if (!isEnabled()) {
+            return List.of();
+        }
+        String sql = """
+                SELECT id, document_id, title, content, 1 - (embedding <=> ?::vector) AS score
+                FROM %s
+                WHERE user_id = ?
+                ORDER BY embedding <=> ?::vector
+                LIMIT ?
+                """.formatted(tableName());
+        try (Connection connection = newConnection();
+             PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, queryVector);
+            ps.setLong(2, userId);
+            ps.setString(3, queryVector);
+            ps.setInt(4, topK);
+            try (ResultSet rs = ps.executeQuery()) {
+                List<RagReference> results = new ArrayList<>();
+                while (rs.next()) {
+                    results.add(RagReference.builder()
+                            .chunkId(rs.getString("id"))
+                            .documentId(rs.getLong("document_id"))
+                            .title(rs.getString("title"))
+                            .snippet(rs.getString("content"))
+                            .score(rs.getDouble("score"))
+                            .build());
+                }
+                return results;
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("PGVector raw fallback search failed: " + e.getMessage(), e);
+        }
+    }
+
     public String vectorLiteral(List<Double> vector) {
         StringBuilder builder = new StringBuilder("[");
         for (int i = 0; i < vector.size(); i++) {
@@ -226,7 +268,22 @@ public class PgVectorClient {
         config.setConnectionTimeout(3000);
         config.setValidationTimeout(2000);
         config.setPoolName("pgvector-rag-pool");
-        dataSource = new HikariDataSource(config);
+        try {
+            dataSource = new HikariDataSource(config);
+        } catch (Exception e) {
+            available = false;
+            dataSource = null;
+            throw e;
+        }
+    }
+
+    private synchronized void markUnavailable(String message, Exception e) {
+        available = false;
+        if (dataSource != null) {
+            dataSource.close();
+            dataSource = null;
+        }
+        log.warn("{}: {}", message, e.getMessage());
     }
 
     private String tableName() {

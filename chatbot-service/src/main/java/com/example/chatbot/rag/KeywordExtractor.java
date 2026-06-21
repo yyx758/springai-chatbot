@@ -47,6 +47,7 @@ public class KeywordExtractor {
     private static final Pattern TECHNICAL_TERM_PATTERN = Pattern.compile(
             "\\b[A-Z][a-zA-Z0-9_]+(?:Exception|Error|Config|Service|Controller|Mapper|Repository|Client)|"  // PascalCase + 后缀
             + "\\b[A-Z][a-z]+[A-Z][a-zA-Z]+\\b|"    // PascalCase: ChatMemory, NullPointerException
+            + "(?<![A-Za-z0-9])[A-Za-z][A-Za-z0-9+#.-]{1,}(?![A-Za-z0-9])|"  // standalone tech terms: Kafka, Redis, JWT, ES, TTL
             + "\\b[a-z]+_[a-z]+\\b|"                 // snake_case: vector_dims
             + "\\b(docker|kubectl|psql|mysql|grep|curl|ssh|nslookup|systemctl|git|npm|mvn)\\b|"  // 命令
             + "\\b(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|COUNT|CREATE|ALTER|DROP)\\b|"  // SQL

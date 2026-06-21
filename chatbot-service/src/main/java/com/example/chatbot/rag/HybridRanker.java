@@ -255,6 +255,7 @@ public class HybridRanker {
                 term.matches("[a-z]+_[a-z]+") ||                           // snake_case
                 term.matches("(?i)(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)") || // SQL
                 term.matches("(?i)(docker|kubectl|psql|mysql|grep|curl|ssh)") || // 命令
+                term.matches(".*[\\u4e00-\\u9fff].*") && term.length() >= 2 || // 中文关键词/短语
                 term.length() >= 4) {                                       // 长短语
                 return true;
             }

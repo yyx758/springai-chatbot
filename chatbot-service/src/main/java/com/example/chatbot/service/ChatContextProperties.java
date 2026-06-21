@@ -9,14 +9,14 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.chatbot.context")
 public class ChatContextProperties {
 
-    private int recentWindowSize = 6;
-    private int redisCacheSize = 30;
+    private int recentWindowSize = 10;
+    private int redisCacheSize = 100;
     private boolean relevantHistoryEnabled = true;
-    private int relevantHistoryCandidateSize = 50;
-    private int relevantHistoryTopK = 3;
+    private int relevantHistoryCandidateSize = 80;
+    private int relevantHistoryTopK = 5;
     private boolean summaryEnabled = true;
     private int summaryTriggerRecords = 12;
     private int summaryRefreshEveryRecords = 6;
-    private int summaryMaxChars = 1200;
-    private int maxContextChars = 12000;
+    private int summaryMaxChars = 2000;
+    private int maxContextChars = 30000;
 }

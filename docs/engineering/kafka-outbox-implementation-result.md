@@ -2,7 +2,7 @@
 
 ## 1. 实施概述
 
-根据 `docs/kafka-outbox-context-consistency-plan.md` 计划，已完成 Kafka、Outbox 与聊天上下文一致性的修正。
+根据 [Kafka Outbox 与上下文一致性计划](kafka-outbox-context-consistency-plan.md)，已完成 Kafka、Outbox 与聊天上下文一致性的修正。
 
 **实施时间**：2026-06-17
 
@@ -20,7 +20,7 @@
 | `chatbot-service/src/main/java/com/example/chatbot/service/ChatRecordPersistenceService.java` | 事务内同时写入 chat_record 和 chat_event_outbox |
 | `chatbot-service/src/main/resources/db/migration/V9__add_unique_index_event_id.sql` | 数据库迁移：添加 event_id 唯一索引 |
 | `chatbot-service/src/test/java/com/example/chatbot/service/ChatRecordPersistenceServiceTest.java` | ChatRecordPersistenceService 单元测试 |
-| `docs/kafka-outbox-implementation-result.md` | 本文档 |
+| `docs/engineering/kafka-outbox-implementation-result.md` | 本文档 |
 
 ### 2.2 修改文件
 
@@ -329,6 +329,6 @@ docker compose -f docker-compose.prod.yml up -d --build chatbot-service
 
 ## 10. 相关文档
 
-- 原始计划：`docs/kafka-outbox-context-consistency-plan.md`
-- 本文档：`docs/kafka-outbox-implementation-result.md`
+- 原始计划：[kafka-outbox-context-consistency-plan.md](kafka-outbox-context-consistency-plan.md)
+- 本文档：[kafka-outbox-implementation-result.md](kafka-outbox-implementation-result.md)
 - CLAUDE.md：项目上下文和开发规范

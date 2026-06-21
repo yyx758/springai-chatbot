@@ -4,16 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Studio</title>
-    <link href="https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" rel="stylesheet">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
+    <script data-cfasync="false" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script data-cfasync="false" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script data-cfasync="false" src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script data-cfasync="false" src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
 
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1128,6 +1127,74 @@
             color: var(--warm-800);
         }
 
+        .review-run-card,
+        .review-issue-card {
+            background: rgba(255,255,255,0.62);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            box-shadow: var(--shadow-sm);
+        }
+        .review-run-card {
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .review-run-card:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        .review-run-card.active {
+            border-color: rgba(61,56,50,0.28);
+            background: rgba(255,255,255,0.82);
+        }
+        .review-card-title {
+            font-weight: 600;
+            color: var(--warm-800);
+            font-size: 0.92rem;
+        }
+        .review-card-meta {
+            color: var(--warm-500);
+            font-size: 0.76rem;
+            margin-top: 0.25rem;
+        }
+        .review-severity {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+        .review-severity.HIGH,
+        .review-severity.BLOCKER {
+            background: rgba(220,80,60,0.12);
+            color: #b73122;
+        }
+        .review-severity.MEDIUM {
+            background: rgba(196,128,45,0.14);
+            color: #9a5f16;
+        }
+        .review-severity.LOW {
+            background: rgba(82,130,196,0.12);
+            color: #315e9a;
+        }
+        .review-severity.INFO {
+            background: rgba(92,86,77,0.10);
+            color: var(--warm-600);
+        }
+        .review-evidence {
+            background: rgba(42,37,32,0.04);
+            border-radius: var(--radius-sm);
+            padding: 0.6rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.76rem;
+            color: var(--warm-700);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
         /* Code blocks */
         pre {
             background: #282c34;
@@ -1394,6 +1461,13 @@
                     <div class="nav-sub">管理上传的文件</div>
                 </div>
             </div>
+            <div class="nav-card" onclick="openCodeReviewModal()">
+                <i class="bi bi-code-square"></i>
+                <div>
+                    <div style="font-weight:500;">代码审查</div>
+                    <div class="nav-sub">查看 Agent Review 问题卡片</div>
+                </div>
+            </div>
         </div>
 
         <div class="recent-sessions" id="recentSessions">
@@ -1504,6 +1578,117 @@
             </div>
         </footer>
     </main>
+</div>
+
+<!-- Code Review Modal -->
+<div class="modal fade" id="codeReviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0">
+            <div class="modal-header border-0 px-5 pt-5 pb-3">
+                <div>
+                    <h4 class="mb-1">代码审查</h4>
+                    <div class="small" style="color:var(--warm-500);" id="codeReviewMeta">Review runs and issue cards</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-5 py-3">
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="mb-4 p-3" style="background:var(--warm-100);border:1px solid var(--warm-200);border-radius:16px;">
+                            <h6 class="fw-bold mb-3" style="color:var(--warm-800);">Start Review</h6>
+                            <div class="mb-2">
+                                <select class="form-select form-select-sm" id="codeReviewScope" onchange="toggleCodeReviewScopeFields()">
+                                    <option value="FILE">单文件审查</option>
+                                    <option value="WORKSPACE">工作区审查</option>
+                                    <option value="GIT_DIFF">Git diff 审查</option>
+                                </select>
+                            </div>
+                            <div class="mb-2" id="codeReviewPathGroup">
+                                <input class="form-control form-control-sm" id="codeReviewPath" placeholder="文件路径，如 src/main/java/App.java">
+                                <div class="small mt-1" style="color:var(--warm-500);">工作区审查可填多个路径，用逗号分隔；Git diff 不需要填写。</div>
+                            </div>
+                            <div class="mb-2" id="codeReviewFileSelectGroup">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="small" style="color:var(--warm-600);">Workspace files</span>
+                                    <button class="btn btn-sm btn-outline-dark" onclick="loadReviewWorkspaceFiles()">加载文件</button>
+                                </div>
+                                <select class="form-select form-select-sm" id="codeReviewFileSelect" size="5" multiple onchange="applyReviewSelectedFiles()"></select>
+                                <div class="small mt-1" id="codeReviewFileSelectMeta" style="color:var(--warm-500);">选择文件后会自动填入路径。</div>
+                            </div>
+                            <div class="mb-2" id="codeReviewGitDiffGroup" style="display:none;">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="small" style="color:var(--warm-600);">Changed files</span>
+                                    <button class="btn btn-sm btn-outline-dark" onclick="loadReviewGitChangedFiles()">加载变更</button>
+                                </div>
+                                <select class="form-select form-select-sm" id="codeReviewGitDiffFileSelect" size="5" multiple onchange="loadSelectedGitDiffPreview()"></select>
+                                <div class="small mt-1" id="codeReviewGitDiffMeta" style="color:var(--warm-500);">Git diff 审查可多选部分变更文件；不选则审查全部可审查变更。</div>
+                                <pre id="codeReviewGitDiffPreview" class="mt-2" style="display:none;max-height:220px;overflow:auto;background:#1f1f1f;color:#f8f8f2;border-radius:10px;padding:10px;font-size:0.76rem;"></pre>
+                                <div class="agent-doc-actions mt-2" id="codeReviewGitDiffPreviewActions" style="display:none;">
+                                    <button class="agent-doc-btn" onclick="copyReviewGitDiffPreview()">复制 Diff</button>
+                                    <button class="agent-doc-btn" onclick="reviewCurrentGitDiffPreviewFile()">审查当前预览文件</button>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <input class="form-control form-control-sm" id="codeReviewFocus" placeholder="审查重点，可选，如异常处理/权限/并发">
+                            </div>
+                            <div class="mb-3">
+                                <input class="form-control form-control-sm" id="codeReviewMaxIssues" type="number" min="1" max="20" value="5" placeholder="最大问题数">
+                            </div>
+                            <button class="btn btn-sm btn-dark w-100" onclick="startCodeReview()">开始审查</button>
+                            <div class="small mt-2" id="codeReviewStartStatus" style="color:var(--warm-500);"></div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold mb-0" style="color:var(--warm-800);">Review Runs</h6>
+                            <button class="btn btn-sm btn-outline-dark" onclick="loadReviewRuns()">刷新</button>
+                        </div>
+                        <div id="reviewRunList"></div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold mb-0" style="color:var(--warm-800);">Issue Cards</h6>
+                            <div class="d-flex align-items-center gap-2">
+                                <select class="form-select form-select-sm" id="reviewIssueStatusFilter" style="width:120px;" onchange="reloadActiveReviewIssues()">
+                                    <option value="ALL">全部</option>
+                                    <option value="OPEN">OPEN</option>
+                                    <option value="ACCEPTED">ACCEPTED</option>
+                                    <option value="IGNORED">IGNORED</option>
+                                    <option value="FIXED">FIXED</option>
+                                </select>
+                                <span class="small" style="color:var(--warm-500);" id="reviewIssueMeta"></span>
+                            </div>
+                        </div>
+                        <div id="reviewIssueList">
+                            <span style="color:var(--warm-500);">选择左侧一次审查查看问题卡片。</span>
+                        </div>
+                        <div class="mt-4" id="reviewFixDraftPanel" style="display:none;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="fw-bold mb-0" style="color:var(--warm-800);">Agent 修复 Diff</h6>
+                                <span class="small" id="reviewFixDraftMeta" style="color:var(--warm-500);"></span>
+                            </div>
+                            <pre id="reviewFixDraftDiff" style="max-height:360px;overflow:auto;background:#1f1f1f;color:#f8f8f2;border-radius:12px;padding:12px;font-size:0.78rem;"></pre>
+                            <div id="reviewFixDraftWarnings" class="small mb-2" style="color:var(--warm-600);"></div>
+                            <div class="agent-doc-actions">
+                                <button class="agent-doc-btn" onclick="acceptReviewFixDraft()">接受修改</button>
+                                <button class="agent-doc-btn" onclick="rejectReviewFixDraft()">拒绝修改</button>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="fw-bold mb-0" style="color:var(--warm-800);">Pending Apply Actions</h6>
+                                <button class="btn btn-sm btn-outline-dark" onclick="loadReviewPendingActions()">刷新</button>
+                            </div>
+                            <div id="reviewPendingActionList">
+                                <span style="color:var(--warm-500);">暂无待确认操作。</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 px-5 pb-5 pt-2 justify-content-end">
+                <button class="btn btn-dark" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Records Modal -->
@@ -1629,7 +1814,7 @@
     </div>
 </div>
 
-<script>
+<script data-cfasync="false">
     const FILE_SERVICE_BASE = '/api/files';
 
     function getFileAuthHeaders(extra = {}) {
@@ -1668,6 +1853,12 @@
     let knowledgeModal;
     let documentViewerModal;
     let workspaceModal;
+    let codeReviewModal;
+    let activeReviewRunId = '';
+    let reviewPatchCache = {};
+    let activeGitDiffPreviewPath = '';
+    let activeGitDiffPreviewText = '';
+    let activeReviewFixDraft = null;
     let currentWorkspaceId = null;
     let workspaceFileMap = new Map();
     let activeWorkspacePath = '';
@@ -1684,8 +1875,17 @@
         'Dockerfile', 'Containerfile', 'Jenkinsfile', 'Makefile', 'mvnw', 'gradlew',
         'README', 'LICENSE', 'NOTICE'
     ]);
-    const LOCAL_WORKSPACE_SKIP_DIRS = new Set(['.git', '.idea', '.vscode', 'node_modules', 'target', 'dist', 'build', '.gradle']);
+    const LOCAL_WORKSPACE_SOURCE_EXTENSIONS = new Set([
+        '.java', '.kt', '.py', '.go', '.rs', '.c', '.cpp', '.h', '.hpp', '.cs', '.php',
+        '.rb', '.swift', '.js', '.ts', '.jsx', '.tsx', '.vue'
+    ]);
+    const LOCAL_WORKSPACE_SKIP_DIRS = new Set([
+        '.git', '.idea', '.vscode', 'node_modules', 'target', 'dist', 'build', '.gradle',
+        '.venv', 'venv', 'env', '.env', '__pycache__', '.mypy_cache', '.pytest_cache',
+        '.ruff_cache', '.tox', 'site-packages', 'vendor', 'coverage', '.next', '.nuxt'
+    ]);
     const LOCAL_WORKSPACE_MAX_FILES = 300;
+    const LOCAL_WORKSPACE_MAX_CANDIDATE_FILES = 1500;
     const LOCAL_WORKSPACE_MAX_FILE_SIZE = 2 * 1024 * 1024;
     const LOCAL_WORKSPACE_MAX_DEPTH = 6;
     let isStreaming = false;
@@ -1818,6 +2018,21 @@
             throw new Error('未登录或登录已过期');
         }
         return response;
+    }
+
+    async function readJsonResponse(response, fallbackMessage) {
+        const text = await response.text();
+        let data = null;
+        try {
+            data = text ? JSON.parse(text) : {};
+        } catch (e) {
+            const clipped = text ? text.replace(/\s+/g, ' ').substring(0, 160) : '';
+            throw new Error((fallbackMessage || 'Request failed') + ': server returned non-JSON response' + (clipped ? ' - ' + clipped : ''));
+        }
+        if (!response.ok || data.success === false) {
+            throw new Error(data.error || data.message || fallbackMessage || ('HTTP ' + response.status));
+        }
+        return data;
     }
 
     function persistAuth(authData) {
@@ -2299,6 +2514,24 @@
             || LOCAL_WORKSPACE_ALLOWED_FILENAMES.has(localFileName(relativePath));
     }
 
+    function localWorkspaceFilePriority(item) {
+        const path = item && item.relativePath ? item.relativePath : '';
+        const ext = localFileExtension(path);
+        const name = localFileName(path);
+        if (LOCAL_WORKSPACE_SOURCE_EXTENSIONS.has(ext)) return 0;
+        if (['pom.xml', 'build.gradle', 'settings.gradle', 'package.json', 'requirements.txt', 'pyproject.toml', 'go.mod', 'Cargo.toml'].includes(name)) return 1;
+        if (['README', 'README.md'].includes(name)) return 2;
+        return 3;
+    }
+
+    function sortLocalWorkspaceFiles(files) {
+        return files.sort((a, b) => {
+            const priority = localWorkspaceFilePriority(a) - localWorkspaceFilePriority(b);
+            if (priority !== 0) return priority;
+            return String(a.relativePath || '').localeCompare(String(b.relativePath || ''));
+        });
+    }
+
     function contentTypeForLocalPath(path) {
         const ext = localFileExtension(path);
         if (ext === '.md') return 'text/markdown';
@@ -2324,9 +2557,9 @@
     }
 
     async function scanLocalDirectory(directoryHandle, prefix, files, depth) {
-        if (depth > LOCAL_WORKSPACE_MAX_DEPTH || files.length >= LOCAL_WORKSPACE_MAX_FILES) return;
+        if (depth > LOCAL_WORKSPACE_MAX_DEPTH || files.length >= LOCAL_WORKSPACE_MAX_CANDIDATE_FILES) return;
         for await (const [name, handle] of directoryHandle.entries()) {
-            if (files.length >= LOCAL_WORKSPACE_MAX_FILES) return;
+            if (files.length >= LOCAL_WORKSPACE_MAX_CANDIDATE_FILES) return;
             if (handle.kind === 'directory') {
                 if (LOCAL_WORKSPACE_SKIP_DIRS.has(name)) continue;
                 await scanLocalDirectory(handle, `${prefix}${name}/`, files, depth + 1);
@@ -2373,16 +2606,17 @@
                 alert('No supported text files found in this folder.');
                 return;
             }
-            for (const item of files) {
+            const selectedFiles = sortLocalWorkspaceFiles(files).slice(0, LOCAL_WORKSPACE_MAX_FILES);
+            for (const item of selectedFiles) {
                 const content = await item.file.text();
                 await createOrUpdateWorkspaceFile(workspace.id, item.relativePath, content, contentTypeForLocalPath(item.relativePath));
             }
             await openWorkspaceModal();
             const metaEl = document.getElementById('workspaceMeta');
             if (metaEl) {
-                metaEl.textContent = `${workspace.name || 'Agent Workspace'} · local folder linked: ${directoryHandle.name} · ${files.length} files synced`;
+                metaEl.textContent = `${workspace.name || 'Agent Workspace'} · local folder linked: ${directoryHandle.name} · ${selectedFiles.length} files synced`;
             }
-            alert(`Local folder synced into workspace: ${files.length} files.`);
+            alert(`Local folder synced into workspace: ${selectedFiles.length} files.`);
         } catch (e) {
             alert(e && e.message ? e.message : 'Local folder sync failed.');
         }
@@ -2404,7 +2638,7 @@
                     const rawPath = file.webkitRelativePath || file.name;
                     const parts = rawPath.split('/').filter(Boolean);
                     const relativePath = normalizeLocalRelativePath(parts.length > 1 ? parts.slice(1).join('/') : rawPath);
-                    if (accepted.length >= LOCAL_WORKSPACE_MAX_FILES) break;
+                    if (accepted.length >= LOCAL_WORKSPACE_MAX_CANDIDATE_FILES) break;
                     if (!isAllowedLocalWorkspaceFile(relativePath, file)) continue;
                     accepted.push({ relativePath, file });
                 }
@@ -2412,14 +2646,15 @@
                     alert('No supported text files found in this folder.');
                     return;
                 }
+                const selectedAccepted = sortLocalWorkspaceFiles(accepted).slice(0, LOCAL_WORKSPACE_MAX_FILES);
                 localDirectoryHandle = null;
                 localWorkspaceFileHandles = new Map();
-                for (const item of accepted) {
+                for (const item of selectedAccepted) {
                     const content = await item.file.text();
                     await createOrUpdateWorkspaceFile(workspace.id, item.relativePath, content, contentTypeForLocalPath(item.relativePath));
                 }
                 await openWorkspaceModal();
-                alert(`Local folder imported into workspace: ${accepted.length} files. Direct write-back requires HTTPS or localhost.`);
+                alert(`Local folder imported into workspace: ${selectedAccepted.length} files. Direct write-back requires HTTPS or localhost.`);
             } catch (e) {
                 alert(e && e.message ? e.message : 'Local folder import failed.');
             } finally {
@@ -2599,6 +2834,570 @@
         } catch (e) {
             const previewEl = detailEl.querySelector('.workspace-preview');
             if (previewEl) previewEl.innerHTML = `<span style="color:#dc503c;">${e && e.message ? e.message : 'Preview failed.'}</span>`;
+        }
+    }
+
+    async function openCodeReviewModal() {
+        if (!currentUser || !activeSessionId) return;
+        if (!codeReviewModal) {
+            codeReviewModal = new bootstrap.Modal(document.getElementById('codeReviewModal'));
+        }
+        codeReviewModal.show();
+        toggleCodeReviewScopeFields();
+        await loadReviewWorkspaceFiles();
+        await loadReviewRuns();
+        await loadReviewPendingActions();
+    }
+
+    function toggleCodeReviewScopeFields() {
+        const scopeEl = document.getElementById('codeReviewScope');
+        const pathGroup = document.getElementById('codeReviewPathGroup');
+        const pathInput = document.getElementById('codeReviewPath');
+        const fileSelectGroup = document.getElementById('codeReviewFileSelectGroup');
+        const fileSelect = document.getElementById('codeReviewFileSelect');
+        const gitDiffGroup = document.getElementById('codeReviewGitDiffGroup');
+        if (!scopeEl || !pathGroup || !pathInput) return;
+        const scope = scopeEl.value || 'FILE';
+        if (scope === 'GIT_DIFF') {
+            pathGroup.style.display = 'none';
+            if (fileSelectGroup) fileSelectGroup.style.display = 'none';
+            if (gitDiffGroup) gitDiffGroup.style.display = 'block';
+            pathInput.value = '';
+        } else {
+            pathGroup.style.display = 'block';
+            if (fileSelectGroup) fileSelectGroup.style.display = 'block';
+            if (gitDiffGroup) gitDiffGroup.style.display = 'none';
+            if (fileSelect) fileSelect.multiple = scope === 'WORKSPACE';
+            pathInput.placeholder = scope === 'WORKSPACE'
+                ? '可选：多个文件路径，用逗号分隔；留空则按默认范围审查'
+                : '文件路径，如 src/main/java/App.java';
+        }
+    }
+
+    async function loadReviewWorkspaceFiles() {
+        const select = document.getElementById('codeReviewFileSelect');
+        const meta = document.getElementById('codeReviewFileSelectMeta');
+        const scope = ((document.getElementById('codeReviewScope') || {}).value || 'FILE');
+        if (!select || !activeSessionId || scope === 'GIT_DIFF') return;
+        select.innerHTML = '<option>Loading...</option>';
+        if (meta) meta.textContent = '正在加载 workspace 文件...';
+        try {
+            const response = await authFetch('/api/agent/workspaces/current?sessionId=' + encodeURIComponent(activeSessionId));
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Load workspace files failed.');
+            const files = (result.files || []).filter(file => file && file.relativePath);
+            if (files.length === 0) {
+                select.innerHTML = '';
+                if (meta) meta.textContent = '当前会话 workspace 还没有文件。';
+                return;
+            }
+            select.innerHTML = files.map(function(file) {
+                const path = file.relativePath || '';
+                const label = path + (file.version ? '  v' + file.version : '');
+                return '<option value="' + escapeHtml(path) + '">' + escapeHtml(label) + '</option>';
+            }).join('');
+            if (meta) meta.textContent = '已加载 ' + files.length + ' 个文件；单文件审查选 1 个，工作区审查可多选。';
+        } catch (e) {
+            select.innerHTML = '';
+            if (meta) meta.textContent = e && e.message ? e.message : 'Load workspace files failed.';
+        }
+    }
+
+    function applyReviewSelectedFiles() {
+        const select = document.getElementById('codeReviewFileSelect');
+        const pathInput = document.getElementById('codeReviewPath');
+        const scope = ((document.getElementById('codeReviewScope') || {}).value || 'FILE');
+        if (!select || !pathInput) return;
+        const selected = Array.from(select.selectedOptions || []).map(option => option.value).filter(Boolean);
+        if (selected.length === 0) return;
+        pathInput.value = scope === 'WORKSPACE' ? selected.join(', ') : selected[0];
+    }
+
+    async function loadReviewGitChangedFiles() {
+        const select = document.getElementById('codeReviewGitDiffFileSelect');
+        const meta = document.getElementById('codeReviewGitDiffMeta');
+        if (!select || !activeSessionId) return;
+        select.innerHTML = '<option>Loading...</option>';
+        if (meta) meta.textContent = '正在加载 Git diff 变更文件...';
+        try {
+            const response = await authFetch('/api/chat/agent/review/git-diff/files?sessionId=' + encodeURIComponent(activeSessionId) + '&maxFiles=50');
+            const result = await readJsonResponse(response, 'Load git diff files failed');
+            const files = result.files || [];
+            if (files.length === 0) {
+                select.innerHTML = '';
+                const preview = document.getElementById('codeReviewGitDiffPreview');
+                if (preview) preview.style.display = 'none';
+                const actions = document.getElementById('codeReviewGitDiffPreviewActions');
+                if (actions) actions.style.display = 'none';
+                activeGitDiffPreviewPath = '';
+                activeGitDiffPreviewText = '';
+                if (meta) meta.textContent = '当前没有可审查的 Git diff 源文件变更。';
+                return;
+            }
+            const detailByPath = {};
+            (result.fileDetails || []).forEach(function(item) {
+                if (item && item.path) detailByPath[item.path] = item;
+            });
+            select.innerHTML = files.map(function(path) {
+                const detail = detailByPath[path] || {};
+                const additions = Number(detail.additions || 0);
+                const deletions = Number(detail.deletions || 0);
+                const suffix = '  +' + additions + ' / -' + deletions + (detail.truncated ? '  truncated' : '');
+                return '<option value="' + escapeHtml(path) + '">' + escapeHtml(path + suffix) + '</option>';
+            }).join('');
+            if (meta) meta.textContent = '已加载 ' + files.length + ' 个变更文件；可多选部分文件，不选则审查全部。';
+        } catch (e) {
+            select.innerHTML = '';
+            if (meta) meta.textContent = e && e.message ? e.message : 'Load git diff files failed.';
+        }
+    }
+
+    async function loadSelectedGitDiffPreview() {
+        const select = document.getElementById('codeReviewGitDiffFileSelect');
+        const preview = document.getElementById('codeReviewGitDiffPreview');
+        const meta = document.getElementById('codeReviewGitDiffMeta');
+        if (!select || !preview || !activeSessionId) return;
+        const selected = Array.from(select.selectedOptions || []).map(option => option.value).filter(Boolean);
+        if (selected.length === 0) {
+            preview.style.display = 'none';
+            const actions = document.getElementById('codeReviewGitDiffPreviewActions');
+            if (actions) actions.style.display = 'none';
+            activeGitDiffPreviewPath = '';
+            activeGitDiffPreviewText = '';
+            return;
+        }
+        const path = selected[0];
+        const actions = document.getElementById('codeReviewGitDiffPreviewActions');
+        preview.style.display = 'block';
+        if (actions) actions.style.display = 'none';
+        activeGitDiffPreviewPath = path;
+        activeGitDiffPreviewText = '';
+        preview.textContent = 'Loading diff preview for ' + path + '...';
+        try {
+            const response = await authFetch('/api/chat/agent/review/git-diff/file?sessionId=' + encodeURIComponent(activeSessionId) + '&path=' + encodeURIComponent(path));
+            const result = await readJsonResponse(response, 'Load diff preview failed');
+            const diff = result.diffPreview || '';
+            activeGitDiffPreviewText = diff;
+            const clipped = diff.length > 12000 ? diff.substring(0, 12000) + '\n... diff preview clipped in browser ...' : diff;
+            preview.innerHTML = renderDiffPreview(clipped);
+            if (actions) actions.style.display = 'flex';
+            if (meta) meta.textContent = '正在预览：' + path + '；多选时只预览第一个选中文件。';
+        } catch (e) {
+            preview.textContent = e && e.message ? e.message : 'Load diff preview failed.';
+            if (actions) actions.style.display = 'none';
+        }
+    }
+
+    async function copyReviewGitDiffPreview() {
+        if (!activeGitDiffPreviewText) return;
+        try {
+            await navigator.clipboard.writeText(activeGitDiffPreviewText);
+            alert('Diff 已复制。');
+        } catch (e) {
+            alert(activeGitDiffPreviewText);
+        }
+    }
+
+    async function reviewCurrentGitDiffPreviewFile() {
+        if (!activeSessionId || !activeGitDiffPreviewPath) return;
+        const maxIssues = parseInt(((document.getElementById('codeReviewMaxIssues') || {}).value || '5'), 10) || 5;
+        const focus = ((document.getElementById('codeReviewFocus') || {}).value || '').trim();
+        const statusEl = document.getElementById('codeReviewStartStatus');
+        if (statusEl) {
+            statusEl.textContent = '正在审查当前 Git diff 文件...';
+            statusEl.style.color = 'var(--warm-500)';
+        }
+        try {
+            const response = await authFetch('/api/chat/agent/review/git-diff', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: activeSessionId,
+                    focus: focus,
+                    relativePaths: [activeGitDiffPreviewPath],
+                    maxFiles: 1,
+                    maxIssuesPerFile: maxIssues
+                })
+            });
+            const result = await readJsonResponse(response, 'Review failed');
+            if (statusEl) {
+                statusEl.textContent = '审查完成：' + (result.summary || result.runId || '');
+                statusEl.style.color = '#4ade80';
+            }
+            await loadReviewRuns();
+            if (result.runId) {
+                await loadReviewIssues(result.runId);
+            }
+        } catch (e) {
+            if (statusEl) {
+                statusEl.textContent = e && e.message ? e.message : 'Review failed.';
+                statusEl.style.color = '#dc503c';
+            } else {
+                alert(e && e.message ? e.message : 'Review failed.');
+            }
+        }
+    }
+
+    function renderDiffPreview(diff) {
+        if (!diff) return '';
+        return diff.split('\n').map(function(line) {
+            const escaped = escapeHtml(line);
+            if (line.startsWith('+') && !line.startsWith('+++')) {
+                return '<span style="color:#4ade80;">' + escaped + '</span>';
+            }
+            if (line.startsWith('-') && !line.startsWith('---')) {
+                return '<span style="color:#f87171;">' + escaped + '</span>';
+            }
+            if (line.startsWith('@@') || line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++')) {
+                return '<span style="color:#a3a3a3;">' + escaped + '</span>';
+            }
+            return '<span style="color:#e5e7eb;">' + escaped + '</span>';
+        }).join('\n');
+    }
+
+    async function startCodeReview() {
+        if (!activeSessionId) return;
+        const scope = (document.getElementById('codeReviewScope') || {}).value || 'FILE';
+        const path = ((document.getElementById('codeReviewPath') || {}).value || '').trim();
+        const focus = ((document.getElementById('codeReviewFocus') || {}).value || '').trim();
+        const maxIssues = parseInt(((document.getElementById('codeReviewMaxIssues') || {}).value || '5'), 10) || 5;
+        const statusEl = document.getElementById('codeReviewStartStatus');
+        if (statusEl) {
+            statusEl.textContent = '正在发起审查...';
+            statusEl.style.color = 'var(--warm-500)';
+        }
+        try {
+            let endpoint = '/api/chat/agent/review/file';
+            let body = { sessionId: activeSessionId, focus: focus };
+            if (scope === 'FILE') {
+                if (!path) throw new Error('单文件审查需要填写文件路径。');
+                body.relativePath = path;
+                body.maxIssues = maxIssues;
+            } else if (scope === 'WORKSPACE') {
+                endpoint = '/api/chat/agent/review/workspace';
+                body.maxIssuesPerFile = maxIssues;
+                body.maxFiles = 20;
+                if (path) {
+                    body.relativePaths = path.split(/[,\n]/).map(item => item.trim()).filter(Boolean);
+                }
+            } else if (scope === 'GIT_DIFF') {
+                endpoint = '/api/chat/agent/review/git-diff';
+                body.maxIssuesPerFile = maxIssues;
+                body.maxFiles = 20;
+                const gitSelect = document.getElementById('codeReviewGitDiffFileSelect');
+                const selected = gitSelect ? Array.from(gitSelect.selectedOptions || []).map(option => option.value).filter(Boolean) : [];
+                if (selected.length > 0) {
+                    body.relativePaths = selected;
+                    body.maxFiles = selected.length;
+                }
+            }
+            const response = await authFetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const result = await readJsonResponse(response, 'Review failed');
+            if (statusEl) {
+                statusEl.textContent = '审查完成：' + (result.summary || result.runId || '');
+                statusEl.style.color = '#4ade80';
+            }
+            await loadReviewRuns();
+            if (result.runId) {
+                await loadReviewIssues(result.runId);
+            }
+        } catch (e) {
+            if (statusEl) {
+                statusEl.textContent = e && e.message ? e.message : 'Review failed.';
+                statusEl.style.color = '#dc503c';
+            } else {
+                alert(e && e.message ? e.message : 'Review failed.');
+            }
+        }
+    }
+
+    async function loadReviewRuns() {
+        const runList = document.getElementById('reviewRunList');
+        const issueList = document.getElementById('reviewIssueList');
+        const meta = document.getElementById('codeReviewMeta');
+        if (!runList || !activeSessionId) return;
+        runList.innerHTML = '<span style="color:var(--warm-500);">Loading review runs...</span>';
+        if (issueList) issueList.innerHTML = '<span style="color:var(--warm-500);">选择左侧一次审查查看问题卡片。</span>';
+        if (meta) meta.textContent = activeSessionId;
+        try {
+            const response = await authFetch('/api/chat/agent/review/runs?sessionId=' + encodeURIComponent(activeSessionId) + '&limit=20');
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Load review runs failed.');
+            const runs = result.runs || [];
+            renderReviewRuns(runs);
+            if (runs.length > 0) {
+                await loadReviewIssues(runs[0].runId);
+            }
+        } catch (e) {
+            runList.innerHTML = '<span style="color:#dc503c;">' + escapeHtml(e && e.message ? e.message : 'Unable to load review runs.') + '</span>';
+        }
+    }
+
+    function renderReviewRuns(runs) {
+        const runList = document.getElementById('reviewRunList');
+        if (!runList) return;
+        if (!runs || runs.length === 0) {
+            runList.innerHTML = '<span style="color:var(--warm-500);">当前会话还没有代码审查记录。</span>';
+            return;
+        }
+        runList.innerHTML = runs.map(function(run) {
+            const risk = escapeHtml(run.riskLevel || 'LOW');
+            const active = run.runId === activeReviewRunId ? ' active' : '';
+            return '<div class="review-run-card' + active + '" data-run-id="' + escapeHtml(run.runId || '') + '" onclick="loadReviewIssues(\'' + escapeHtml(run.runId || '') + '\')">' +
+                '<div class="d-flex justify-content-between align-items-start gap-2">' +
+                    '<div class="review-card-title">' + escapeHtml(run.scopeType || 'REVIEW') + '</div>' +
+                    '<span class="review-severity ' + risk + '">' + risk + '</span>' +
+                '</div>' +
+                '<div class="review-card-meta">' + escapeHtml(run.summary || '') + '</div>' +
+                '<div class="review-card-meta">' + escapeHtml(run.createdTime || '') + ' · files ' + escapeHtml(String(run.reviewedFileCount || 0)) + '</div>' +
+            '</div>';
+        }).join('');
+    }
+
+    async function loadReviewIssues(runId) {
+        if (!runId) return;
+        activeReviewRunId = runId;
+        document.querySelectorAll('.review-run-card').forEach(function(card) {
+            card.classList.toggle('active', card.getAttribute('data-run-id') === runId);
+        });
+        const issueList = document.getElementById('reviewIssueList');
+        const issueMeta = document.getElementById('reviewIssueMeta');
+        if (issueList) issueList.innerHTML = '<span style="color:var(--warm-500);">Loading issues...</span>';
+        if (issueMeta) issueMeta.textContent = runId;
+        try {
+            const statusFilter = document.getElementById('reviewIssueStatusFilter');
+            const selectedStatus = statusFilter && statusFilter.value ? statusFilter.value : 'ALL';
+            let url = '/api/chat/agent/review/runs/' + encodeURIComponent(runId) + '/issues';
+            if (selectedStatus && selectedStatus !== 'ALL') {
+                url += '?status=' + encodeURIComponent(selectedStatus);
+            }
+            const response = await authFetch(url);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Load issues failed.');
+            renderReviewIssues(result.issues || []);
+        } catch (e) {
+            if (issueList) issueList.innerHTML = '<span style="color:#dc503c;">' + escapeHtml(e && e.message ? e.message : 'Unable to load issues.') + '</span>';
+        }
+    }
+
+    function renderReviewIssues(issues) {
+        const issueList = document.getElementById('reviewIssueList');
+        const issueMeta = document.getElementById('reviewIssueMeta');
+        if (!issueList) return;
+        reviewPatchCache = {};
+        if (issueMeta) issueMeta.textContent = (issues || []).length + ' issues';
+        if (!issues || issues.length === 0) {
+            issueList.innerHTML = '<span style="color:var(--warm-500);">这次审查没有发现需要展示的问题。</span>';
+            return;
+        }
+        issueList.innerHTML = issues.map(function(issue, index) {
+            const severity = escapeHtml(issue.severity || 'INFO');
+            const patchKey = 'review_patch_' + index;
+            if (issue.suggestedPatch) {
+                reviewPatchCache[patchKey] = issue.suggestedPatch;
+            }
+            const previewButton = issue.filePath
+                ? '<button class="agent-doc-btn" onclick="createReviewApplyPreview(' + Number(issue.id || 0) + ', \'' + encodeURIComponent(issue.filePath || '') + '\', \'' + patchKey + '\')">修复</button>'
+                : '';
+            const status = escapeHtml(issue.status || 'OPEN');
+            return '<div class="review-issue-card">' +
+                '<div class="d-flex justify-content-between align-items-start gap-2 mb-2">' +
+                    '<div class="review-card-title">' + escapeHtml(issue.title || 'Review issue') + '</div>' +
+                    '<span class="review-severity ' + severity + '">' + severity + '</span>' +
+                '</div>' +
+                '<div class="review-card-meta mb-2">' + escapeHtml(issue.category || '') + ' · ' + escapeHtml(issue.filePath || '') + ':' + escapeHtml(String(issue.startLine || 0)) + ' · ' + status + '</div>' +
+                '<div class="mb-2" style="color:var(--warm-700);font-size:0.86rem;">' + escapeHtml(issue.description || '') + '</div>' +
+                '<div class="review-evidence mb-2">' + escapeHtml(issue.evidence || '') + '</div>' +
+                '<div class="mb-2" style="color:var(--warm-600);font-size:0.82rem;"><b>影响：</b>' + escapeHtml(issue.impact || '') + '</div>' +
+                '<div class="mb-3" style="color:var(--warm-700);font-size:0.82rem;"><b>建议：</b>' + escapeHtml(issue.recommendation || '') + '</div>' +
+                '<div class="agent-doc-actions">' + previewButton + '</div>' +
+            '</div>';
+        }).join('');
+    }
+
+    async function reloadActiveReviewIssues() {
+        if (activeReviewRunId) {
+            await loadReviewIssues(activeReviewRunId);
+        }
+    }
+
+    async function copyReviewPatch(key) {
+        const text = reviewPatchCache[key] || '';
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+            alert('修复建议已复制。');
+        } catch (e) {
+            alert(text);
+        }
+    }
+
+    async function updateReviewIssueStatus(issueId, status) {
+        if (!issueId || !status) return;
+        try {
+            const response = await authFetch('/api/chat/agent/review/issues/' + encodeURIComponent(issueId) + '/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: status })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Update issue status failed.');
+            if (activeReviewRunId) {
+                await loadReviewIssues(activeReviewRunId);
+            }
+        } catch (e) {
+            alert(e && e.message ? e.message : 'Update issue status failed.');
+        }
+    }
+
+    async function createReviewPatchSuggestion(issueId, encodedPath) {
+        if (!issueId || !encodedPath || !activeSessionId) return;
+        const relativePath = decodeURIComponent(encodedPath);
+        try {
+            const response = await authFetch('/api/chat/agent/review/patch-suggestion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: activeSessionId,
+                    relativePath: relativePath,
+                    issueId: issueId,
+                    maxIssues: 3
+                })
+            });
+            const result = await readJsonResponse(response, 'Create patch suggestion failed');
+            alert('建议说明已保存到当前会话 workspace：' + (result.suggestionPath || '') + '\n这只是说明文档，不会修改源码。要改源码请使用“Agent 修复”。');
+        } catch (e) {
+            alert(e && e.message ? e.message : 'Create patch suggestion failed.');
+        }
+    }
+
+    async function createReviewApplyPreview(issueId, encodedPath, patchKey) {
+        if (!issueId || !encodedPath || !activeSessionId) return;
+        const relativePath = decodeURIComponent(encodedPath);
+        const suggestedPatch = reviewPatchCache[patchKey] || '';
+        try {
+            const previewResponse = await authFetch('/api/chat/agent/review/patch/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: activeSessionId,
+                    relativePath: relativePath,
+                    issueId: issueId,
+                    suggestedPatch: suggestedPatch
+                })
+            });
+            const preview = await readJsonResponse(previewResponse, 'Create patch preview failed');
+            const warnings = (preview.warnings || []).join('\n');
+            const diff = preview.diffPreview || '';
+            if (!preview.applicable) {
+                alert('Agent 暂时无法生成可应用修复。\n' + warnings + '\n\n' + diff);
+                return;
+            }
+            const confirmText = 'Agent 已生成修复草案。确认后只会创建 Pending Action，不会立即修改源码。\n\n' +
+                '文件：' + relativePath + '\n' +
+                'Issue：' + issueId + '\n\n' +
+                (warnings ? '警告：\n' + warnings + '\n\n' : '') +
+                'Diff 预览：\n' + diff.substring(0, 3000) +
+                (diff.length > 3000 ? '\n... diff preview truncated ...' : '') +
+                '\n\n是否创建 apply-request？';
+            if (!confirm(confirmText)) return;
+
+            const applyResponse = await authFetch('/api/chat/agent/review/patch/apply-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: activeSessionId,
+                    relativePath: relativePath,
+                    replacementContent: preview.replacementContent,
+                    expectedVersion: preview.expectedVersion,
+                    reason: 'code review issue #' + issueId
+                })
+            });
+            const applyResult = await readJsonResponse(applyResponse, 'Create apply request failed');
+            alert('已创建待确认操作：#' + applyResult.actionId + '\n请在确认流中执行后才会修改源码。');
+            await loadReviewPendingActions();
+        } catch (e) {
+            alert(e && e.message ? e.message : 'Create patch preview failed.');
+        }
+    }
+
+    async function loadReviewPendingActions() {
+        const listEl = document.getElementById('reviewPendingActionList');
+        if (!listEl || !activeSessionId) return;
+        listEl.innerHTML = '<span style="color:var(--warm-500);">Loading pending actions...</span>';
+        try {
+            const url = '/api/chat/agent/actions?sessionId=' + encodeURIComponent(activeSessionId)
+                + '&actionType=APPLY_WORKSPACE_PATCH&status=PENDING&limit=20';
+            const response = await authFetch(url);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Load pending actions failed.');
+            renderReviewPendingActions(result.actions || []);
+        } catch (e) {
+            listEl.innerHTML = '<span style="color:#dc503c;">' + escapeHtml(e && e.message ? e.message : 'Unable to load pending actions.') + '</span>';
+        }
+    }
+
+    function renderReviewPendingActions(actions) {
+        const listEl = document.getElementById('reviewPendingActionList');
+        if (!listEl) return;
+        if (!actions || actions.length === 0) {
+            listEl.innerHTML = '<span style="color:var(--warm-500);">当前会话没有待确认的代码应用操作。</span>';
+            return;
+        }
+        listEl.innerHTML = actions.map(function(action) {
+            const args = action.arguments || {};
+            const path = args.relativePath || '';
+            const reason = args.reason || '';
+            return '<div class="review-issue-card">' +
+                '<div class="d-flex justify-content-between align-items-start gap-2 mb-2">' +
+                    '<div class="review-card-title">Action #' + escapeHtml(String(action.id || '')) + '</div>' +
+                    '<span class="review-severity MEDIUM">' + escapeHtml(action.status || 'PENDING') + '</span>' +
+                '</div>' +
+                '<div class="review-card-meta mb-2">' + escapeHtml(path) + ' · expectedVersion ' + escapeHtml(String(args.expectedVersion || '')) + '</div>' +
+                '<div class="mb-3" style="color:var(--warm-700);font-size:0.82rem;"><b>原因：</b>' + escapeHtml(reason) + '</div>' +
+                '<div class="agent-doc-actions">' +
+                    '<button class="agent-doc-btn" onclick="confirmReviewPendingAction(' + Number(action.id || 0) + ')">确认执行</button>' +
+                    '<button class="agent-doc-btn" onclick="cancelReviewPendingAction(' + Number(action.id || 0) + ')">取消</button>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+    }
+
+    async function confirmReviewPendingAction(actionId) {
+        if (!actionId) return;
+        if (!confirm('确认执行待处理操作 #' + actionId + '？执行后会更新 workspace 文件。')) return;
+        try {
+            const response = await authFetch('/api/chat/agent/actions/' + encodeURIComponent(actionId) + '/confirm', {
+                method: 'POST'
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Confirm action failed.');
+            alert('执行完成：' + (result.resultSummary || ''));
+            await loadReviewPendingActions();
+        } catch (e) {
+            alert(e && e.message ? e.message : 'Confirm action failed.');
+            await loadReviewPendingActions();
+        }
+    }
+
+    async function cancelReviewPendingAction(actionId) {
+        if (!actionId) return;
+        if (!confirm('取消待处理操作 #' + actionId + '？取消后不会修改 workspace 文件。')) return;
+        try {
+            const response = await authFetch('/api/chat/agent/actions/' + encodeURIComponent(actionId) + '/cancel', {
+                method: 'POST'
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Cancel action failed.');
+            alert('已取消：' + (result.resultSummary || ''));
+            await loadReviewPendingActions();
+        } catch (e) {
+            alert(e && e.message ? e.message : 'Cancel action failed.');
+            await loadReviewPendingActions();
         }
     }
 

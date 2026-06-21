@@ -46,7 +46,7 @@ public class VectorIndexingService {
             List<DocumentChunk> chunks = documentChunker.chunk(document.getContent());
             List<List<Double>> embeddings = new ArrayList<>(chunks.size());
             for (DocumentChunk chunk : chunks) {
-                List<Double> embedding = embeddingClient.embed(chunk.content());
+                List<Double> embedding = embeddingClient.embed(enrichForEmbedding(document, chunk.content()));
                 validateDimensions(embedding);
                 embeddings.add(embedding);
             }
@@ -75,6 +75,18 @@ public class VectorIndexingService {
             throw new IllegalStateException("embedding dimensions mismatch, expected "
                     + expected + " but got " + embedding.size());
         }
+    }
+
+    private String enrichForEmbedding(KnowledgeDocument document, String content) {
+        StringBuilder builder = new StringBuilder();
+        if (document.getTitle() != null && !document.getTitle().isBlank()) {
+            builder.append("标题：").append(document.getTitle().trim()).append("\n");
+        }
+        if (document.getTags() != null && !document.getTags().isBlank()) {
+            builder.append("标签：").append(document.getTags().trim()).append("\n");
+        }
+        builder.append(content == null ? "" : content);
+        return builder.toString();
     }
 
     private void markIndexed(Long documentId) {

@@ -11,6 +11,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -30,6 +31,7 @@ public class ElasticsearchRagService {
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final DocumentChunker documentChunker;
     private final RestTemplate restTemplate;
+    private final KeywordExtractor keywordExtractor;
 
     public boolean isEnabled() {
         RagProperties.Elasticsearch elasticsearch = ragProperties.getElasticsearch();
@@ -44,18 +46,51 @@ public class ElasticsearchRagService {
             return;
         }
         String url = indexUrl();
+        if (indexExists(url)) {
+            return;
+        }
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("id", Map.of("type", "keyword"));
+        properties.put("chunkId", Map.of("type", "keyword"));
+        properties.put("docId", Map.of("type", "long"));
+        properties.put("userId", Map.of("type", "long"));
+        properties.put("chunk_id", Map.of("type", "keyword"));
+        properties.put("document_id", Map.of("type", "long"));
+        properties.put("user_id", Map.of("type", "long"));
+        properties.put("enabled", Map.of("type", "boolean"));
+        properties.put("title", textFieldMapping(true));
+        properties.put("content", textFieldMapping(false));
+        properties.put("summary", textFieldMapping(false));
+        properties.put("keywords", textFieldMapping(true));
+        properties.put("tags", textFieldMapping(true));
+        properties.put("fileName", textFieldMapping(true));
+        properties.put("createdAt", Map.of("type", "date"));
+        properties.put("updatedAt", Map.of("type", "date"));
+        properties.put("updated_time", Map.of("type", "date"));
+
         Map<String, Object> mapping = Map.of(
-                "mappings", Map.of(
-                        "properties", Map.of(
-                                "chunk_id", Map.of("type", "keyword"),
-                                "document_id", Map.of("type", "long"),
-                                "user_id", Map.of("type", "long"),
-                                "enabled", Map.of("type", "boolean"),
-                                "title", Map.of("type", "text", "analyzer", "standard"),
-                                "content", Map.of("type", "text", "analyzer", "standard"),
-                                "tags", Map.of("type", "text", "analyzer", "standard"),
-                                "updated_time", Map.of("type", "date")
+                "settings", Map.of(
+                        "index.max_ngram_diff", 2,
+                        "analysis", Map.of(
+                                "tokenizer", Map.of(
+                                        "ai_studio_ngram_tokenizer", Map.of(
+                                                "type", "ngram",
+                                                "min_gram", 2,
+                                                "max_gram", 4,
+                                                "token_chars", List.of("letter", "digit")
+                                        )
+                                ),
+                                "analyzer", Map.of(
+                                        "ai_studio_ngram", Map.of(
+                                                "type", "custom",
+                                                "tokenizer", "ai_studio_ngram_tokenizer",
+                                                "filter", List.of("lowercase")
+                                        )
+                                )
                         )
+                ),
+                "mappings", Map.of(
+                        "properties", properties
                 )
         );
         try {
@@ -63,6 +98,18 @@ public class ElasticsearchRagService {
             log.info("[ElasticsearchRAG] index initialized, index={}", ragProperties.getElasticsearch().getIndexName());
         } catch (RestClientException e) {
             log.warn("[ElasticsearchRAG] index initialization skipped/failed: {}", e.getMessage());
+        }
+    }
+
+    private boolean indexExists(String url) {
+        try {
+            restTemplate.exchange(url, HttpMethod.HEAD, new HttpEntity<>(headers()), String.class);
+            return true;
+        } catch (HttpClientErrorException.NotFound e) {
+            return false;
+        } catch (RestClientException e) {
+            log.warn("[ElasticsearchRAG] index existence check failed, continue initialization: {}", e.getMessage());
+            return false;
         }
     }
 
@@ -90,13 +137,26 @@ public class ElasticsearchRagService {
         for (DocumentChunk chunk : chunks) {
             String chunkId = document.getId() + "_" + chunk.index();
             Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("id", chunkId);
+            payload.put("chunkId", chunkId);
+            payload.put("docId", document.getId());
+            payload.put("userId", document.getUserId());
             payload.put("chunk_id", chunkId);
             payload.put("document_id", document.getId());
             payload.put("user_id", document.getUserId());
             payload.put("enabled", Boolean.TRUE);
             payload.put("title", valueOrEmpty(document.getTitle()));
             payload.put("content", chunk.content());
+            payload.put("summary", "");
+            payload.put("keywords", List.of());
             payload.put("tags", valueOrEmpty(document.getTags()));
+            payload.put("fileName", valueOrEmpty(document.getFileKey()));
+            if (document.getCreatedTime() != null) {
+                payload.put("createdAt", document.getCreatedTime().toString());
+            }
+            if (document.getUpdatedTime() != null) {
+                payload.put("updatedAt", document.getUpdatedTime().toString());
+            }
             if (document.getUpdatedTime() != null) {
                 payload.put("updated_time", document.getUpdatedTime().toString());
             }
@@ -146,14 +206,26 @@ public class ElasticsearchRagService {
                                         Map.of("term", Map.of("user_id", userId)),
                                         Map.of("term", Map.of("enabled", true))
                                 ),
-                                "must", List.of(
+                                "should", List.of(
+                                        Map.of("term", Map.of("title.exact", Map.of("value", query, "boost", 8.0))),
+                                        Map.of("term", Map.of("tags.exact", Map.of("value", query, "boost", 5.0))),
+                                        Map.of("match_phrase", Map.of("title", Map.of("query", query, "boost", 6.0))),
+                                        Map.of("match_phrase", Map.of("tags", Map.of("query", query, "boost", 4.0))),
+                                        Map.of("match_phrase", Map.of("content", Map.of("query", query, "boost", 3.0))),
                                         Map.of("multi_match", Map.of(
                                                 "query", query,
                                                 "fields", List.of("title^3", "tags^2", "content"),
                                                 "type", "best_fields",
                                                 "operator", "or"
+                                        )),
+                                        Map.of("multi_match", Map.of(
+                                                "query", query,
+                                                "fields", List.of("title.ngram^2", "tags.ngram^1.5", "content.ngram"),
+                                                "type", "best_fields",
+                                                "operator", "or"
                                         ))
-                                )
+                                ),
+                                "minimum_should_match", 1
                         )
                 ),
                 "highlight", Map.of(
@@ -186,7 +258,7 @@ public class ElasticsearchRagService {
             return List.of();
         }
         List<HybridCandidate> candidates = new ArrayList<>();
-        List<String> matchedTerms = queryTerms(query);
+        KeywordExtractor.CoverageResult coverage = keywordExtractor.removeTermsCoveredByLongerTerms(queryTerms(query));
         int rank = 1;
         for (JsonNode hit : hits) {
             JsonNode source = hit.path("_source");
@@ -203,8 +275,8 @@ public class ElasticsearchRagService {
                     .snippet(snippet(hit, source))
                     .keywordRank(rank++)
                     .keywordScore(keywordScore)
-                    .matchedTerms(matchedTerms)
-                    .coveredTerms(List.of())
+                    .matchedTerms(coverage.matched())
+                    .coveredTerms(coverage.covered())
                     .build());
         }
         return candidates;
@@ -214,17 +286,34 @@ public class ElasticsearchRagService {
         if (!hasText(query)) {
             return List.of("elasticsearch");
         }
-        String normalized = query.trim();
         List<String> terms = new ArrayList<>();
+        terms.addAll(keywordExtractor.extractTechnicalTerms(query));
+        terms.addAll(keywordExtractor.extractQueryPhrases(query));
+        terms.addAll(keywordExtractor.extractBigrams(query));
+        String normalized = query.trim();
         for (String token : normalized.split("[\\s,，。！？?:：；、]+")) {
-            if (token.length() >= 2) {
+            if (token.length() >= 2 && !keywordExtractor.isStopWord(token)) {
                 terms.add(token);
             }
         }
         if (terms.isEmpty() && normalized.length() >= 2) {
             terms.add(normalized);
         }
-        return terms.isEmpty() ? List.of("elasticsearch") : terms;
+        return terms.stream().distinct().toList();
+    }
+
+    private Map<String, Object> textFieldMapping(boolean exact) {
+        Map<String, Object> fields = exact
+                ? Map.of(
+                        "exact", Map.of("type", "keyword", "ignore_above", 256),
+                        "ngram", Map.of("type", "text", "analyzer", "ai_studio_ngram", "search_analyzer", "standard")
+                )
+                : Map.of("ngram", Map.of("type", "text", "analyzer", "ai_studio_ngram", "search_analyzer", "standard"));
+        return Map.of(
+                "type", "text",
+                "analyzer", "standard",
+                "fields", fields
+        );
     }
 
     private String snippet(JsonNode hit, JsonNode source) {

@@ -3,6 +3,7 @@ package com.example.chatbot.kafka;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.mapper.ChatRecordMapper;
+import com.example.chatbot.service.ChatContextService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,7 +29,8 @@ class KafkaReliabilityTest {
 
     @Mock
     private ChatRecordMapper chatRecordMapper;
-
+    @Mock
+    private ChatContextService chatContextService;
     @Mock
     private Acknowledgment acknowledgment;
 
@@ -36,23 +38,11 @@ class KafkaReliabilityTest {
 
     @BeforeEach
     void setUp() {
-        consumer = new ChatEventConsumer(chatRecordMapper);
-    }
-
-    private ChatEvent buildTestEvent() {
-        return ChatEvent.builder()
-                .eventType("CHAT_COMPLETED")
-                .eventId("test-event-id-001")
-                .sessionId("test-session-001")
-                .userMessage("你好")
-                .botResponse("你好！有什么可以帮助你？")
-                .eventTime(LocalDateTime.now())
-                .userId("user-1")
-                .build();
+        consumer = new ChatEventConsumer(chatRecordMapper, chatContextService);
     }
 
     @Test
-    @DisplayName("消费者：chat_record 已存在时 ACK，且不重复写入")
+    @DisplayName("Consumer ACKs after persisted record exists and context side effects are triggered")
     void consumer_ackWhenPersistedRecordExists() {
         ChatEvent event = buildTestEvent();
         ConsumerRecord<String, ChatEvent> record = new ConsumerRecord<>(
@@ -67,11 +57,13 @@ class KafkaReliabilityTest {
         consumer.onChatEvent(record, acknowledgment);
 
         verify(chatRecordMapper, never()).insert(any(ChatRecord.class));
+        verify(chatContextService).appendPersistedRecordToCacheStrict(existedRecord);
+        verify(chatContextService).refreshSummaryIfNeededAsync(existedRecord.getSessionId());
         verify(acknowledgment).acknowledge();
     }
 
     @Test
-    @DisplayName("消费者：chat_record 不存在时抛异常，交给 DefaultErrorHandler 重试")
+    @DisplayName("Consumer throws when persisted record is missing so DefaultErrorHandler can retry")
     void consumer_throwWhenPersistedRecordMissing() {
         ChatEvent event = buildTestEvent();
         ConsumerRecord<String, ChatEvent> record = new ConsumerRecord<>(
@@ -84,8 +76,8 @@ class KafkaReliabilityTest {
     }
 
     @Test
-    @DisplayName("消费者：eventId 为空时直接 ACK，兼容旧消息")
-    void consumer_ackLegacyMessageWithoutEventId() {
+    @DisplayName("Consumer throws when eventId is missing so invalid events are retried or sent to DLT")
+    void consumer_throwWhenEventIdMissing() {
         ChatEvent event = ChatEvent.builder()
                 .eventType("CHAT_COMPLETED")
                 .sessionId("legacy-session")
@@ -96,9 +88,21 @@ class KafkaReliabilityTest {
         ConsumerRecord<String, ChatEvent> record = new ConsumerRecord<>(
                 "chat.events", 0, 0L, "legacy-session", event);
 
-        consumer.onChatEvent(record, acknowledgment);
+        assertThrows(RuntimeException.class, () -> consumer.onChatEvent(record, acknowledgment));
 
         verify(chatRecordMapper, never()).insert(any(ChatRecord.class));
-        verify(acknowledgment).acknowledge();
+        verify(acknowledgment, never()).acknowledge();
+    }
+
+    private ChatEvent buildTestEvent() {
+        return ChatEvent.builder()
+                .eventType("CHAT_COMPLETED")
+                .eventId("test-event-id-001")
+                .sessionId("test-session-001")
+                .userMessage("hello")
+                .botResponse("hello, how can I help?")
+                .eventTime(LocalDateTime.now())
+                .userId("user-1")
+                .build();
     }
 }

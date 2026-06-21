@@ -3,6 +3,7 @@ target/
 *.iml
 .vscode/
 .claude/
+CLAUDE.local.md
 *.log
 .env
 !.env.example
@@ -15,4 +16,6 @@ md/
 deploy/
 .firecrawl/
 AGENTS.md
+docs/career/
+stage*-deploy.tar
 重写大神_杨以轩_简历.md

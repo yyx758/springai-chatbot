@@ -1,0 +1,21 @@
+synonyms:
+  自动续期:
+    - 看门狗
+    - watchdog
+    - Redisson
+  向量数据库:
+    - vector database
+    - pgvector
+  混合检索:
+    - hybrid search
+    - RRF
+    - rerank
+  死信队列:
+    - DLT
+    - dead letter topic
+  文件上传:
+    - 图片上传
+    - 附件上传
+  Elasticsearch:
+    - ES
+    - 搜索引擎

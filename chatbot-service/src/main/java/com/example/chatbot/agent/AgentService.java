@@ -3,8 +3,10 @@ package com.example.chatbot.agent;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.chatbot.agent.tool.ChatHistoryTools;
 import com.example.chatbot.agent.tool.FileReadTools;
+import com.example.chatbot.agent.tool.GitReviewTools;
 import com.example.chatbot.agent.tool.KnowledgeReadTools;
 import com.example.chatbot.agent.tool.KnowledgeWriteTools;
+import com.example.chatbot.agent.tool.ReviewWorkspaceTools;
 import com.example.chatbot.agent.tool.TimeTools;
 import com.example.chatbot.agent.tool.WebTools;
 import com.example.chatbot.agent.tool.WorkspaceTools;
@@ -50,9 +52,11 @@ public class AgentService {
     private final KnowledgeReadTools knowledgeReadTools;
     private final KnowledgeWriteTools knowledgeWriteTools;
     private final FileReadTools fileReadTools;
+    private final GitReviewTools gitReviewTools;
     private final ChatHistoryTools chatHistoryTools;
     private final TimeTools timeTools;
     private final WorkspaceTools workspaceTools;
+    private final ReviewWorkspaceTools reviewWorkspaceTools;
     private final WebTools webTools;
 
     @Value("${app.agent.enabled:true}")
@@ -71,9 +75,11 @@ public class AgentService {
             KnowledgeReadTools knowledgeReadTools,
             KnowledgeWriteTools knowledgeWriteTools,
             FileReadTools fileReadTools,
+            GitReviewTools gitReviewTools,
             ChatHistoryTools chatHistoryTools,
             TimeTools timeTools,
             WorkspaceTools workspaceTools,
+            ReviewWorkspaceTools reviewWorkspaceTools,
             WebTools webTools
     ) {
         this.openAiChatModel = getIfAvailable(openAiChatModelProvider, "OpenAI/DeepSeek");
@@ -85,9 +91,11 @@ public class AgentService {
         this.knowledgeReadTools = knowledgeReadTools;
         this.knowledgeWriteTools = knowledgeWriteTools;
         this.fileReadTools = fileReadTools;
+        this.gitReviewTools = gitReviewTools;
         this.chatHistoryTools = chatHistoryTools;
         this.timeTools = timeTools;
         this.workspaceTools = workspaceTools;
+        this.reviewWorkspaceTools = reviewWorkspaceTools;
         this.webTools = webTools;
     }
 
@@ -127,7 +135,7 @@ public class AgentService {
             ChatClient.create(model)
                     .prompt()
                     .messages(messages)
-                    .tools(knowledgeReadTools, knowledgeWriteTools, fileReadTools, chatHistoryTools, timeTools, workspaceTools, webTools)
+                    .tools(knowledgeReadTools, knowledgeWriteTools, fileReadTools, gitReviewTools, chatHistoryTools, timeTools, workspaceTools, reviewWorkspaceTools, webTools)
                     .toolContext(toolContext)
                     .stream()
                     .content()

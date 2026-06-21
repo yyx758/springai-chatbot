@@ -32,6 +32,11 @@ public class VectorRagService {
         log.info("[VectorRAG] embedding dims={}", embedding.size());
         String vector = pgVectorClient.vectorLiteral(embedding);
         List<RagReference> results = pgVectorClient.search(userId, vector, finalTopK, threshold);
+        if (results.isEmpty()) {
+            int fallbackTopK = Math.min(3, Math.max(1, finalTopK));
+            results = pgVectorClient.searchRawTopK(userId, vector, fallbackTopK);
+            log.info("[VectorRAG] threshold results empty, raw fallback results={}", results.size());
+        }
         log.info("[VectorRAG] results={}", results.size());
         return results;
     }

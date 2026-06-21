@@ -19,10 +19,9 @@ class HybridSearchServiceCandidateTest {
     void keywordSearchUsesFulltextCandidates() {
         KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
         VectorRagService vectorRagService = mock(VectorRagService.class);
-        ElasticsearchRagService elasticsearchRagService = mock(ElasticsearchRagService.class);
+        ElasticsearchKeywordSearchService keywordSearchService = mock(ElasticsearchKeywordSearchService.class);
         when(vectorRagService.isEnabled()).thenReturn(false);
-        when(elasticsearchRagService.searchKeywordCandidates(anyLong(), anyString(), anyInt()))
-                .thenReturn(List.of());
+        when(keywordSearchService.search(anyLong(), anyString(), anyInt())).thenReturn(List.of());
         KnowledgeDocument document = KnowledgeDocument.builder()
                 .id(1L)
                 .userId(7L)
@@ -33,7 +32,7 @@ class HybridSearchServiceCandidateTest {
         when(mapper.searchFulltextCandidates(eq(7L), eq("Redis TTL"), anyInt()))
                 .thenReturn(List.of(document));
 
-        HybridSearchService service = newService(vectorRagService, mapper, elasticsearchRagService);
+        HybridSearchService service = newService(vectorRagService, mapper, keywordSearchService);
 
         service.search(7L, "Redis TTL", 3);
 
@@ -46,10 +45,9 @@ class HybridSearchServiceCandidateTest {
     void keywordSearchFallbackWhenFulltextFails() {
         KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
         VectorRagService vectorRagService = mock(VectorRagService.class);
-        ElasticsearchRagService elasticsearchRagService = mock(ElasticsearchRagService.class);
+        ElasticsearchKeywordSearchService keywordSearchService = mock(ElasticsearchKeywordSearchService.class);
         when(vectorRagService.isEnabled()).thenReturn(false);
-        when(elasticsearchRagService.searchKeywordCandidates(anyLong(), anyString(), anyInt()))
-                .thenReturn(List.of());
+        when(keywordSearchService.search(anyLong(), anyString(), anyInt())).thenReturn(List.of());
         KnowledgeDocument document = KnowledgeDocument.builder()
                 .id(1L)
                 .userId(7L)
@@ -61,12 +59,37 @@ class HybridSearchServiceCandidateTest {
                 .thenThrow(new RuntimeException("fulltext unavailable"));
         when(mapper.selectList(any(Wrapper.class))).thenReturn(List.of(document));
 
-        HybridSearchService service = newService(vectorRagService, mapper, elasticsearchRagService);
+        HybridSearchService service = newService(vectorRagService, mapper, keywordSearchService);
 
         service.search(7L, "如何退款", 3);
 
-        verify(mapper).searchFulltextCandidates(eq(7L), eq("如何退款"), eq(200));
+        verify(mapper).searchFulltextCandidates(eq(7L), eq("退款"), eq(200));
         verify(mapper).selectList(any(Wrapper.class));
+    }
+
+    @Test
+    @DisplayName("Chinese two-character keyword can be a strong keyword signal")
+    void chineseTwoCharacterKeywordCanBeStrongSignal() {
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        VectorRagService vectorRagService = mock(VectorRagService.class);
+        ElasticsearchKeywordSearchService keywordSearchService = mock(ElasticsearchKeywordSearchService.class);
+        when(vectorRagService.isEnabled()).thenReturn(false);
+        when(keywordSearchService.search(anyLong(), anyString(), anyInt())).thenReturn(List.of());
+        KnowledgeDocument document = KnowledgeDocument.builder()
+                .id(1L)
+                .userId(7L)
+                .title("退款政策")
+                .content("用户可以在七天内申请退款")
+                .enabled(true)
+                .build();
+        when(mapper.searchFulltextCandidates(eq(7L), eq("退款"), anyInt()))
+                .thenReturn(List.of(document));
+
+        HybridSearchService service = newService(vectorRagService, mapper, keywordSearchService);
+
+        List<?> results = service.search(7L, "如何退款", 3);
+
+        assertEquals(1, results.size());
     }
 
     @Test
@@ -74,38 +97,52 @@ class HybridSearchServiceCandidateTest {
     void keywordSearchPrefersElasticsearchCandidates() {
         KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
         VectorRagService vectorRagService = mock(VectorRagService.class);
-        ElasticsearchRagService elasticsearchRagService = mock(ElasticsearchRagService.class);
+        ElasticsearchKeywordSearchService keywordSearchService = mock(ElasticsearchKeywordSearchService.class);
         when(vectorRagService.isEnabled()).thenReturn(false);
-        when(elasticsearchRagService.searchKeywordCandidates(eq(7L), eq("Redis TTL"), anyInt()))
-                .thenReturn(List.of(HybridCandidate.builder()
+        when(keywordSearchService.search(eq(7L), eq("Redis TTL"), anyInt()))
+                .thenReturn(List.of(SearchResult.builder()
                         .chunkId("1_0")
-                        .documentId(1L)
+                        .docId(1L)
                         .title("Redis 缓存策略")
-                        .snippet("Redis 可以设置 TTL")
-                        .keywordRank(1)
-                        .keywordScore(8.0)
-                        .matchedTerms(List.of("Redis", "TTL"))
+                        .content("Redis 可以设置 TTL")
+                        .rank(1)
+                        .score(8.0)
+                        .source("elasticsearch")
                         .build()));
 
-        HybridSearchService service = newService(vectorRagService, mapper, elasticsearchRagService);
+        HybridSearchService service = newService(vectorRagService, mapper, keywordSearchService);
 
         service.search(7L, "Redis TTL", 3);
 
-        verify(elasticsearchRagService).searchKeywordCandidates(eq(7L), eq("Redis TTL"), eq(200));
+        verify(keywordSearchService).search(eq(7L), eq("Redis TTL"), eq(200));
         verify(mapper, never()).searchFulltextCandidates(anyLong(), anyString(), anyInt());
         verify(mapper, never()).selectList(any(Wrapper.class));
     }
 
     private HybridSearchService newService(VectorRagService vectorRagService,
                                            KnowledgeDocumentMapper mapper,
-                                           ElasticsearchRagService elasticsearchRagService) {
+                                           ElasticsearchKeywordSearchService keywordSearchService) {
         HybridRagProperties properties = new HybridRagProperties();
+        RagProperties ragProperties = new RagProperties();
+        ragProperties.getQueryEnhancer().setEnabled(false);
         return new HybridSearchService(
                 new QueryIntentAnalyzer(),
                 vectorRagService,
-                new HybridRanker(properties),
                 mapper,
                 new KeywordExtractor(),
-                elasticsearchRagService);
+                new QueryRewriteService(),
+                new QueryEnhancer(ragProperties),
+                keywordSearchService,
+                new RrfFusionService(properties));
+    }
+
+    @Test
+    @DisplayName("Query rewrite removes filler words before retrieval")
+    void queryRewriteRemovesFillerWords() {
+        QueryRewriteService service = new QueryRewriteService();
+
+        assertEquals("退款政策", service.rewriteForRetrieval("请问如何退款政策？"));
+        assertEquals("文件上传失败", service.rewriteForRetrieval("帮我查一下文件上传失败怎么办"));
+        assertEquals("Redis TTL", service.rewriteForRetrieval("Redis TTL"));
     }
 }

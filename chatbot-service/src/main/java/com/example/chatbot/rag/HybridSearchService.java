@@ -29,52 +29,76 @@ public class HybridSearchService {
 
     private final QueryIntentAnalyzer intentAnalyzer;
     private final VectorRagService vectorRagService;
-    private final HybridRanker hybridRanker;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KeywordExtractor keywordExtractor;
-    private final ElasticsearchRagService elasticsearchRagService;
+    private final QueryRewriteService queryRewriteService;
+    private final QueryEnhancer queryEnhancer;
+    private final ElasticsearchKeywordSearchService elasticsearchKeywordSearchService;
+    private final RrfFusionService rrfFusionService;
 
     /**
      * 执行混合检索。
      */
     public List<RagReference> search(Long userId, String query, int topK) {
+        String retrievalQuery = queryRewriteService.rewriteForRetrieval(query);
+        QueryEnhancer.EnhancedQuery enhancedQuery = queryEnhancer.enhance(retrievalQuery);
         // Step 1: 分析查询意图
-        QueryIntent intent = intentAnalyzer.analyze(query);
+        QueryIntent intent = intentAnalyzer.analyze(enhancedQuery.enhancedQuery());
 
         // Step 2: 执行两路检索
-        List<HybridCandidate> vectorCandidates = searchVector(userId, query, topK);
-        List<HybridCandidate> keywordCandidates = searchKeyword(userId, query, topK);
+        List<SearchResult> vectorResults = searchVector(userId, enhancedQuery.enhancedQuery(), topK);
+        List<SearchResult> keywordResults = searchKeyword(userId, enhancedQuery.enhancedQuery(), topK);
 
         // Step 3: 打印检索原始排名
-        logVectorResults(query, vectorCandidates);
-        logKeywordResults(query, keywordCandidates);
+        log.info("[HybridRAG] query='{}', retrievalQuery='{}', enhancedQuery='{}', vectorResults={}, keywordResults={}, queryType={}",
+                truncate(query, 40), truncate(retrievalQuery, 40), truncate(enhancedQuery.enhancedQuery(), 40),
+                vectorResults.size(), keywordResults.size(), intent.getQueryType());
+        logSearchResults("Vector", enhancedQuery.enhancedQuery(), vectorResults);
+        logSearchResults("Keyword", enhancedQuery.enhancedQuery(), keywordResults);
 
         // Step 4: 融合排序
-        List<HybridCandidate> selected = hybridRanker.rank(vectorCandidates, keywordCandidates, intent, topK);
+        List<HybridSearchResult> selected = rrfFusionService.fuse(vectorResults, keywordResults, topK);
 
         // Step 5: 转换为 RagReference
         return toRagReferences(selected);
     }
 
+    public SearchDebugResponse debugSearch(Long userId, String query, int topK) {
+        String retrievalQuery = queryRewriteService.rewriteForRetrieval(query);
+        QueryEnhancer.EnhancedQuery enhancedQuery = queryEnhancer.enhance(retrievalQuery);
+        List<SearchResult> vectorResults = searchVector(userId, enhancedQuery.enhancedQuery(), topK);
+        List<SearchResult> esResults = elasticsearchKeywordSearchService.search(
+                userId, enhancedQuery.enhancedQuery(), Math.max(topK * 4, KEYWORD_CANDIDATE_LIMIT));
+        List<HybridSearchResult> rrfResults = rrfFusionService.fuse(vectorResults, esResults, topK);
+        return SearchDebugResponse.builder()
+                .query(query)
+                .enhancedQuery(enhancedQuery.enhancedQuery())
+                .vectorResults(vectorResults)
+                .esResults(esResults)
+                .rrfResults(rrfResults)
+                .build();
+    }
+
     // ========== 向量检索 ==========
 
-    private List<HybridCandidate> searchVector(Long userId, String query, int topK) {
+    private List<SearchResult> searchVector(Long userId, String query, int topK) {
         if (!vectorRagService.isEnabled()) {
             return List.of();
         }
         try {
-            List<RagReference> vectorRefs = vectorRagService.retrieve(userId, query, Math.max(topK * 2, 10));
-            List<HybridCandidate> candidates = new ArrayList<>();
+            List<RagReference> vectorRefs = vectorRagService.retrieve(userId, query, Math.max(topK * 4, 20));
+            List<SearchResult> candidates = new ArrayList<>();
             for (int rank = 0; rank < vectorRefs.size(); rank++) {
                 RagReference ref = vectorRefs.get(rank);
                 String chunkId = ref.getChunkId() != null ? ref.getChunkId() : ref.getDocumentId() + "_0";
-                candidates.add(HybridCandidate.builder()
+                candidates.add(SearchResult.builder()
                         .chunkId(chunkId)
-                        .documentId(ref.getDocumentId())
+                        .docId(ref.getDocumentId())
                         .title(ref.getTitle())
-                        .snippet(ref.getSnippet())
-                        .vectorRank(rank + 1)
-                        .vectorScore(ref.getScore())
+                        .content(ref.getSnippet())
+                        .rank(rank + 1)
+                        .score(ref.getScore())
+                        .source("vector")
                         .build());
             }
             return candidates;
@@ -86,12 +110,14 @@ public class HybridSearchService {
 
     // ========== 关键词检索（优化版）==========
 
-    private List<HybridCandidate> searchKeyword(Long userId, String query, int topK) {
-        List<HybridCandidate> elasticsearchCandidates = elasticsearchRagService.searchKeywordCandidates(
+    private List<SearchResult> searchKeyword(Long userId, String query, int topK) {
+        List<SearchResult> elasticsearchResults = elasticsearchKeywordSearchService.search(
                 userId, query, Math.max(topK * 4, KEYWORD_CANDIDATE_LIMIT));
-        if (!elasticsearchCandidates.isEmpty()) {
-            return elasticsearchCandidates;
+        if (!elasticsearchResults.isEmpty()) {
+            log.info("[HybridRAG] keywordSource=elasticsearch, candidates={}", elasticsearchResults.size());
+            return elasticsearchResults;
         }
+        log.info("[HybridRAG] keywordSource=legacy-fallback, reason=elasticsearch_empty_or_disabled");
 
         List<KnowledgeDocument> documents = loadKeywordCandidates(userId, query);
 
@@ -116,19 +142,18 @@ public class HybridSearchService {
         // 按分数降序排列
         scoredDocs.sort((a, b) -> Double.compare(b.getKeywordScore(), a.getKeywordScore()));
 
-        // 转换为 HybridCandidate
-        List<HybridCandidate> candidates = new ArrayList<>();
+        // 转换为 SearchResult。旧规则只作为 fallback，不再是关键词主排序。
+        List<SearchResult> candidates = new ArrayList<>();
         for (int rank = 0; rank < scoredDocs.size(); rank++) {
             KeywordMatchResult r = scoredDocs.get(rank);
-            candidates.add(HybridCandidate.builder()
+            candidates.add(SearchResult.builder()
                     .chunkId(r.getDocumentId() + "_0")
-                    .documentId(r.getDocumentId())
+                    .docId(r.getDocumentId())
                     .title(r.getTitle())
-                    .snippet(r.getSnippet())
-                    .keywordRank(rank + 1)
-                    .keywordScore(r.getKeywordScore())
-                    .matchedTerms(r.getMatchedTerms())
-                    .coveredTerms(r.getCoveredTerms())
+                    .content(r.getSnippet())
+                    .rank(rank + 1)
+                    .score(r.getKeywordScore())
+                    .source("legacy_keyword")
                     .build());
         }
         return candidates;
@@ -276,19 +301,11 @@ public class HybridSearchService {
 
     // ========== 日志 ==========
 
-    private void logVectorResults(String query, List<HybridCandidate> candidates) {
-        for (HybridCandidate c : candidates) {
-            log.info("[HybridRAG-Vector] query='{}', rank={}, chunkId={}, docId={}, title='{}', vectorScore={}",
-                    truncate(query, 30), c.getVectorRank(), c.getChunkId(), c.getDocumentId(),
-                    truncate(c.getTitle(), 25), c.getVectorScore());
-        }
-    }
-
-    private void logKeywordResults(String query, List<HybridCandidate> candidates) {
-        for (HybridCandidate c : candidates) {
-            log.info("[HybridRAG-Keyword] query='{}', rank={}, chunkId={}, docId={}, title='{}', keywordScore={}, matchedTerms={}, coveredTerms={}",
-                    truncate(query, 30), c.getKeywordRank(), c.getChunkId(), c.getDocumentId(),
-                    truncate(c.getTitle(), 25), c.getKeywordScore(), c.getMatchedTerms(), c.getCoveredTerms());
+    private void logSearchResults(String type, String query, List<SearchResult> results) {
+        for (SearchResult result : results) {
+            log.info("[HybridRAG-{}] query='{}', rank={}, chunkId={}, docId={}, title='{}', score={}, source={}",
+                    type, truncate(query, 30), result.getRank(), result.getChunkId(), result.getDocId(),
+                    truncate(result.getTitle(), 25), result.getScore(), result.getSource());
         }
     }
 
@@ -303,15 +320,15 @@ public class HybridSearchService {
         return s.length() > maxLen ? s.substring(0, maxLen) + "..." : s;
     }
 
-    private List<RagReference> toRagReferences(List<HybridCandidate> candidates) {
+    private List<RagReference> toRagReferences(List<HybridSearchResult> candidates) {
         List<RagReference> refs = new ArrayList<>();
-        for (HybridCandidate c : candidates) {
+        for (HybridSearchResult c : candidates) {
             refs.add(RagReference.builder()
                     .chunkId(c.getChunkId())
-                    .documentId(c.getDocumentId())
+                    .documentId(c.getDocId())
                     .title(c.getTitle())
-                    .snippet(c.getSnippet())
-                    .score(c.getFinalScore())
+                    .snippet(c.getContent())
+                    .score(c.getRrfScore())
                     .build());
         }
         return refs;

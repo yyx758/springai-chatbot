@@ -45,7 +45,7 @@ private Elasticsearch elasticsearch = new Elasticsearch();
 ```java
 private boolean enabled = false;
 private String baseUrl = "http://localhost:9200";
-private String indexName = "ai_studio_knowledge";
+private String indexName = "ai_studio_knowledge_v2";
 private String username = "";
 private String password = "";
 private String apiKey = "";
@@ -61,7 +61,7 @@ app:
     elasticsearch:
       enabled: ${APP_RAG_ELASTICSEARCH_ENABLED:false}
       base-url: ${APP_RAG_ELASTICSEARCH_BASE_URL:http://localhost:9200}
-      index-name: ${APP_RAG_ELASTICSEARCH_INDEX:ai_studio_knowledge}
+      index-name: ${APP_RAG_ELASTICSEARCH_INDEX:ai_studio_knowledge_v2}
       username: ${APP_RAG_ELASTICSEARCH_USERNAME:}
       password: ${APP_RAG_ELASTICSEARCH_PASSWORD:}
       api-key: ${APP_RAG_ELASTICSEARCH_API_KEY:}
@@ -157,7 +157,7 @@ docker compose --profile elasticsearch up -d elasticsearch
 ```bash
 APP_RAG_ELASTICSEARCH_ENABLED=true
 APP_RAG_ELASTICSEARCH_BASE_URL=http://elasticsearch:9200
-APP_RAG_ELASTICSEARCH_INDEX=ai_studio_knowledge
+APP_RAG_ELASTICSEARCH_INDEX=ai_studio_knowledge_v2
 ```
 
 重启 `chatbot-service`。
@@ -189,7 +189,7 @@ elasticsearch:
 ```yaml
 APP_RAG_ELASTICSEARCH_ENABLED: ${APP_RAG_ELASTICSEARCH_ENABLED:-true}
 APP_RAG_ELASTICSEARCH_BASE_URL: ${APP_RAG_ELASTICSEARCH_BASE_URL:-http://elasticsearch:9200}
-APP_RAG_ELASTICSEARCH_INDEX: ${APP_RAG_ELASTICSEARCH_INDEX:-ai_studio_knowledge}
+APP_RAG_ELASTICSEARCH_INDEX: ${APP_RAG_ELASTICSEARCH_INDEX:-ai_studio_knowledge_v2}
 ```
 
 ## 重建 ES 索引
@@ -249,7 +249,7 @@ docker stats --no-stream chatbot-service chatbot-elasticsearch
 
 ## 当前限制
 
-- 目前 ES 使用 `standard` analyzer。中文召回比 MySQL FULLTEXT 更可控，但还不是最佳中文分词。后续可以评估 IK analyzer 或内置 ngram 分析器。
+- 目前 ES v2 索引使用内置 ngram analyzer 增强中文短语召回，同时保留 `standard` analyzer 字段用于常规全文匹配。
 - 当前 ES 索引写入是逐 chunk PUT，适合试运行；大规模重建时可以改为 Bulk API。
 - 当前 ES 只作为关键词召回，不做向量检索。真正的混合检索仍是 PGVector 语义召回 + ES 关键词召回 + HybridRanker 融合。
 - ES score 会转换成 `HybridCandidate.keywordScore`，并提取 query token 作为 `matchedTerms`，确保能被现有 `HybridRanker` 识别为有效关键词信号。

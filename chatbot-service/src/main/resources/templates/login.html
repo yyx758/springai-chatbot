@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Studio | 登录</title>
-    <link href="https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
 
@@ -1315,8 +1314,8 @@
             <div class="form-view active" id="loginView">
                 <div class="role-tabs" role="tablist" aria-label="选择角色">
                     <div class="role-tab-indicator" id="roleIndicator"></div>
-                    <div class="role-tab active" data-role="user" role="tab" aria-selected="true" tabindex="0" onclick="switchRole('user')" onkeydown="if(event.key==='ArrowRight')switchRole('admin')">用户</div>
-                    <div class="role-tab" data-role="admin" role="tab" aria-selected="false" tabindex="-1" onclick="switchRole('admin')" onkeydown="if(event.key==='ArrowLeft')switchRole('user')">管理员</div>
+                    <div class="role-tab active" data-role="user" role="tab" aria-selected="true" tabindex="0">用户</div>
+                    <div class="role-tab" data-role="admin" role="tab" aria-selected="false" tabindex="-1">管理员</div>
                 </div>
 
                 <div class="field-group">
@@ -1327,25 +1326,25 @@
                     <label class="field-label" for="loginPassword">密码</label>
                     <div class="password-wrap">
                         <input type="password" class="field-input has-toggle" id="loginPassword" autocomplete="current-password" placeholder="请输入密码" aria-required="true">
-                        <button type="button" class="password-toggle" aria-label="显示密码" onclick="togglePassword('loginPassword', this)">
+                        <button type="button" class="password-toggle" data-toggle-password="loginPassword" aria-label="显示密码">
                             <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
                     </div>
                 </div>
                 <div class="field-error" id="loginError" role="alert" aria-live="polite"></div>
-                <button class="btn-submit btn-primary" onclick="doLogin()" type="button"><span>登录</span></button>
+                <button class="btn-submit btn-primary" id="loginSubmitBtn" type="button"><span>登录</span></button>
 
                 <p class="switch-link">
-                    还没有账号？<a onclick="showRegister()">立即注册</a>
+                    还没有账号？<a id="showRegisterLink" href="javascript:void(0)">立即注册</a>
                 </p>
                 <p class="switch-link switch-link-secondary">
-                    <a onclick="showForgot()">忘记密码？</a>
+                    <a id="showForgotLink" href="javascript:void(0)">忘记密码？</a>
                 </p>
             </div>
 
             <!-- Forgot Password View -->
             <div class="form-view" id="forgotView">
-                <div class="back-link" onclick="showLogin()">
+                <div class="back-link" data-show-login>
                     <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                     返回登录
                 </div>
@@ -1356,7 +1355,7 @@
                     <label class="field-label" for="forgotEmail">邮箱</label>
                     <div class="input-action-group">
                         <input type="email" class="field-input" id="forgotEmail" autocomplete="off" placeholder="注册时使用的邮箱" aria-required="true">
-                        <button class="send-code-btn" id="forgotSendBtn" onclick="sendForgotCode()" type="button">发送验证码</button>
+                        <button class="send-code-btn" id="forgotSendBtn" type="button">发送验证码</button>
                     </div>
                 </div>
                 <div class="field-group">
@@ -1367,7 +1366,7 @@
                     <label class="field-label" for="forgotNewPassword">新密码</label>
                     <div class="password-wrap">
                         <input type="password" class="field-input has-toggle" id="forgotNewPassword" autocomplete="off" placeholder="至少6位" aria-required="true">
-                        <button type="button" class="password-toggle" aria-label="显示密码" onclick="togglePassword('forgotNewPassword', this)">
+                        <button type="button" class="password-toggle" data-toggle-password="forgotNewPassword" aria-label="显示密码">
                             <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
                     </div>
@@ -1376,18 +1375,18 @@
                     <label class="field-label" id="forgotConfirmLabel" for="forgotConfirmPassword">确认新密码</label>
                     <div class="password-wrap">
                         <input type="password" class="field-input has-toggle" id="forgotConfirmPassword" autocomplete="off" placeholder="再次输入新密码" aria-required="true">
-                        <button type="button" class="password-toggle" aria-label="显示密码" onclick="togglePassword('forgotConfirmPassword', this)">
+                        <button type="button" class="password-toggle" data-toggle-password="forgotConfirmPassword" aria-label="显示密码">
                             <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
                     </div>
                 </div>
                 <div class="field-error" id="forgotError" role="alert" aria-live="polite"></div>
-                <button class="btn-submit btn-primary" onclick="doResetPassword()" type="button"><span>重置密码</span></button>
+                <button class="btn-submit btn-primary" id="resetPasswordBtn" type="button"><span>重置密码</span></button>
             </div>
 
             <!-- Register View -->
             <div class="form-view" id="registerView">
-                <div class="back-link" onclick="showLogin()">
+                <div class="back-link" data-show-login>
                     <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                     返回登录
                 </div>
@@ -1402,7 +1401,7 @@
                     <label class="field-label" for="regEmail">邮箱</label>
                     <div class="input-action-group">
                         <input type="email" class="field-input" id="regEmail" autocomplete="off" placeholder="必填，用于接收验证码" aria-required="true">
-                        <button class="send-code-btn" id="sendCodeBtn" onclick="sendCode()" type="button">发送验证码</button>
+                        <button class="send-code-btn" id="sendCodeBtn" type="button">发送验证码</button>
                     </div>
                 </div>
                 <div class="field-group">
@@ -1413,7 +1412,7 @@
                     <label class="field-label" for="regPassword">密码</label>
                     <div class="password-wrap">
                         <input type="password" class="field-input has-toggle" id="regPassword" autocomplete="off" placeholder="至少6位" aria-required="true">
-                        <button type="button" class="password-toggle" aria-label="显示密码" onclick="togglePassword('regPassword', this)">
+                        <button type="button" class="password-toggle" data-toggle-password="regPassword" aria-label="显示密码">
                             <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
                     </div>
@@ -1423,10 +1422,10 @@
                     <input class="field-input" id="regDisplayName" autocomplete="off" placeholder="选填">
                 </div>
                 <div class="field-error" id="regError" role="alert" aria-live="polite"></div>
-                <button class="btn-submit btn-outline" onclick="doRegister()" type="button"><span>注册新账号</span></button>
+                <button class="btn-submit btn-outline" id="registerSubmitBtn" type="button"><span>注册新账号</span></button>
 
                 <p class="switch-link">
-                    已有账号？<a onclick="showLogin()">立即登录</a>
+                    已有账号？<a data-show-login href="javascript:void(0)">立即登录</a>
                 </p>
             </div>
 
@@ -1440,8 +1439,8 @@
 <!-- Toast -->
 <div class="toast-msg" id="toast" role="status" aria-live="polite"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
+<script data-cfasync="false" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script data-cfasync="false">
     let selectedRole = 'user';
 
     function switchRole(role) {
@@ -1846,6 +1845,38 @@
     }
 
     // ── Auto Redirect ───────────────────────────────
+    function bindLoginPageActions() {
+        document.querySelectorAll('.role-tab').forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                switchRole(tab.dataset.role);
+            });
+            tab.addEventListener('keydown', function(e) {
+                if (e.key === 'ArrowRight') switchRole('admin');
+                if (e.key === 'ArrowLeft') switchRole('user');
+            });
+        });
+
+        document.querySelectorAll('[data-toggle-password]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                togglePassword(btn.getAttribute('data-toggle-password'), btn);
+            });
+        });
+
+        document.querySelectorAll('[data-show-login]').forEach(function(el) {
+            el.addEventListener('click', showLogin);
+        });
+
+        document.getElementById('loginSubmitBtn').addEventListener('click', doLogin);
+        document.getElementById('showRegisterLink').addEventListener('click', showRegister);
+        document.getElementById('showForgotLink').addEventListener('click', showForgot);
+        document.getElementById('forgotSendBtn').addEventListener('click', sendForgotCode);
+        document.getElementById('resetPasswordBtn').addEventListener('click', doResetPassword);
+        document.getElementById('sendCodeBtn').addEventListener('click', sendCode);
+        document.getElementById('registerSubmitBtn').addEventListener('click', doRegister);
+    }
+
+    bindLoginPageActions();
+
     (async function autoRedirect() {
         var token = localStorage.getItem('ai_studio_token');
         if (!token) return;

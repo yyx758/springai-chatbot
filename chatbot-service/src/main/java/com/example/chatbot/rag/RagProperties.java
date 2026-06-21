@@ -15,6 +15,7 @@ public class RagProperties {
     private Vector vector = new Vector();
     private Elasticsearch elasticsearch = new Elasticsearch();
     private Embedding embedding = new Embedding();
+    private QueryEnhancer queryEnhancer = new QueryEnhancer();
 
     @Data
     public static class Chunk {
@@ -40,12 +41,14 @@ public class RagProperties {
     public static class Elasticsearch {
         private boolean enabled = false;
         private String baseUrl = "http://localhost:9200";
-        private String indexName = "ai_studio_knowledge";
+        private String indexName = "ai_studio_knowledge_v3";
         private String username = "";
         private String password = "";
         private String apiKey = "";
-        private int topK = 20;
+        private int topK = 50;
         private boolean initializeIndex = true;
+        private String analyzerMode = "standard_ngram";
+        private String minimumShouldMatch = "60%";
     }
 
     @Data
@@ -57,5 +60,12 @@ public class RagProperties {
         private String apiKey = "";
         private String encodingFormat = "float";
         private int timeoutMs = 20000;
+    }
+
+    @Data
+    public static class QueryEnhancer {
+        private boolean enabled = true;
+        private int maxExpandedTerms = 6;
+        private String synonymFile = "classpath:rag/query-synonyms.yml";
     }
 }

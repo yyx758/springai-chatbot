@@ -1,0 +1,43 @@
+CREATE TABLE IF NOT EXISTS code_review_run (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    run_id VARCHAR(64) NOT NULL UNIQUE,
+    user_id BIGINT NOT NULL,
+    session_id VARCHAR(255) NOT NULL,
+    scope_type VARCHAR(64) NOT NULL,
+    target_path VARCHAR(512) NULL,
+    reviewed_file_count INT NOT NULL DEFAULT 0,
+    risk_level VARCHAR(32) NOT NULL,
+    summary TEXT NULL,
+    status VARCHAR(32) NOT NULL,
+    created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_time TIMESTAMP NULL,
+    INDEX idx_code_review_run_user_time (user_id, created_time),
+    INDEX idx_code_review_run_session (session_id),
+    INDEX idx_code_review_run_risk (risk_level)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS code_review_issue (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    run_id VARCHAR(64) NOT NULL,
+    user_id BIGINT NOT NULL,
+    session_id VARCHAR(255) NOT NULL,
+    severity VARCHAR(32) NOT NULL,
+    category VARCHAR(64) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    file_path VARCHAR(512) NULL,
+    start_line INT NULL,
+    end_line INT NULL,
+    evidence TEXT NULL,
+    impact TEXT NULL,
+    recommendation TEXT NULL,
+    patchable TINYINT(1) NOT NULL DEFAULT 0,
+    suggested_patch MEDIUMTEXT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'OPEN',
+    created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_time TIMESTAMP NULL,
+    INDEX idx_code_review_issue_run (run_id),
+    INDEX idx_code_review_issue_user_status (user_id, status),
+    INDEX idx_code_review_issue_file (file_path),
+    INDEX idx_code_review_issue_severity (severity)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -9,6 +9,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 
@@ -24,7 +25,7 @@ class ElasticsearchRagServiceTest {
         RagProperties properties = new RagProperties();
         properties.getElasticsearch().setEnabled(true);
         properties.getElasticsearch().setBaseUrl("http://localhost:9200");
-        properties.getElasticsearch().setIndexName("ai_studio_knowledge");
+        properties.getElasticsearch().setIndexName("ai_studio_knowledge_v2");
         properties.getElasticsearch().setTopK(10);
 
         RestTemplate restTemplate = mock(RestTemplate.class);
@@ -55,7 +56,8 @@ class ElasticsearchRagServiceTest {
                 properties,
                 mock(KnowledgeDocumentMapper.class),
                 mock(DocumentChunker.class),
-                restTemplate);
+                restTemplate,
+                new KeywordExtractor());
 
         List<HybridCandidate> results = service.searchKeywordCandidates(7L, "Redis TTL", 20);
 
@@ -68,6 +70,70 @@ class ElasticsearchRagServiceTest {
     }
 
     @Test
+    @DisplayName("Index initialization creates ngram mapping")
+    void initializeIndexCreatesNgramMapping() throws Exception {
+        RagProperties properties = new RagProperties();
+        properties.getElasticsearch().setEnabled(true);
+        properties.getElasticsearch().setBaseUrl("http://localhost:9200");
+        properties.getElasticsearch().setIndexName("ai_studio_knowledge_v2");
+
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.PUT), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("{}"));
+
+        ElasticsearchRagService service = new ElasticsearchRagService(
+                properties,
+                mock(KnowledgeDocumentMapper.class),
+                mock(DocumentChunker.class),
+                restTemplate,
+                new KeywordExtractor());
+
+        service.initializeIndexIfNeeded();
+
+        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).exchange(eq("http://localhost:9200/ai_studio_knowledge_v2"),
+                eq(HttpMethod.PUT), entityCaptor.capture(), eq(String.class));
+        String payload = new ObjectMapper().writeValueAsString(entityCaptor.getValue().getBody());
+        assertTrue(payload.contains("ai_studio_ngram_tokenizer"));
+        assertTrue(payload.contains("ai_studio_ngram"));
+        assertTrue(payload.contains("title"));
+        assertTrue(payload.contains("exact"));
+    }
+
+    @Test
+    @DisplayName("Search uses boosted bool query with ngram fields")
+    void searchUsesBoostedBoolQueryWithNgramFields() throws Exception {
+        RagProperties properties = new RagProperties();
+        properties.getElasticsearch().setEnabled(true);
+        properties.getElasticsearch().setBaseUrl("http://localhost:9200");
+        properties.getElasticsearch().setIndexName("ai_studio_knowledge_v2");
+        properties.getElasticsearch().setTopK(50);
+
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), eq(JsonNode.class)))
+                .thenReturn(ResponseEntity.ok(new ObjectMapper().readTree("{\"hits\":{\"hits\":[]}}")));
+
+        ElasticsearchRagService service = new ElasticsearchRagService(
+                properties,
+                mock(KnowledgeDocumentMapper.class),
+                mock(DocumentChunker.class),
+                restTemplate,
+                new KeywordExtractor());
+
+        service.searchKeywordCandidates(7L, "退款政策", 200);
+
+        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).exchange(contains("/ai_studio_knowledge_v2/_search"),
+                eq(HttpMethod.POST), entityCaptor.capture(), eq(JsonNode.class));
+        String payload = new ObjectMapper().writeValueAsString(entityCaptor.getValue().getBody());
+        assertTrue(payload.contains("title^3"));
+        assertTrue(payload.contains("tags^2"));
+        assertTrue(payload.contains("title.ngram^2"));
+        assertTrue(payload.contains("content.ngram"));
+        assertTrue(payload.contains("minimum_should_match"));
+    }
+
+    @Test
     @DisplayName("Disabled Elasticsearch does not call remote service")
     void disabledDoesNotCallRemote() {
         RagProperties properties = new RagProperties();
@@ -76,7 +142,8 @@ class ElasticsearchRagServiceTest {
                 properties,
                 mock(KnowledgeDocumentMapper.class),
                 mock(DocumentChunker.class),
-                restTemplate);
+                restTemplate,
+                new KeywordExtractor());
 
         List<HybridCandidate> results = service.searchKeywordCandidates(7L, "Redis TTL", 20);
 

@@ -694,7 +694,7 @@ public class ChatbotService {
         LambdaQueryWrapper<ChatRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ChatRecord::getSessionId, sessionId);
         chatRecordMapper.delete(wrapper);
-        chatContextService.evictSessionContext(sessionId);
+        chatContextService.deleteSessionContext(sessionId);
         log.info("会话已成功删除: {}", sessionId);
         return true;
     }
