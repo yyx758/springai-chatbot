@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.chatbot.dto.ChatRequest;
+import com.example.chatbot.agent.review.conversation.CodeReviewConversationOrchestrator;
+import com.example.chatbot.agent.review.conversation.CodeReviewConversationResponse;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.kafka.ChatEvent;
 import com.example.chatbot.mapper.ChatRecordMapper;
@@ -41,6 +43,7 @@ public class ChatbotService {
     private final ChatRecordPersistenceService chatRecordPersistenceService;
     private final FileServiceClient fileServiceClient;
     private final ChatContextService chatContextService;
+    private final CodeReviewConversationOrchestrator codeReviewConversationOrchestrator;
 
     private final Semaphore ollamaSemaphore = new Semaphore(1);
 
@@ -63,12 +66,14 @@ public class ChatbotService {
             ChatRecordMapper chatRecordMapper,
             ChatRecordPersistenceService chatRecordPersistenceService,
             FileServiceClient fileServiceClient,
-            ChatContextService chatContextService
+            ChatContextService chatContextService,
+            CodeReviewConversationOrchestrator codeReviewConversationOrchestrator
     ) {
         this.chatRecordMapper = chatRecordMapper;
         this.chatRecordPersistenceService = chatRecordPersistenceService;
         this.fileServiceClient = fileServiceClient;
         this.chatContextService = chatContextService;
+        this.codeReviewConversationOrchestrator = codeReviewConversationOrchestrator;
 
         // 使用 try-catch 包裹 getIfAvailable()，防止 Bean 创建失败（如网络不通）导致整个应用崩溃
         OpenAiChatModel openAi = null;
@@ -181,6 +186,9 @@ public class ChatbotService {
      */
     public void streamChat(ChatRequest request, SseEmitter emitter, String userId) {
         ensureSessionOwnedByUser(request.getSessionId(), userId);
+        if (tryHandleCodeReviewConversation(request, emitter, userId)) {
+            return;
+        }
         ChatModel model = getChatModel(request.getModel());
         if (model == null) {
             sendStreamError(emitter, "未找到可用的聊天模型");
@@ -266,6 +274,35 @@ public class ChatbotService {
             log.error("流式对话初始化失败: {}", resolveErrorMessage(e), e);
             sendStreamError(emitter, resolveErrorMessage(e));
             releaseIfOllama(finalAcquired);
+        }
+    }
+
+    private boolean tryHandleCodeReviewConversation(ChatRequest request, SseEmitter emitter, String userId) {
+        Long numericUserId;
+        try {
+            numericUserId = Long.valueOf(userId);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        try {
+            Optional<CodeReviewConversationResponse> response = codeReviewConversationOrchestrator.handle(
+                    numericUserId,
+                    request.getSessionId(),
+                    request.getMessage()
+            );
+            if (response.isEmpty()) {
+                return false;
+            }
+            CodeReviewConversationResponse value = response.get();
+            emitter.send(Map.of("content", value.getMessage()));
+            emitter.send(SseEmitter.event().name("reviewSummary").data(value.getPayload()));
+            asyncSaveChatRecord(request.getSessionId(), request.getMessage(), value.getMessage());
+            emitter.complete();
+            return true;
+        } catch (Exception e) {
+            log.error("代码审查对话处理失败: {}", resolveErrorMessage(e), e);
+            sendStreamError(emitter, resolveErrorMessage(e));
+            return true;
         }
     }
 

@@ -146,6 +146,7 @@ app:
     jwt-secret: ${APP_JWT_SECRET:change-this-dev-secret-key-at-least-32-chars}
     token-expire-ms: ${APP_TOKEN_EXPIRE_MS:1800000}
     refresh-token-expire-ms: ${APP_REFRESH_TOKEN_EXPIRE_MS:604800000}
+    cookie-secure: ${APP_COOKIE_SECURE:false}
   agent:
     enabled: true
     max-history: 5
@@ -280,19 +281,47 @@ app:
       top-k: ${APP_RAG_ELASTICSEARCH_TOP_K:50}
       initialize-index: ${APP_RAG_ELASTICSEARCH_INITIALIZE_INDEX:true}
   chatbot:
+    memory:
+      enabled: ${APP_CHATBOT_MEMORY_ENABLED:true}
+      index-enabled: ${APP_CHATBOT_MEMORY_INDEX_ENABLED:true}
+      detail-selection-enabled: ${APP_CHATBOT_MEMORY_DETAIL_SELECTION_ENABLED:false}
+      select-mode: ${APP_CHATBOT_MEMORY_SELECT_MODE:LLM_SIDE_QUERY}
+      max-index-items: ${APP_CHATBOT_MEMORY_MAX_INDEX_ITEMS:30}
+      max-index-chars: ${APP_CHATBOT_MEMORY_MAX_INDEX_CHARS:6000}
+      max-selected-details: ${APP_CHATBOT_MEMORY_MAX_SELECTED_DETAILS:5}
+      max-detail-chars-per-item: ${APP_CHATBOT_MEMORY_MAX_DETAIL_CHARS_PER_ITEM:4096}
+      max-total-detail-chars: ${APP_CHATBOT_MEMORY_MAX_TOTAL_DETAIL_CHARS:12000}
+      suggestion-enabled: ${APP_CHATBOT_MEMORY_SUGGESTION_ENABLED:false}
+      consolidation-enabled: ${APP_CHATBOT_MEMORY_CONSOLIDATION_ENABLED:false}
+      consolidation-min-items: ${APP_CHATBOT_MEMORY_CONSOLIDATION_MIN_ITEMS:10}
+      default-project-key: ${APP_CHATBOT_MEMORY_DEFAULT_PROJECT_KEY:springaI-chatbot}
     rag-enabled: true
     rag-top-k: 3
     context:
       recent-window-size: ${APP_CHATBOT_CONTEXT_RECENT_WINDOW_SIZE:10}
       redis-cache-size: ${APP_CHATBOT_CONTEXT_REDIS_CACHE_SIZE:100}
-      relevant-history-enabled: ${APP_CHATBOT_CONTEXT_RELEVANT_HISTORY_ENABLED:true}
-      relevant-history-candidate-size: ${APP_CHATBOT_CONTEXT_RELEVANT_HISTORY_CANDIDATE_SIZE:80}
-      relevant-history-top-k: ${APP_CHATBOT_CONTEXT_RELEVANT_HISTORY_TOP_K:5}
+      recent-message-max-chars: ${APP_CHATBOT_CONTEXT_RECENT_MESSAGE_MAX_CHARS:2000}
       summary-enabled: ${APP_CHATBOT_CONTEXT_SUMMARY_ENABLED:true}
       summary-trigger-records: ${APP_CHATBOT_CONTEXT_SUMMARY_TRIGGER_RECORDS:12}
       summary-refresh-every-records: ${APP_CHATBOT_CONTEXT_SUMMARY_REFRESH_EVERY_RECORDS:6}
       summary-max-chars: ${APP_CHATBOT_CONTEXT_SUMMARY_MAX_CHARS:2000}
       max-context-chars: ${APP_CHATBOT_CONTEXT_MAX_CONTEXT_CHARS:30000}
+      compression:
+        enabled: ${APP_CHATBOT_CONTEXT_COMPRESSION_ENABLED:true}
+        max-input-tokens: ${APP_CHATBOT_CONTEXT_COMPRESSION_MAX_INPUT_TOKENS:24000}
+        reserve-output-tokens: ${APP_CHATBOT_CONTEXT_COMPRESSION_RESERVE_OUTPUT_TOKENS:4000}
+        reserve-safety-buffer-tokens: ${APP_CHATBOT_CONTEXT_COMPRESSION_RESERVE_SAFETY_BUFFER_TOKENS:2000}
+        snip-max-messages: ${APP_CHATBOT_CONTEXT_COMPRESSION_SNIP_MAX_MESSAGES:60}
+        snip-head-messages: ${APP_CHATBOT_CONTEXT_COMPRESSION_SNIP_HEAD_MESSAGES:6}
+        snip-tail-messages: ${APP_CHATBOT_CONTEXT_COMPRESSION_SNIP_TAIL_MESSAGES:40}
+        keep-recent-tool-results: ${APP_CHATBOT_CONTEXT_COMPRESSION_KEEP_RECENT_TOOL_RESULTS:3}
+        large-result-max-chars: ${APP_CHATBOT_CONTEXT_COMPRESSION_LARGE_RESULT_MAX_CHARS:200000}
+        large-result-preview-chars: ${APP_CHATBOT_CONTEXT_COMPRESSION_LARGE_RESULT_PREVIEW_CHARS:2000}
+        auto-compact-enabled: ${APP_CHATBOT_CONTEXT_COMPRESSION_AUTO_COMPACT_ENABLED:true}
+        auto-compact-threshold-ratio: ${APP_CHATBOT_CONTEXT_COMPRESSION_AUTO_COMPACT_THRESHOLD_RATIO:0.80}
+        max-consecutive-auto-compact-failures: ${APP_CHATBOT_CONTEXT_COMPRESSION_MAX_CONSECUTIVE_AUTO_COMPACT_FAILURES:3}
+        reactive-compact-enabled: ${APP_CHATBOT_CONTEXT_COMPRESSION_REACTIVE_COMPACT_ENABLED:true}
+        max-reactive-compact-retries: ${APP_CHATBOT_CONTEXT_COMPRESSION_MAX_REACTIVE_COMPACT_RETRIES:1}
     system-prompt: |
       你是 AI Studio 的智能助手。请遵守以下规则：
 

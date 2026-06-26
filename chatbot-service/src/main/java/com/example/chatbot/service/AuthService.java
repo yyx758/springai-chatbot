@@ -113,6 +113,12 @@ public class AuthService {
         refreshTokenStore.revokeAllForUser(user.getId());
     }
 
+    public void revokeRefreshToken(String refreshTokenValue) {
+        if (refreshTokenValue != null && !refreshTokenValue.isBlank()) {
+            refreshTokenStore.getUserIdAndInvalidate(refreshTokenValue);
+        }
+    }
+
     public AuthResponse getProfile(Long userId) {
         UserAccount user = userAccountMapper.selectById(userId);
         if (user == null) {

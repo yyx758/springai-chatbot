@@ -11,9 +11,7 @@ public class ChatContextProperties {
 
     private int recentWindowSize = 10;
     private int redisCacheSize = 100;
-    private boolean relevantHistoryEnabled = true;
-    private int relevantHistoryCandidateSize = 80;
-    private int relevantHistoryTopK = 5;
+    private int recentMessageMaxChars = 2000;
     private boolean summaryEnabled = true;
     private int summaryTriggerRecords = 12;
     private int summaryRefreshEveryRecords = 6;

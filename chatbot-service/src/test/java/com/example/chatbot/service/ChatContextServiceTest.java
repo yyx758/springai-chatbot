@@ -2,8 +2,15 @@ package com.example.chatbot.service;
 
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.entity.ChatSessionSummary;
+import com.example.chatbot.context.ContextCompressionProperties;
+import com.example.chatbot.context.ContextCompressionService;
+import com.example.chatbot.context.ContextTokenEstimator;
+import com.example.chatbot.dto.RagReference;
 import com.example.chatbot.mapper.ChatRecordMapper;
 import com.example.chatbot.mapper.ChatSessionSummaryMapper;
+import com.example.chatbot.memory.MemoryIndexItem;
+import com.example.chatbot.memory.MemoryIndexService;
+import com.example.chatbot.memory.MemoryPromptBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,8 +70,7 @@ class ChatContextServiceTest {
         properties = new ChatContextProperties();
         properties.setRecentWindowSize(2);
         properties.setRedisCacheSize(100);
-        properties.setRelevantHistoryCandidateSize(80);
-        properties.setRelevantHistoryTopK(5);
+        properties.setRecentMessageMaxChars(2000);
         properties.setSummaryEnabled(true);
         properties.setMaxContextChars(12000);
 
@@ -83,13 +90,14 @@ class ChatContextServiceTest {
                 new ObjectMapper(),
                 ragService,
                 properties,
+                new ContextCompressionService(new ContextTokenEstimator(), new ContextCompressionProperties()),
                 openAiProvider,
                 ollamaProvider
         );
     }
 
     @Test
-    @DisplayName("Redis hit builds summary, relevant history, and recent history in order")
+    @DisplayName("Redis hit builds summary and recent history in order")
     void redisHitBuildsLayeredContext() {
         List<ChatRecord> history = List.of(
                 record(1L, "I prefer Redis cache", "Redis preference noted", 1),
@@ -97,7 +105,7 @@ class ChatContextServiceTest {
                 record(3L, "Recent question A", "Recent answer A", 3),
                 record(4L, "Recent question B", "Recent answer B", 4)
         );
-        when(listOperations.range("chat:history:7_s1", 0, -1)).thenReturn(List.copyOf(history));
+        when(listOperations.range("chat:history:7_s1", -2, -1)).thenReturn(List.copyOf(history.subList(2, 4)));
         when(valueOperations.get("chat:summary:7_s1")).thenReturn("User cares about cache and async reliability.");
         when(ragService.retrieveReferences(7L, "How to optimize Redis", 3)).thenReturn(List.of());
 
@@ -105,10 +113,55 @@ class ChatContextServiceTest {
                 "7_s1", "How to optimize Redis", "7", "system", true, null, true, 3);
 
         String joined = joinedContent(context.messages());
-        assertTrue(joined.indexOf("User cares about cache") < joined.indexOf("Relevant earlier conversation snippets"));
-        assertTrue(joined.indexOf("Relevant earlier conversation snippets") < joined.indexOf("Recent question A"));
-        assertTrue(joined.contains("I prefer Redis cache"));
+        assertTrue(joined.indexOf("User cares about cache") < joined.indexOf("Recent question A"));
+        assertFalse(joined.contains("I prefer Redis cache"));
         assertTrue(joined.contains("How to optimize Redis"));
+    }
+
+    @Test
+    @DisplayName("RAG context is placed after conversation history and before current user input")
+    void ragContextIsNearCurrentUserInput() {
+        List<ChatRecord> history = List.of(
+                record(1L, "Recent question A", "Recent answer A", 1),
+                record(2L, "Recent question B", "Recent answer B", 2)
+        );
+        RagReference reference = RagReference.builder()
+                .documentId(1L)
+                .chunkId("1_0")
+                .title("Gateway policy")
+                .snippet("Production traffic must go through Gateway.")
+                .score(0.9)
+                .build();
+        when(listOperations.range("chat:history:7_s6", -2, -1)).thenReturn(List.copyOf(history));
+        when(valueOperations.get("chat:summary:7_s6")).thenReturn("");
+        when(ragService.retrieveReferences(7L, "How should production traffic enter?", 3)).thenReturn(List.of(reference));
+        when(ragService.buildKnowledgePrompt(List.of(reference))).thenReturn("Knowledge context: Gateway only.");
+
+        ConversationContext context = service.buildConversationContext(
+                "7_s6", "How should production traffic enter?", "7", "system", true, null, true, 3);
+
+        String joined = joinedContent(context.messages());
+        assertTrue(joined.indexOf("Recent answer B") < joined.indexOf("Knowledge context: Gateway only."));
+        assertTrue(joined.indexOf("Knowledge context: Gateway only.") < joined.indexOf("How should production traffic enter?"));
+    }
+
+    @Test
+    @DisplayName("Recent chat messages are capped per message before global budget trimming")
+    void recentMessagesAreCappedPerMessage() {
+        properties.setRecentMessageMaxChars(20);
+        List<ChatRecord> history = List.of(
+                record(1L, "1234567890123456789012345", "abcdefghijklmnopqrstuvwxyz", 1)
+        );
+        when(listOperations.range("chat:history:7_s7", -2, -1)).thenReturn(List.copyOf(history));
+        when(valueOperations.get("chat:summary:7_s7")).thenReturn("");
+
+        List<Message> messages = service.buildConversationMessages("7_s7", "Continue", "system");
+
+        String joined = joinedContent(messages);
+        assertTrue(joined.contains("12345678901234567890"));
+        assertFalse(joined.contains("123456789012345678901"));
+        assertTrue(joined.contains("abcdefghijklmnopqrst"));
+        assertFalse(joined.contains("abcdefghijklmnopqrstu"));
     }
 
     @Test
@@ -118,7 +171,7 @@ class ChatContextServiceTest {
                 record(1L, "Recent question A", "Recent answer A", 1),
                 record(2L, "Recent question B", "Recent answer B", 2)
         );
-        when(listOperations.range("chat:history:7_s5", 0, -1)).thenReturn(List.copyOf(history));
+        when(listOperations.range("chat:history:7_s5", -2, -1)).thenReturn(List.copyOf(history));
         when(valueOperations.get("chat:summary:7_s5")).thenReturn(null);
         when(chatSessionSummaryMapper.selectBySessionId("7_s5")).thenReturn(ChatSessionSummary.builder()
                 .sessionId("7_s5")
@@ -137,7 +190,7 @@ class ChatContextServiceTest {
     @Test
     @DisplayName("Redis miss falls back to MySQL history")
     void redisMissFallsBackToMysql() {
-        when(listOperations.range("chat:history:7_s2", 0, -1)).thenReturn(List.of());
+        when(listOperations.range("chat:history:7_s2", -2, -1)).thenReturn(List.of());
         when(valueOperations.get("chat:summary:7_s2")).thenReturn("");
         when(chatRecordMapper.selectList(any())).thenReturn(List.of(
                 record(2L, "Older question", "Older answer", 2),
@@ -172,35 +225,34 @@ class ChatContextServiceTest {
     @DisplayName("Summary prompt merges existing summary with incremental new records")
     void summaryPromptMergesExistingSummaryWithIncrementalRecords() {
         List<Message> messages = service.buildSummaryPrompt("User prefers DeepSeek and Gateway-only access.",
-                List.of(record(10L, "新增需求：Redis 候选池改成 100", "已记录", 10)));
+                List.of(record(10L, "New requirement: Redis pool size should be 100", "Noted.", 10)));
 
         String joined = joinedContent(messages);
         assertTrue(joined.contains("Existing summary"));
         assertTrue(joined.contains("User prefers DeepSeek"));
         assertTrue(joined.contains("New chat history since last summary"));
-        assertTrue(joined.contains("Redis 候选池改成 100"));
+        assertTrue(joined.contains("Redis pool size should be 100"));
     }
 
     @Test
     @DisplayName("First summary prompt uses only new chat history when no existing summary exists")
     void firstSummaryPromptUsesNewHistoryOnly() {
         List<Message> messages = service.buildSummaryPrompt("",
-                List.of(record(11L, "第一次摘要输入", "第一次摘要回答", 11)));
+                List.of(record(11L, "First summary input", "First summary answer", 11)));
 
         String joined = joinedContent(messages);
         assertFalse(joined.contains("Existing summary"));
         assertTrue(joined.contains("New chat history since last summary"));
-        assertTrue(joined.contains("第一次摘要输入"));
+        assertTrue(joined.contains("First summary input"));
     }
 
     @Test
     @DisplayName("Incremental summary history is selected by current session records after meta id")
     void incrementalSummaryHistoryUsesSessionRecordsAfterMetaId() {
-        List<ChatRecord> incrementalHistory = service.selectIncrementalHistory(List.of(
-                record(100L, "已摘要旧问题", "已摘要旧回答", 1),
-                record(105L, "新增问题 A", "新增回答 A", 2),
-                record(109L, "新增问题 B", "新增回答 B", 3)
-        ), 100L);
+        List<ChatRecord> incrementalHistory = List.of(
+                record(105L, "鏂板闂 A", "鏂板鍥炵瓟 A", 2),
+                record(109L, "鏂板闂 B", "鏂板鍥炵瓟 B", 3)
+        );
 
         String joined = joinedContent(incrementalHistory.stream()
                 .map(record -> List.<Message>of(
@@ -208,15 +260,55 @@ class ChatContextServiceTest {
                         new org.springframework.ai.chat.messages.AssistantMessage(record.getBotResponse())))
                 .flatMap(List::stream)
                 .toList());
-        assertFalse(joined.contains("已摘要旧问题"));
-        assertTrue(joined.contains("新增问题 A"));
-        assertTrue(joined.contains("新增问题 B"));
+        assertFalse(joined.contains("宸叉憳瑕佹棫闂"));
+        assertTrue(joined.contains("鏂板闂 A"));
+        assertTrue(joined.contains("鏂板闂 B"));
+    }
+
+    @Test
+    @DisplayName("Long-term memory index is injected after system prompt and before session summary")
+    void longTermMemoryIndexIsBeforeSessionSummary() {
+        MemoryIndexService memoryIndexService = mock(MemoryIndexService.class);
+        when(memoryIndexService.loadIndex(7L, null)).thenReturn(List.of(MemoryIndexItem.builder()
+                .id(18L)
+                .scopeType("PROJECT")
+                .memoryType("project")
+                .name("Gateway production entry")
+                .description("Production traffic must go through Gateway :9000.")
+                .build()));
+        service.setMemoryIndexService(memoryIndexService);
+        service.setMemoryPromptBuilder(new MemoryPromptBuilder());
+        when(listOperations.range("chat:history:7_s9", -2, -1)).thenReturn(List.of());
+        when(valueOperations.get("chat:summary:7_s9")).thenReturn("Existing session summary.");
+
+        List<Message> messages = service.buildConversationMessages("7_s9", "Continue", "system prompt");
+
+        String joined = joinedContent(messages);
+        assertTrue(joined.indexOf("system prompt") < joined.indexOf("Long-term memory index"));
+        assertTrue(joined.indexOf("Long-term memory index") < joined.indexOf("Existing session summary."));
+    }
+
+    @Test
+    @DisplayName("Existing summary refresh queries MySQL incrementally instead of Redis history window")
+    void existingSummaryRefreshUsesMysqlIncrementalHistory() {
+        properties.setSummaryRefreshEveryRecords(2);
+        when(valueOperations.get("chat:summary:7_s8")).thenReturn("Existing summary.");
+        when(valueOperations.get("chat:summary:meta:7_s8")).thenReturn(100L);
+        when(chatRecordMapper.selectList(any())).thenReturn(List.of(
+                record(105L, "New question A", "New answer A", 2),
+                record(109L, "New question B", "New answer B", 3)
+        ));
+
+        service.refreshSummaryIfNeeded("7_s8");
+
+        verify(chatRecordMapper).selectList(any());
+        verify(listOperations, never()).range("chat:history:7_s8", 0, -1);
     }
 
     @Test
     @DisplayName("Summary read failure does not break context building")
     void summaryFailureDoesNotBreakContextBuild() {
-        when(listOperations.range("chat:history:7_s4", 0, -1))
+        when(listOperations.range("chat:history:7_s4", -2, -1))
                 .thenReturn(List.of(record(1L, "Question", "Answer", 1)));
         doThrow(new RuntimeException("Redis timeout"))
                 .when(valueOperations).get("chat:summary:7_s4");

@@ -1,14 +1,21 @@
 package com.example.chatbot.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.chatbot.context.ContextCompactionResult;
+import com.example.chatbot.context.ContextCompressionService;
+import com.example.chatbot.context.ContextSegment;
+import com.example.chatbot.context.ContextSegmentType;
 import com.example.chatbot.dto.RagReference;
 import com.example.chatbot.entity.ChatRecord;
 import com.example.chatbot.entity.ChatSessionSummary;
 import com.example.chatbot.mapper.ChatRecordMapper;
 import com.example.chatbot.mapper.ChatSessionSummaryMapper;
+import com.example.chatbot.memory.MemoryIndexService;
+import com.example.chatbot.memory.MemoryProperties;
+import com.example.chatbot.memory.MemoryPromptBuilder;
+import com.example.chatbot.memory.MemorySelectionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -17,6 +24,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -24,9 +32,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -50,8 +56,13 @@ public class ChatContextService {
     private final ObjectMapper objectMapper;
     private final RagService ragService;
     private final ChatContextProperties properties;
+    private final ContextCompressionService contextCompressionService;
     private final OpenAiChatModel openAiChatModel;
     private final OllamaChatModel ollamaChatModel;
+    private MemoryIndexService memoryIndexService;
+    private MemoryPromptBuilder memoryPromptBuilder;
+    private MemorySelectionService memorySelectionService;
+    private MemoryProperties memoryProperties;
 
     @Value("${spring.ai.openai.api-key:}")
     private String openAiApiKey;
@@ -63,6 +74,7 @@ public class ChatContextService {
             ObjectMapper objectMapper,
             RagService ragService,
             ChatContextProperties properties,
+            ContextCompressionService contextCompressionService,
             ObjectProvider<OpenAiChatModel> openAiChatModelProvider,
             ObjectProvider<OllamaChatModel> ollamaChatModelProvider
     ) {
@@ -72,6 +84,7 @@ public class ChatContextService {
         this.objectMapper = objectMapper;
         this.ragService = ragService;
         this.properties = properties;
+        this.contextCompressionService = contextCompressionService;
         this.openAiChatModel = getIfAvailable(openAiChatModelProvider, "OpenAI/DeepSeek");
         this.ollamaChatModel = getIfAvailable(ollamaChatModelProvider, "Ollama");
     }
@@ -86,24 +99,45 @@ public class ChatContextService {
             boolean ragEnabledDefault,
             int ragTopKDefault
     ) {
-        List<Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(systemPrompt));
+        List<ContextSegment> segments = new ArrayList<>();
+        segments.add(segment(ContextSegmentType.SYSTEM_FIXED, "system", systemPrompt));
+        appendLongTermMemorySegments(segments, userId, userInput);
         List<RagReference> references = resolveRagReferences(userId, userInput, useRag, ragTopK, ragEnabledDefault, ragTopKDefault);
+        appendLayeredHistory(segments, sessionId, userInput);
         if (!references.isEmpty()) {
-            messages.add(new SystemMessage(ragService.buildKnowledgePrompt(references)));
+            segments.add(segment(ContextSegmentType.RAG_CONTEXT, "system", ragService.buildKnowledgePrompt(references)));
         }
-
-        appendLayeredHistory(messages, sessionId, userInput);
-        messages.add(new UserMessage(userInput));
-        return new ConversationContext(trimToBudget(messages), references);
+        segments.add(segment(ContextSegmentType.CURRENT_USER_INPUT, "user", userInput));
+        return new ConversationContext(compressToMessages(segments), references);
     }
 
     public List<Message> buildConversationMessages(String sessionId, String userInput, String systemPrompt) {
-        List<Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(systemPrompt));
-        appendLayeredHistory(messages, sessionId, userInput);
-        messages.add(new UserMessage(userInput));
-        return trimToBudget(messages);
+        List<ContextSegment> segments = new ArrayList<>();
+        segments.add(segment(ContextSegmentType.SYSTEM_FIXED, "system", systemPrompt));
+        appendLongTermMemorySegments(segments, resolveUserId(sessionId), userInput);
+        appendLayeredHistory(segments, sessionId, userInput);
+        segments.add(segment(ContextSegmentType.CURRENT_USER_INPUT, "user", userInput));
+        return compressToMessages(segments);
+    }
+
+    @Autowired(required = false)
+    public void setMemoryIndexService(MemoryIndexService memoryIndexService) {
+        this.memoryIndexService = memoryIndexService;
+    }
+
+    @Autowired(required = false)
+    public void setMemoryPromptBuilder(MemoryPromptBuilder memoryPromptBuilder) {
+        this.memoryPromptBuilder = memoryPromptBuilder;
+    }
+
+    @Autowired(required = false)
+    public void setMemorySelectionService(MemorySelectionService memorySelectionService) {
+        this.memorySelectionService = memorySelectionService;
+    }
+
+    @Autowired(required = false)
+    public void setMemoryProperties(MemoryProperties memoryProperties) {
+        this.memoryProperties = memoryProperties;
     }
 
     public void appendPersistedRecordToCache(ChatRecord chatRecord) {
@@ -180,52 +214,69 @@ public class ChatContextService {
         }
     }
 
-    private void appendLayeredHistory(List<Message> messages, String sessionId, String userInput) {
-        List<ChatRecord> history = loadCandidateHistory(sessionId);
-        if (history.isEmpty()) {
-            return;
-        }
-
+    private void appendLayeredHistory(List<ContextSegment> segments, String sessionId, String userInput) {
         String summary = readSummary(sessionId);
         if (summary != null && !summary.isBlank()) {
-            messages.add(new SystemMessage("Earlier conversation summary for long-term context:\n" + summary));
+            segments.add(segment(ContextSegmentType.SESSION_SUMMARY, "system",
+                    "Earlier conversation summary for long-term context:\n" + summary));
         }
 
-        int recentSize = positive(properties.getRecentWindowSize(), 6);
-        int split = Math.max(0, history.size() - recentSize);
-        List<ChatRecord> olderHistory = history.subList(0, split);
-        List<ChatRecord> recentHistory = history.subList(split, history.size());
-        Set<Long> recentIds = recentHistory.stream()
-                .map(ChatRecord::getId)
-                .collect(Collectors.toSet());
-
-        List<ChatRecord> relevantHistory = selectRelevantHistory(olderHistory, recentIds, userInput);
-        if (!relevantHistory.isEmpty()) {
-            messages.add(new SystemMessage(buildHistoryBlock("Relevant earlier conversation snippets:", relevantHistory)));
-        }
-
+        List<ChatRecord> recentHistory = loadRecentHistory(sessionId);
         for (ChatRecord record : recentHistory) {
-            addRecordMessages(messages, record);
+            addRecordMessages(segments, record);
         }
     }
 
-    private List<ChatRecord> loadCandidateHistory(String sessionId) {
+    private void appendLongTermMemorySegments(List<ContextSegment> segments, String userId, String userInput) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            appendLongTermMemorySegments(segments, Long.valueOf(userId), userInput);
+        } catch (NumberFormatException ignored) {
+        }
+    }
+
+    private void appendLongTermMemorySegments(List<ContextSegment> segments, Long userId, String userInput) {
+        if (memoryIndexService == null || memoryPromptBuilder == null || userId == null) {
+            return;
+        }
+        try {
+            String prompt = memoryPromptBuilder.buildIndexPrompt(memoryIndexService.loadIndex(userId, null));
+            if (prompt != null && !prompt.isBlank()) {
+                ContextSegment segment = segment(ContextSegmentType.MEMORY_INDEX, "system", prompt);
+                segment.setSourceRef("memory:index");
+                segments.add(segment);
+            }
+            if (memorySelectionService != null && memoryProperties != null && memoryProperties.isDetailSelectionEnabled()) {
+                String detailPrompt = memorySelectionService.selectDetailPreview(userId, null, userInput).getPrompt();
+                if (detailPrompt != null && !detailPrompt.isBlank()) {
+                    ContextSegment detail = segment(ContextSegmentType.MEMORY_DETAIL, "system", detailPrompt);
+                    detail.setSourceRef("memory:detail:selected");
+                    segments.add(detail);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Long-term memory index skipped. userId={}, error={}", userId, e.getMessage());
+        }
+    }
+
+    private List<ChatRecord> loadRecentHistory(String sessionId) {
         String key = historyKey(sessionId);
+        int recentSize = positive(properties.getRecentWindowSize(), 6);
         try {
             long start = System.nanoTime();
-            List<Object> rawHistory = redisTemplate.opsForList().range(key, 0, -1);
+            List<Object> rawHistory = redisTemplate.opsForList().range(key, -recentSize, -1);
             long elapsedUs = (System.nanoTime() - start) / 1000;
             if (rawHistory != null && !rawHistory.isEmpty()) {
-                List<ChatRecord> history = rawHistory.stream()
-                        .map(this::toChatRecord)
-                        .sorted(Comparator.comparing(ChatRecord::getCreatedTime, Comparator.nullsLast(Comparator.naturalOrder())))
-                        .toList();
-                log.info("Context Redis hit, records: {}, elapsed: {} us", history.size(), elapsedUs);
+                List<ChatRecord> history = toSortedHistory(rawHistory);
+                log.info("Recent context Redis hit, records: {}, elapsed: {} us", history.size(), elapsedUs);
                 return history;
             }
-            log.info("Context Redis miss, querying MySQL. SessionId: {}", sessionId);
+            log.info("Recent context Redis miss, querying MySQL. SessionId: {}", sessionId);
         } catch (Exception e) {
-            log.warn("Context Redis unavailable, falling back to MySQL. SessionId: {}, Error: {}", sessionId, e.getMessage());
+            log.warn("Recent context Redis unavailable, falling back to MySQL. SessionId: {}, Error: {}",
+                    sessionId, e.getMessage());
             try {
                 redisTemplate.delete(key);
             } catch (Exception deleteException) {
@@ -233,6 +284,18 @@ public class ChatContextService {
             }
         }
 
+        long start = System.nanoTime();
+        List<ChatRecord> history = new ArrayList<>(chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
+                .eq(ChatRecord::getSessionId, sessionId)
+                .orderByDesc(ChatRecord::getCreatedTime)
+                .last("LIMIT " + recentSize)));
+        Collections.reverse(history);
+        long elapsedUs = (System.nanoTime() - start) / 1000;
+        log.info("Recent context MySQL query completed, records: {}, elapsed: {} us", history.size(), elapsedUs);
+        return history;
+    }
+
+    private List<ChatRecord> loadInitialSummaryHistory(String sessionId) {
         int limit = candidateLimit();
         long start = System.nanoTime();
         List<ChatRecord> history = new ArrayList<>(chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
@@ -241,36 +304,32 @@ public class ChatContextService {
                 .last("LIMIT " + limit)));
         Collections.reverse(history);
         long elapsedUs = (System.nanoTime() - start) / 1000;
-        log.info("Context MySQL query completed, records: {}, elapsed: {} us", history.size(), elapsedUs);
-        if (!history.isEmpty()) {
-            writeHistoryCacheAsync(sessionId, history);
-        }
+        log.info("Summary initial MySQL query completed, records: {}, elapsed: {} us", history.size(), elapsedUs);
         return history;
     }
 
-    private void writeHistoryCacheAsync(String sessionId, List<ChatRecord> history) {
-        List<ChatRecord> cacheRecords = new ArrayList<>(history);
-        CompletableFuture.runAsync(() -> {
-            String key = historyKey(sessionId);
-            String idKey = historyIdKey(sessionId);
-            try {
-                redisTemplate.delete(key);
-                redisTemplate.delete(idKey);
-                redisTemplate.opsForList().rightPushAll(key, cacheRecords.toArray());
-                for (ChatRecord record : cacheRecords) {
-                    if (record.getId() != null) {
-                        redisTemplate.opsForZSet().add(idKey, record.getId(), record.getId());
-                    }
-                }
-                redisTemplate.opsForList().trim(key, -positive(properties.getRedisCacheSize(), 30), -1);
-                trimHistoryIdIndex(idKey, positive(properties.getRedisCacheSize(), 30));
-                redisTemplate.expire(key, CACHE_TTL_HOURS, TimeUnit.HOURS);
-                redisTemplate.expire(idKey, CACHE_TTL_HOURS, TimeUnit.HOURS);
-                indexSession(sessionId);
-            } catch (Exception e) {
-                log.warn("Redis history cache write-back failed, SessionId: {}, Error: {}", sessionId, e.getMessage());
-            }
-        });
+    private List<ChatRecord> loadIncrementalSummaryHistory(String sessionId, Long lastSummarizedRecordId) {
+        if (lastSummarizedRecordId == null) {
+            return loadInitialSummaryHistory(sessionId);
+        }
+        int limit = candidateLimit();
+        long start = System.nanoTime();
+        List<ChatRecord> history = chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
+                .eq(ChatRecord::getSessionId, sessionId)
+                .gt(ChatRecord::getId, lastSummarizedRecordId)
+                .orderByAsc(ChatRecord::getId)
+                .last("LIMIT " + limit));
+        long elapsedUs = (System.nanoTime() - start) / 1000;
+        log.info("Summary incremental MySQL query completed, records: {}, lastSummarizedRecordId={}, elapsed: {} us",
+                history.size(), lastSummarizedRecordId, elapsedUs);
+        return history;
+    }
+
+    private List<ChatRecord> toSortedHistory(List<Object> rawHistory) {
+        return rawHistory.stream()
+                .map(this::toChatRecord)
+                .sorted(Comparator.comparing(ChatRecord::getCreatedTime, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
     }
 
     private boolean isRecordAlreadyCached(String key, String idKey, ChatRecord chatRecord) {
@@ -310,27 +369,27 @@ public class ChatContextService {
         CompletableFuture.runAsync(() -> refreshSummaryIfNeeded(sessionId));
     }
 
-    private void refreshSummaryIfNeeded(String sessionId) {
+    void refreshSummaryIfNeeded(String sessionId) {
         try {
             int trigger = positive(properties.getSummaryTriggerRecords(), 12);
             int refreshEvery = positive(properties.getSummaryRefreshEveryRecords(), 6);
-            List<ChatRecord> history = loadCandidateHistory(sessionId);
-            if (history.size() < trigger) {
-                return;
-            }
-            Long latestRecordId = latestRecordId(history);
-            if (latestRecordId == null) {
-                return;
-            }
             Long lastSummarizedRecordId = readLastSummarizedRecordId(sessionId);
             String existingSummary = readSummary(sessionId);
             boolean hasExistingSummary = existingSummary != null && !existingSummary.isBlank();
-            List<ChatRecord> incrementalHistory = selectIncrementalHistory(
-                    history, hasExistingSummary ? lastSummarizedRecordId : null);
+            List<ChatRecord> incrementalHistory = hasExistingSummary
+                    ? loadIncrementalSummaryHistory(sessionId, lastSummarizedRecordId)
+                    : loadInitialSummaryHistory(sessionId);
+            if (!hasExistingSummary && incrementalHistory.size() < trigger) {
+                return;
+            }
             if (incrementalHistory.isEmpty()) {
                 return;
             }
             if (hasExistingSummary && incrementalHistory.size() < refreshEvery) {
+                return;
+            }
+            Long latestRecordId = latestRecordId(incrementalHistory);
+            if (latestRecordId == null) {
                 return;
             }
             String summary = generateSummary(existingSummary, incrementalHistory);
@@ -386,74 +445,14 @@ public class ChatContextService {
         return persisted.getSummary();
     }
 
-    private List<ChatRecord> selectRelevantHistory(List<ChatRecord> olderHistory, Set<Long> excludedIds, String userInput) {
-        if (!properties.isRelevantHistoryEnabled() || olderHistory.isEmpty()) {
-            return Collections.emptyList();
-        }
-        Set<String> queryTerms = extractTerms(userInput);
-        if (queryTerms.isEmpty()) {
-            return Collections.emptyList();
-        }
-        int candidateSize = positive(properties.getRelevantHistoryCandidateSize(), 50);
-        int topK = positive(properties.getRelevantHistoryTopK(), 3);
-        int start = Math.max(0, olderHistory.size() - candidateSize);
-        return olderHistory.subList(start, olderHistory.size()).stream()
-                .filter(record -> record.getId() == null || !excludedIds.contains(record.getId()))
-                .map(record -> new ScoredRecord(record, relevanceScore(record, queryTerms)))
-                .filter(scored -> scored.score() > 0)
-                .sorted(Comparator.comparingInt(ScoredRecord::score).reversed()
-                        .thenComparing(scored -> scored.record().getCreatedTime(), Comparator.nullsLast(Comparator.reverseOrder())))
-                .limit(topK)
-                .map(ScoredRecord::record)
-                .sorted(Comparator.comparing(ChatRecord::getCreatedTime, Comparator.nullsLast(Comparator.naturalOrder())))
-                .toList();
-    }
-
-    private int relevanceScore(ChatRecord record, Set<String> queryTerms) {
-        String text = normalize(record.getUserMessage() + " " + record.getBotResponse());
-        int score = 0;
-        for (String term : queryTerms) {
-            if (text.contains(term)) {
-                score += Math.max(1, term.length());
-            }
-        }
-        return score;
-    }
-
-    private Set<String> extractTerms(String input) {
-        String normalized = normalize(input);
-        Set<String> terms = new LinkedHashSet<>();
-        for (String token : normalized.split("[\\s\\p{Punct}]+")) {
-            if (token.length() >= 2) {
-                terms.add(token);
-            }
-        }
-        String compact = normalized.replaceAll("[\\s\\p{Punct}]+", "");
-        for (int i = 0; i < compact.length() - 1; i++) {
-            String gram = compact.substring(i, i + 2);
-            if (!gram.isBlank()) {
-                terms.add(gram);
-            }
-        }
-        return terms;
-    }
-
-    private void addRecordMessages(List<Message> messages, ChatRecord record) {
+    private void addRecordMessages(List<ContextSegment> segments, ChatRecord record) {
         String userMessage = record.getUserMessage();
         if (record.getImageData() != null && !record.getImageData().isBlank()) {
             userMessage = userMessage + "\n[The user sent an image in this turn. Image bytes are not included in context cache.]";
         }
-        messages.add(new UserMessage(nullToEmpty(userMessage)));
-        messages.add(new AssistantMessage(nullToEmpty(record.getBotResponse())));
-    }
-
-    private String buildHistoryBlock(String title, List<ChatRecord> records) {
-        StringBuilder builder = new StringBuilder(title);
-        for (ChatRecord record : records) {
-            builder.append("\n- User: ").append(limit(nullToEmpty(record.getUserMessage()), 500))
-                    .append("\n  Assistant: ").append(limit(nullToEmpty(record.getBotResponse()), 500));
-        }
-        return builder.toString();
+        int maxChars = positive(properties.getRecentMessageMaxChars(), 2000);
+        segments.add(segment(ContextSegmentType.RECENT_HISTORY, "user", limit(nullToEmpty(userMessage), maxChars)));
+        segments.add(segment(ContextSegmentType.RECENT_HISTORY, "assistant", limit(nullToEmpty(record.getBotResponse()), maxChars)));
     }
 
     private String toSummaryLine(ChatRecord record) {
@@ -462,22 +461,38 @@ public class ChatContextService {
                 + "\nAssistant: " + limit(nullToEmpty(record.getBotResponse()), 600);
     }
 
-    private List<Message> trimToBudget(List<Message> messages) {
-        int budget = positive(properties.getMaxContextChars(), 12000);
-        List<Message> result = new ArrayList<>(messages);
-        while (totalChars(result) > budget && result.size() > 2) {
-            result.remove(1);
-        }
-        return result;
+    private List<Message> compressToMessages(List<ContextSegment> segments) {
+        ContextCompactionResult result = contextCompressionService.compact(
+                segments, positive(properties.getMaxContextChars(), 12000));
+        return result.getSegments().stream()
+                .map(ContextSegment::toMessage)
+                .toList();
     }
 
-    private int totalChars(List<Message> messages) {
-        int total = 0;
-        for (Message message : messages) {
-            String content = message.getText();
-            total += content == null ? 0 : content.length();
-        }
-        return total;
+    private ContextSegment segment(ContextSegmentType type, String role, String content) {
+        return ContextSegment.builder()
+                .type(type)
+                .role(role)
+                .content(nullToEmpty(content))
+                .required(type == ContextSegmentType.SYSTEM_FIXED || type == ContextSegmentType.CURRENT_USER_INPUT)
+                .compactable(type != ContextSegmentType.SYSTEM_FIXED && type != ContextSegmentType.CURRENT_USER_INPUT)
+                .priority(priority(type))
+                .createdAt(java.time.LocalDateTime.now())
+                .build();
+    }
+
+    private int priority(ContextSegmentType type) {
+        return switch (type) {
+            case SYSTEM_FIXED, CURRENT_USER_INPUT -> 0;
+            case TOOL_SCHEMA, USER_MEMORY, MEMORY_INDEX, MEMORY_DETAIL -> 1;
+            case SESSION_SUMMARY -> 2;
+            case RAG_CONTEXT -> 3;
+            case RECENT_HISTORY -> 4;
+            case WEB_CONTEXT -> 5;
+            case WORKSPACE_FILE, CODE_REVIEW_DIFF -> 6;
+            case TOOL_RESULT -> 7;
+            case COMPACTED_SUMMARY -> 2;
+        };
     }
 
     private List<RagReference> resolveRagReferences(
@@ -503,12 +518,9 @@ public class ChatContextService {
 
     private int candidateLimit() {
         return Math.max(positive(properties.getRedisCacheSize(), 30),
-                Math.max(positive(properties.getRelevantHistoryCandidateSize(), 50),
-                        positive(properties.getRecentWindowSize(), 6)));
-    }
-
-    private String normalize(String value) {
-        return nullToEmpty(value).toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim();
+                Math.max(positive(properties.getRecentWindowSize(), 6),
+                        positive(properties.getSummaryTriggerRecords(), 12)
+                                + positive(properties.getSummaryRefreshEveryRecords(), 6)));
     }
 
     private ChatRecord toChatRecord(Object value) {
@@ -611,15 +623,6 @@ public class ChatContextService {
         return persisted.getLastSummarizedRecordId();
     }
 
-    List<ChatRecord> selectIncrementalHistory(List<ChatRecord> history, Long lastSummarizedRecordId) {
-        if (lastSummarizedRecordId == null) {
-            return history;
-        }
-        return history.stream()
-                .filter(record -> record.getId() != null && record.getId() > lastSummarizedRecordId)
-                .toList();
-    }
-
     List<Message> buildSummaryPrompt(String existingSummary, List<ChatRecord> incrementalHistory) {
         String transcript = incrementalHistory.stream()
                 .map(this::toSummaryLine)
@@ -700,6 +703,4 @@ public class ChatContextService {
         }
     }
 
-    private record ScoredRecord(ChatRecord record, int score) {
-    }
 }

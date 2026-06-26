@@ -688,20 +688,16 @@
     }
 
     async function tryRefreshToken() {
-        const rt = localStorage.getItem('ai_studio_refresh_token');
-        if (!rt) return false;
         if (refreshPromise) { await refreshPromise; return true; }
         try {
             refreshPromise = (async () => {
                 const resp = await fetch('/api/auth/refresh', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refreshToken: rt })
+                    credentials: 'include'
                 });
                 if (!resp.ok) { doLogout(); throw new Error('refresh failed'); }
                 const data = await resp.json();
                 if (data.token) localStorage.setItem('ai_studio_token', data.token);
-                if (data.refreshToken) localStorage.setItem('ai_studio_refresh_token', data.refreshToken);
                 authToken = data.token || authToken;
             })();
             await refreshPromise;
@@ -733,8 +729,8 @@
     }
 
     function doLogout() {
+        fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
         localStorage.removeItem('ai_studio_token');
-        localStorage.removeItem('ai_studio_refresh_token');
         localStorage.removeItem('ai_studio_user');
         window.location.href = '/login';
     }

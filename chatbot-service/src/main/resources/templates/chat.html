@@ -1131,9 +1131,9 @@
         .review-issue-card {
             background: rgba(255,255,255,0.62);
             border: 1px solid var(--card-border);
-            border-radius: var(--radius-md);
-            padding: 1rem;
-            margin-bottom: 0.75rem;
+            border-radius: 18px;
+            padding: 0.82rem 0.9rem;
+            margin-bottom: 0.65rem;
             box-shadow: var(--shadow-sm);
         }
         .review-run-card {
@@ -1148,10 +1148,39 @@
             border-color: rgba(61,56,50,0.28);
             background: rgba(255,255,255,0.82);
         }
+        .review-issue-card {
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .review-issue-card:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        .review-issue-card.active {
+            border-color: rgba(61,56,50,0.34);
+            background: rgba(255,255,255,0.88);
+            box-shadow: var(--shadow-md);
+            position: relative;
+        }
+        .review-issue-card.active::before {
+            content: '';
+            position: absolute;
+            left: -1px;
+            top: 14px;
+            bottom: 14px;
+            width: 3px;
+            border-radius: 999px;
+            background: #9a6b3f;
+        }
         .review-card-title {
             font-weight: 600;
             color: var(--warm-800);
             font-size: 0.92rem;
+            line-height: 1.35;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
         .review-card-meta {
             color: var(--warm-500);
@@ -1193,6 +1222,386 @@
             color: var(--warm-700);
             white-space: pre-wrap;
             word-break: break-word;
+        }
+        .code-review-workbench-modal {
+            background: rgba(250,248,243,0.98);
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+        .code-review-workbench-modal .modal-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: hidden;
+        }
+        .code-review-workbench-modal .modal-footer {
+            display: none;
+        }
+        .code-review-context-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            color: var(--warm-600);
+            font-size: 0.82rem;
+        }
+        .code-review-context-bar span {
+            border: 1px solid var(--card-border);
+            background: rgba(255,255,255,0.62);
+            border-radius: 999px;
+            padding: 0.25rem 0.65rem;
+        }
+        .code-review-workbench {
+            display: grid;
+            grid-template-columns: minmax(280px, var(--review-issue-width, 320px)) 8px minmax(720px, 1fr);
+            gap: 10px;
+            height: calc(100vh - 156px);
+            min-height: 0;
+        }
+        .code-review-issues-pane,
+        .code-review-detail-pane {
+            min-width: 0;
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-md);
+            background: rgba(255,255,255,0.54);
+            padding: 14px;
+            box-shadow: var(--shadow-sm);
+        }
+        .code-review-detail-pane {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        .code-review-resizer {
+            cursor: col-resize;
+            border-radius: 999px;
+            background: rgba(92,86,77,0.10);
+            transition: var(--transition);
+        }
+        .code-review-resizer:hover,
+        .code-review-resizer.dragging {
+            background: rgba(92,86,77,0.28);
+        }
+        .code-review-workbench.diff-expanded {
+            grid-template-columns: 0 0 minmax(720px, 1fr);
+            gap: 0;
+        }
+        .code-review-workbench.diff-expanded .code-review-issues-pane,
+        .code-review-workbench.diff-expanded .code-review-resizer {
+            display: none;
+        }
+        .review-scroll-pane {
+            max-height: none;
+            height: calc(100vh - 230px);
+            overflow: auto;
+            padding-right: 3px;
+        }
+        .review-detail-panel {
+            max-height: none;
+            height: 100%;
+            overflow: auto;
+        }
+        .review-detail-section {
+            margin-top: 0.9rem;
+        }
+        .review-detail-label {
+            color: var(--warm-500);
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-bottom: 0.25rem;
+        }
+        .review-detail-text {
+            color: var(--warm-750, var(--warm-700));
+            font-size: 0.86rem;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .review-empty-state {
+            color: var(--warm-500);
+            border: 1px dashed rgba(92,86,77,0.22);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            background: rgba(255,255,255,0.42);
+        }
+        .review-summary-line {
+            color: var(--warm-650, var(--warm-600));
+            font-size: 0.80rem;
+            line-height: 1.42;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .review-issue-tags {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin: 0.42rem 0;
+        }
+        .review-status-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.14rem 0.48rem;
+            background: rgba(92,86,77,0.08);
+            color: var(--warm-600);
+            font-size: 0.68rem;
+            font-weight: 700;
+        }
+        .review-fix-stepper {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 6px;
+            margin-top: 0.85rem;
+        }
+        .review-fix-step {
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 0.35rem 0.45rem;
+            color: var(--warm-500);
+            background: rgba(255,255,255,0.48);
+            font-size: 0.68rem;
+            text-align: center;
+        }
+        .review-fix-step.active {
+            border-color: rgba(61,56,50,0.32);
+            color: var(--warm-800);
+            background: rgba(255,255,255,0.88);
+            font-weight: 700;
+        }
+        .review-fix-step.done {
+            border-color: rgba(74,180,108,0.25);
+            color: #277a43;
+            background: rgba(74,180,108,0.10);
+        }
+        @media (max-width: 1200px) {
+            .code-review-workbench {
+                grid-template-columns: 1fr;
+            }
+            .code-review-resizer {
+                display: none;
+            }
+            .review-scroll-pane,
+            .review-detail-panel {
+                max-height: 42vh;
+            }
+        }
+        .review-fix-panel {
+            background: rgba(255,255,255,0.72);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            box-shadow: var(--shadow-sm);
+            height: 100%;
+            min-height: 0;
+            flex-direction: column;
+        }
+        .review-fix-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 0.2rem 0.65rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            background: rgba(92,86,77,0.10);
+            color: var(--warm-700);
+        }
+        .review-fix-status.fixing,
+        .review-fix-status.applying {
+            background: rgba(82,130,196,0.12);
+            color: #315e9a;
+        }
+        .review-fix-status.review {
+            background: rgba(196,128,45,0.14);
+            color: #9a5f16;
+        }
+        .review-fix-status.applied {
+            background: rgba(74,180,108,0.14);
+            color: #277a43;
+        }
+        .review-fix-status.rejected,
+        .review-fix-status.failed {
+            background: rgba(220,80,60,0.12);
+            color: #b73122;
+        }
+        .review-fix-progress {
+            color: var(--warm-600);
+            font-size: 0.84rem;
+            margin: 0.55rem 0 0.75rem;
+        }
+        .review-diff-box {
+            max-height: none;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+            background: #1f1f1f;
+            color: #e5e7eb;
+            border-radius: 12px;
+            padding: 10px 0;
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+        .memory-modal-content {
+            max-height: 92vh;
+            overflow: hidden;
+        }
+        .memory-workbench {
+            display: grid;
+            grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+            gap: 18px;
+            min-height: 0;
+            height: min(680px, calc(92vh - 142px));
+        }
+        .memory-index-pane,
+        .memory-preview-pane {
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .memory-filter-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 8px;
+        }
+        .memory-filter-row .memory-filter-search {
+            grid-column: 1 / -1;
+        }
+        .memory-list {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+            padding-right: 3px;
+        }
+        .memory-card {
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .memory-card:hover,
+        .memory-card.active {
+            border-color: rgba(61,56,50,0.28);
+            background: rgba(255,255,255,0.78);
+        }
+        .memory-preview-card {
+            background: rgba(255,255,255,0.68);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            min-height: 0;
+        }
+        .memory-selected-preview {
+            flex: 1 1 auto;
+            overflow: auto;
+        }
+        .memory-field {
+            margin-top: 12px;
+        }
+        .memory-field:first-child {
+            margin-top: 0;
+        }
+        .memory-field-label {
+            color: var(--warm-500);
+            font-size: 0.72rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+        .memory-field-value {
+            color: var(--warm-750, var(--warm-700));
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.55;
+            font-size: 0.88rem;
+        }
+        .memory-import-panel {
+            flex: 0 0 auto;
+        }
+        .memory-import-panel textarea {
+            resize: vertical;
+            max-height: 150px;
+        }
+        .memory-import-output {
+            max-height: 180px;
+            min-height: 86px;
+            flex: initial;
+            margin: 0;
+        }
+        @media (max-width: 992px) {
+            .memory-modal-content {
+                max-height: none;
+            }
+            .memory-workbench {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            .memory-list {
+                max-height: 36vh;
+            }
+        }
+        .code-review-workbench.diff-expanded .review-diff-box {
+            max-height: none;
+        }
+        .code-review-history-drawer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            z-index: 20;
+            width: min(460px, 96vw);
+            height: 100%;
+            padding: 24px;
+            background: rgba(250,248,243,0.98);
+            border-left: 1px solid var(--card-border);
+            box-shadow: -18px 0 40px rgba(42,37,32,0.14);
+            transform: translateX(102%);
+            transition: transform 180ms ease;
+        }
+        .code-review-history-drawer.open {
+            transform: translateX(0);
+        }
+        .code-review-history-drawer .review-scroll-pane {
+            height: calc(100vh - 116px);
+        }
+        .review-diff-toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin: 0.6rem 0 0.5rem;
+            padding: 0.45rem 0.55rem;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.86);
+            color: var(--warm-600);
+            font-size: 0.76rem;
+        }
+        .review-diff-line {
+            display: block;
+            padding: 0 12px;
+            min-height: 1.1rem;
+            white-space: pre;
+        }
+        .review-diff-line.add {
+            background: rgba(34,197,94,0.14);
+            color: #86efac;
+        }
+        .review-diff-line.del {
+            background: rgba(248,113,113,0.14);
+            color: #fca5a5;
+        }
+        .review-diff-line.meta {
+            color: #a3a3a3;
+        }
+        .review-diff-line.hunk {
+            background: rgba(148,163,184,0.10);
+            color: #cbd5e1;
         }
 
         /* Code blocks */
@@ -1468,6 +1877,13 @@
                     <div class="nav-sub">查看 Agent Review 问题卡片</div>
                 </div>
             </div>
+            <div class="nav-card" onclick="openMemoryModal()">
+                <i class="bi bi-journal-bookmark"></i>
+                <div>
+                    <div style="font-weight:500;">长期记忆</div>
+                    <div class="nav-sub">管理跨会话偏好和项目约束</div>
+                </div>
+            </div>
         </div>
 
         <div class="recent-sessions" id="recentSessions">
@@ -1580,112 +1996,242 @@
     </main>
 </div>
 
-<!-- Code Review Modal -->
-<div class="modal fade" id="codeReviewModal" tabindex="-1" aria-hidden="true">
+<!-- Long-term Memory Modal -->
+<div class="modal fade" id="memoryModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content border-0">
+        <div class="modal-content border-0 memory-modal-content">
             <div class="modal-header border-0 px-5 pt-5 pb-3">
                 <div>
-                    <h4 class="mb-1">代码审查</h4>
-                    <div class="small" style="color:var(--warm-500);" id="codeReviewMeta">Review runs and issue cards</div>
+                    <h4 class="mb-1">长期记忆</h4>
+                    <div class="small" style="color:var(--warm-500);">左侧是当前上下文索引；点击条目预览 detail。新增记忆通过 AGENTS.md 导入或在聊天中要求 Agent 保存。</div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-dark" onclick="loadMemories()">刷新索引</button>
+                    <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body px-5 py-4">
+                <div class="memory-workbench">
+                    <div class="memory-index-pane">
+                        <div class="memory-filter-row">
+                            <select class="form-select form-select-sm" id="memoryTypeFilter" onchange="loadMemories()">
+                                <option value="">全部类型</option>
+                                <option value="user">user</option>
+                                <option value="feedback">feedback</option>
+                                <option value="project">project</option>
+                                <option value="reference">reference</option>
+                            </select>
+                            <select class="form-select form-select-sm" id="memoryStatusFilter" onchange="loadMemories()">
+                                <option value="ACTIVE">ACTIVE</option>
+                                <option value="DRAFT">DRAFT</option>
+                                <option value="ARCHIVED">ARCHIVED</option>
+                                <option value="">全部状态</option>
+                            </select>
+                            <input class="form-control form-control-sm memory-filter-search" id="memoryKeyword" placeholder="搜索标题或描述" onkeydown="if(event.key==='Enter') loadMemories()">
+                        </div>
+                        <div id="memoryList" class="memory-list"></div>
+                    </div>
+                    <div class="memory-preview-pane">
+                        <div class="memory-preview-card memory-selected-preview">
+                            <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+                                <div>
+                                    <h6 class="fw-bold mb-1" style="color:var(--warm-800);" id="memoryPreviewTitle">选择一条 memory</h6>
+                                    <div class="review-card-meta" id="memoryPreviewMeta">点击左侧索引查看详细内容。</div>
+                                </div>
+                                <span class="review-severity INFO" id="memoryPreviewStatus" style="display:none;"></span>
+                            </div>
+                            <div id="memoryPreviewBody" class="memory-field-value">暂无选中项。</div>
+                            <div class="agent-doc-actions mt-3" id="memoryPreviewActions" style="display:none;">
+                                <button class="agent-doc-btn" onclick="archiveSelectedMemory()">归档</button>
+                                <button class="agent-doc-btn" onclick="deleteSelectedMemory()">删除</button>
+                            </div>
+                        </div>
+                        <div class="memory-preview-card memory-import-panel">
+                            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                                <h6 class="fw-bold mb-0" style="color:var(--warm-800);">导入 AGENTS.md</h6>
+                                <div class="agent-doc-actions">
+                                    <button class="agent-doc-btn" onclick="previewMemoryImport()">预览</button>
+                                    <button class="agent-doc-btn" onclick="applyMemoryImportDrafts()">确认导入</button>
+                                </div>
+                            </div>
+                            <textarea class="form-control form-control-sm mb-2" id="memoryImportInput" rows="4" placeholder="粘贴 AGENTS.md 内容，或留空使用项目默认种子。"></textarea>
+                            <pre id="memoryImportOutput" class="review-diff-box memory-import-output">尚未生成导入预览。</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 px-5 pb-4 pt-2 justify-content-end">
+                <button class="btn btn-dark" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Code Review Workbench Modal -->
+<div class="modal fade" id="codeReviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content border-0 code-review-workbench-modal">
+            <div class="modal-header border-0 px-4 pt-4 pb-3">
+                <div>
+                    <h4 class="mb-1">Code Review Workbench</h4>
+                    <div class="small" style="color:var(--warm-500);" id="codeReviewMeta">选择一次 Review Run 后查看问题和修复流程。</div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-dark" onclick="openCodeReviewNewReviewModal()">New Review</button>
+                    <button class="btn btn-sm btn-outline-dark" onclick="openCodeReviewHistory()">处理历史</button>
+                    <button class="btn btn-sm btn-outline-dark" onclick="loadReviewRuns()">刷新</button>
+                    <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="px-4 pb-2">
+                <div class="code-review-context-bar">
+                    <span id="codeReviewWorkspaceMeta">当前会话 workspace</span>
+                    <span id="codeReviewRunContext">未选择 Review Run</span>
+                </div>
+            </div>
+            <div class="modal-body px-4 py-3">
+                <div class="code-review-workbench">
+                    <section class="code-review-issues-pane">
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+                                <h6 class="fw-bold mb-0" style="color:var(--warm-800);">Issues</h6>
+                                <span class="small" id="reviewIssueMeta" style="color:var(--warm-500);"></span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <select class="form-select form-select-sm" id="reviewIssueSeverityFilter" style="width:120px;" onchange="renderReviewIssuesFromCache()">
+                                    <option value="ALL">全部级别</option>
+                                    <option value="BLOCKER">BLOCKER</option>
+                                    <option value="HIGH">HIGH</option>
+                                    <option value="MEDIUM">MEDIUM</option>
+                                    <option value="LOW">LOW</option>
+                                    <option value="INFO">INFO</option>
+                                </select>
+                                <span class="review-status-pill">仅待处理</span>
+                            </div>
+                        </div>
+                        <div id="reviewIssueList" class="review-scroll-pane">
+                            <span style="color:var(--warm-500);">选择左侧一次审查查看问题列表。</span>
+                        </div>
+                    </section>
+                    <div class="code-review-resizer" id="codeReviewResizer" title="拖动调整 Issue List 宽度"></div>
+                    <aside class="code-review-detail-pane">
+                        <div id="reviewIssueDetailPanel" class="review-detail-panel">
+                            <div class="review-empty-state">请选择一个问题查看详情。</div>
+                        </div>
+                        <div class="review-fix-panel" id="reviewFixDraftPanel" style="display:none;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="fw-bold mb-0" style="color:var(--warm-800);">Fix Proposal</h6>
+                                <span class="review-fix-status idle" id="reviewFixDraftStatus">idle</span>
+                            </div>
+                            <div class="review-card-title" id="reviewFixDraftTitle">未选择修复问题</div>
+                            <div class="review-card-meta" id="reviewFixDraftMeta"></div>
+                            <div class="review-fix-stepper" id="reviewFixStepper"></div>
+                            <div class="review-fix-progress" id="reviewFixDraftProgress">请选择 Issue Detail 中的“生成修复建议”。</div>
+                            <div id="reviewFixDraftWarnings" class="small mb-2" style="color:var(--warm-600);"></div>
+                            <div id="reviewFixDraftError" class="small mb-2" style="color:#dc503c;"></div>
+                            <div class="review-diff-toolbar" id="reviewFixDiffToolbar">
+                                <span id="reviewFixDiffStats"></span>
+                                <button class="agent-doc-btn" id="reviewFixExpandBtn" onclick="toggleReviewDiffFocus(true)">Expand Diff</button>
+                                <button class="agent-doc-btn" id="reviewFixCollapseBtn" onclick="toggleReviewDiffFocus(false)" style="display:none;">Collapse Diff</button>
+                            </div>
+                            <pre id="reviewFixDraftDiff" class="review-diff-box"></pre>
+                            <div class="agent-doc-actions">
+                                <button class="agent-doc-btn" id="reviewFixAcceptBtn" onclick="acceptReviewFixDraft()">接受修改</button>
+                                <button class="agent-doc-btn" id="reviewFixRejectBtn" onclick="rejectReviewFixDraft()">放弃修改</button>
+                                <button class="agent-doc-btn" id="reviewFixRetryBtn" onclick="retryReviewFixDraft()" style="display:none;">重新生成</button>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+            <div class="code-review-history-drawer" id="codeReviewHistoryDrawer">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="mb-1">Review History</h5>
+                    <div class="small" style="color:var(--warm-500);">已处理、已忽略或已应用的问题，可回退为待处理。</div>
+                    </div>
+                    <button type="button" class="btn-close" onclick="closeCodeReviewHistory()"></button>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small" id="reviewProcessedIssueMeta" style="color:var(--warm-500);"></span>
+                    <button class="btn btn-sm btn-outline-dark" onclick="renderProcessedIssueHistory()">刷新</button>
+                </div>
+                <div id="reviewProcessedIssueList" class="review-scroll-pane"></div>
+            </div>
+            <div class="modal-footer border-0 px-4 pb-4 pt-2 justify-content-end">
+                <button class="btn btn-dark" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- New Code Review Modal -->
+<div class="modal fade" id="codeReviewNewReviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0">
+            <div class="modal-header border-0 px-4 pt-4 pb-2">
+                <div>
+                    <h5 class="mb-1">New Review</h5>
+                    <div class="small" style="color:var(--warm-500);">选择审查范围、文件和强度后发起新的代码审查。</div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body px-5 py-3">
-                <div class="row g-4">
-                    <div class="col-md-4">
-                        <div class="mb-4 p-3" style="background:var(--warm-100);border:1px solid var(--warm-200);border-radius:16px;">
-                            <h6 class="fw-bold mb-3" style="color:var(--warm-800);">Start Review</h6>
-                            <div class="mb-2">
-                                <select class="form-select form-select-sm" id="codeReviewScope" onchange="toggleCodeReviewScopeFields()">
-                                    <option value="FILE">单文件审查</option>
-                                    <option value="WORKSPACE">工作区审查</option>
-                                    <option value="GIT_DIFF">Git diff 审查</option>
-                                </select>
-                            </div>
-                            <div class="mb-2" id="codeReviewPathGroup">
-                                <input class="form-control form-control-sm" id="codeReviewPath" placeholder="文件路径，如 src/main/java/App.java">
-                                <div class="small mt-1" style="color:var(--warm-500);">工作区审查可填多个路径，用逗号分隔；Git diff 不需要填写。</div>
-                            </div>
-                            <div class="mb-2" id="codeReviewFileSelectGroup">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="small" style="color:var(--warm-600);">Workspace files</span>
-                                    <button class="btn btn-sm btn-outline-dark" onclick="loadReviewWorkspaceFiles()">加载文件</button>
-                                </div>
-                                <select class="form-select form-select-sm" id="codeReviewFileSelect" size="5" multiple onchange="applyReviewSelectedFiles()"></select>
-                                <div class="small mt-1" id="codeReviewFileSelectMeta" style="color:var(--warm-500);">选择文件后会自动填入路径。</div>
-                            </div>
-                            <div class="mb-2" id="codeReviewGitDiffGroup" style="display:none;">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="small" style="color:var(--warm-600);">Changed files</span>
-                                    <button class="btn btn-sm btn-outline-dark" onclick="loadReviewGitChangedFiles()">加载变更</button>
-                                </div>
-                                <select class="form-select form-select-sm" id="codeReviewGitDiffFileSelect" size="5" multiple onchange="loadSelectedGitDiffPreview()"></select>
-                                <div class="small mt-1" id="codeReviewGitDiffMeta" style="color:var(--warm-500);">Git diff 审查可多选部分变更文件；不选则审查全部可审查变更。</div>
-                                <pre id="codeReviewGitDiffPreview" class="mt-2" style="display:none;max-height:220px;overflow:auto;background:#1f1f1f;color:#f8f8f2;border-radius:10px;padding:10px;font-size:0.76rem;"></pre>
-                                <div class="agent-doc-actions mt-2" id="codeReviewGitDiffPreviewActions" style="display:none;">
-                                    <button class="agent-doc-btn" onclick="copyReviewGitDiffPreview()">复制 Diff</button>
-                                    <button class="agent-doc-btn" onclick="reviewCurrentGitDiffPreviewFile()">审查当前预览文件</button>
-                                </div>
-                            </div>
-                            <div class="mb-2">
-                                <input class="form-control form-control-sm" id="codeReviewFocus" placeholder="审查重点，可选，如异常处理/权限/并发">
-                            </div>
-                            <div class="mb-3">
-                                <input class="form-control form-control-sm" id="codeReviewMaxIssues" type="number" min="1" max="20" value="5" placeholder="最大问题数">
-                            </div>
-                            <button class="btn btn-sm btn-dark w-100" onclick="startCodeReview()">开始审查</button>
-                            <div class="small mt-2" id="codeReviewStartStatus" style="color:var(--warm-500);"></div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="fw-bold mb-0" style="color:var(--warm-800);">Review Runs</h6>
-                            <button class="btn btn-sm btn-outline-dark" onclick="loadReviewRuns()">刷新</button>
-                        </div>
-                        <div id="reviewRunList"></div>
+            <div class="modal-body px-4 py-3">
+                <div class="mb-3">
+                    <label class="form-label small" style="color:var(--warm-600);">审查范围</label>
+                    <select class="form-select form-select-sm" id="codeReviewScope" onchange="toggleCodeReviewScopeFields()">
+                        <option value="FILE">单文件审查</option>
+                        <option value="WORKSPACE">工作区审查</option>
+                        <option value="GIT_DIFF">Git diff 审查</option>
+                    </select>
+                </div>
+                <div class="mb-3" id="codeReviewPathGroup">
+                    <label class="form-label small" style="color:var(--warm-600);">文件路径</label>
+                    <input class="form-control form-control-sm" id="codeReviewPath" placeholder="文件路径，如 src/main/java/App.java">
+                    <div class="small mt-1" style="color:var(--warm-500);">工作区审查可填多个路径，用逗号分隔；Git diff 不需要填写。</div>
+                </div>
+                <div class="mb-3" id="codeReviewFileSelectGroup">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small mb-0" style="color:var(--warm-600);">Workspace files</label>
+                        <button class="btn btn-sm btn-outline-dark" onclick="loadReviewWorkspaceFiles()">加载文件</button>
                     </div>
-                    <div class="col-md-8">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="fw-bold mb-0" style="color:var(--warm-800);">Issue Cards</h6>
-                            <div class="d-flex align-items-center gap-2">
-                                <select class="form-select form-select-sm" id="reviewIssueStatusFilter" style="width:120px;" onchange="reloadActiveReviewIssues()">
-                                    <option value="ALL">全部</option>
-                                    <option value="OPEN">OPEN</option>
-                                    <option value="ACCEPTED">ACCEPTED</option>
-                                    <option value="IGNORED">IGNORED</option>
-                                    <option value="FIXED">FIXED</option>
-                                </select>
-                                <span class="small" style="color:var(--warm-500);" id="reviewIssueMeta"></span>
-                            </div>
-                        </div>
-                        <div id="reviewIssueList">
-                            <span style="color:var(--warm-500);">选择左侧一次审查查看问题卡片。</span>
-                        </div>
-                        <div class="mt-4" id="reviewFixDraftPanel" style="display:none;">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h6 class="fw-bold mb-0" style="color:var(--warm-800);">Agent 修复 Diff</h6>
-                                <span class="small" id="reviewFixDraftMeta" style="color:var(--warm-500);"></span>
-                            </div>
-                            <pre id="reviewFixDraftDiff" style="max-height:360px;overflow:auto;background:#1f1f1f;color:#f8f8f2;border-radius:12px;padding:12px;font-size:0.78rem;"></pre>
-                            <div id="reviewFixDraftWarnings" class="small mb-2" style="color:var(--warm-600);"></div>
-                            <div class="agent-doc-actions">
-                                <button class="agent-doc-btn" onclick="acceptReviewFixDraft()">接受修改</button>
-                                <button class="agent-doc-btn" onclick="rejectReviewFixDraft()">拒绝修改</button>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h6 class="fw-bold mb-0" style="color:var(--warm-800);">Pending Apply Actions</h6>
-                                <button class="btn btn-sm btn-outline-dark" onclick="loadReviewPendingActions()">刷新</button>
-                            </div>
-                            <div id="reviewPendingActionList">
-                                <span style="color:var(--warm-500);">暂无待确认操作。</span>
-                            </div>
-                        </div>
+                    <select class="form-select form-select-sm" id="codeReviewFileSelect" size="6" multiple onchange="applyReviewSelectedFiles()"></select>
+                    <div class="small mt-1" id="codeReviewFileSelectMeta" style="color:var(--warm-500);">选择文件后会自动填入路径。</div>
+                </div>
+                <div class="mb-3" id="codeReviewGitDiffGroup" style="display:none;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small mb-0" style="color:var(--warm-600);">Changed files</label>
+                        <button class="btn btn-sm btn-outline-dark" onclick="loadReviewGitChangedFiles()">加载变更</button>
+                    </div>
+                    <select class="form-select form-select-sm" id="codeReviewGitDiffFileSelect" size="6" multiple onchange="loadSelectedGitDiffPreview()"></select>
+                    <div class="small mt-1" id="codeReviewGitDiffMeta" style="color:var(--warm-500);">Git diff 审查可多选部分变更文件；不选则审查全部可审查变更。</div>
+                    <pre id="codeReviewGitDiffPreview" class="review-diff-box mt-2" style="display:none;max-height:220px;"></pre>
+                    <div class="agent-doc-actions mt-2" id="codeReviewGitDiffPreviewActions" style="display:none;">
+                        <button class="agent-doc-btn" onclick="copyReviewGitDiffPreview()">复制 Diff</button>
+                        <button class="agent-doc-btn" onclick="reviewCurrentGitDiffPreviewFile()">审查当前预览文件</button>
                     </div>
                 </div>
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label small" style="color:var(--warm-600);">审查重点</label>
+                        <input class="form-control form-control-sm" id="codeReviewFocus" placeholder="可选，如 security / reliability / performance">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small" style="color:var(--warm-600);">审查强度</label>
+                        <select class="form-select form-select-sm" id="codeReviewIntensity" onchange="applyCodeReviewIntensity()">
+                            <option value="FAST">快速</option>
+                            <option value="STANDARD" selected>标准</option>
+                            <option value="DEEP">深度</option>
+                        </select>
+                    </div>
+                </div>
+                <input id="codeReviewMaxIssues" type="hidden" value="5">
+                <div class="small mt-3" id="codeReviewStartStatus" style="color:var(--warm-500);"></div>
             </div>
-            <div class="modal-footer border-0 px-5 pb-5 pt-2 justify-content-end">
-                <button class="btn btn-dark" data-bs-dismiss="modal">Close</button>
+            <div class="modal-footer border-0 px-4 pb-4 pt-2 justify-content-end">
+                <button class="btn btn-outline-dark" data-bs-dismiss="modal">取消</button>
+                <button class="btn btn-dark" onclick="startCodeReview()">开始审查</button>
             </div>
         </div>
     </div>
@@ -1851,11 +2397,21 @@
     const ragTopKSelect = document.getElementById('ragTopKSelect');
     const ragReferenceBar = document.getElementById('ragReferenceBar');
     let knowledgeModal;
+    let memoryModal;
+    let memoryImportDrafts = [];
+    let currentMemoryList = [];
+    let selectedMemory = null;
+    let activeMemorySuggestionId = null;
     let documentViewerModal;
     let workspaceModal;
     let codeReviewModal;
+    let codeReviewNewReviewModal;
     let activeReviewRunId = '';
+    let activeReviewIssueId = '';
     let reviewPatchCache = {};
+    let reviewIssueCache = {};
+    let currentReviewIssues = [];
+    let isCodeReviewResizing = false;
     let activeGitDiffPreviewPath = '';
     let activeGitDiffPreviewText = '';
     let activeReviewFixDraft = null;
@@ -2045,9 +2601,6 @@
         if (authData.token) {
             localStorage.setItem('ai_studio_token', authData.token);
         }
-        if (authData.refreshToken) {
-            localStorage.setItem('ai_studio_refresh_token', authData.refreshToken);
-        }
         localStorage.setItem('ai_studio_user', JSON.stringify(currentUser));
         currentUserDisplay.innerText = currentUser.displayName || currentUser.username;
     }
@@ -2055,8 +2608,6 @@
     let refreshPromise = null;
 
     async function tryRefreshToken() {
-        const refreshToken = localStorage.getItem('ai_studio_refresh_token');
-        if (!refreshToken) return false;
         if (refreshPromise) {
             try {
                 await refreshPromise;
@@ -2069,8 +2620,7 @@
             refreshPromise = (async () => {
                 const resp = await fetch('/api/auth/refresh', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refreshToken })
+                    credentials: 'include'
                 });
                 if (!resp.ok) {
                     clearAuthState();
@@ -2090,13 +2640,13 @@
 
     function clearAuthState() {
         localStorage.removeItem('ai_studio_token');
-        localStorage.removeItem('ai_studio_refresh_token');
         localStorage.removeItem('ai_studio_user');
         authToken = '';
         currentUser = null;
     }
 
     function logout() {
+        fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
         clearAuthState();
         window.location.replace('/login');
     }
@@ -2248,6 +2798,10 @@
 
     function handleAgentStreamEvent(eventName, json, state, targetBubble, loadingHtml) {
         const name = eventName || 'message';
+        if (name === 'reviewSummary') {
+            handleReviewSummaryStreamEvent(json);
+            return true;
+        }
         if (name === 'agent_status') {
             return true;
         }
@@ -2261,9 +2815,12 @@
             if (json.requiresConfirmation && json.actionId) {
                 const exists = state.pendingActions.some(action => String(action.actionId) === String(json.actionId));
                 if (!exists) {
+                    const label = json.actionType === 'SAVE_LONG_TERM_MEMORY'
+                        ? `保存长期记忆：${json.name || json.memoryType || 'memory'}`
+                        : `${json.actionType || 'Action'} #${json.actionId}`;
                     state.pendingActions.push({
                         actionId: json.actionId,
-                        label: `${json.actionType || 'Action'} #${json.actionId}`
+                        label
                     });
                 }
             }
@@ -2404,6 +2961,22 @@
             titleEl.textContent = 'Open failed';
             contentEl.innerHTML = `<span style="color:#dc503c;">${e && e.message ? e.message : 'Unable to open document.'}</span>`;
         }
+    }
+
+    function handleReviewSummaryStreamEvent(summary) {
+        if (!summary || !summary.runId) return;
+        activeReviewRunId = summary.runId;
+        const runContext = document.getElementById('codeReviewRunContext');
+        if (runContext) {
+            runContext.textContent = 'Active Review Run ' + summary.runId;
+        }
+        loadReviewRuns()
+            .then(function() {
+                if (summary.runId) return loadReviewIssues(summary.runId);
+            })
+            .catch(function(e) {
+                console.warn('Refresh review panel after chat review failed', e);
+            });
     }
 
     async function openWorkspaceFile(workspaceId, encodedPath) {
@@ -2843,10 +3416,84 @@
             codeReviewModal = new bootstrap.Modal(document.getElementById('codeReviewModal'));
         }
         codeReviewModal.show();
-        toggleCodeReviewScopeFields();
-        await loadReviewWorkspaceFiles();
+        const workspaceMeta = document.getElementById('codeReviewWorkspaceMeta');
+        if (workspaceMeta) workspaceMeta.textContent = 'Session workspace · ' + activeSessionId;
+        initCodeReviewResizableLayout();
         await loadReviewRuns();
-        await loadReviewPendingActions();
+    }
+
+    async function openCodeReviewHistory() {
+        if (!currentUser || !activeSessionId) return;
+        const drawer = document.getElementById('codeReviewHistoryDrawer');
+        if (drawer) drawer.classList.add('open');
+        renderProcessedIssueHistory();
+    }
+
+    function closeCodeReviewHistory() {
+        const drawer = document.getElementById('codeReviewHistoryDrawer');
+        if (drawer) drawer.classList.remove('open');
+    }
+
+    function initCodeReviewResizableLayout() {
+        const workbench = document.querySelector('.code-review-workbench');
+        const resizer = document.getElementById('codeReviewResizer');
+        if (!workbench || !resizer || resizer.dataset.initialized === 'true') return;
+        const savedWidth = localStorage.getItem('codeReviewIssueListWidth');
+        if (savedWidth) workbench.style.setProperty('--review-issue-width', savedWidth + 'px');
+        resizer.dataset.initialized = 'true';
+        resizer.addEventListener('mousedown', function(event) {
+            isCodeReviewResizing = true;
+            resizer.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            event.preventDefault();
+        });
+        document.addEventListener('mousemove', function(event) {
+            if (!isCodeReviewResizing) return;
+            const rect = workbench.getBoundingClientRect();
+            const nextWidth = Math.max(280, Math.min(520, event.clientX - rect.left));
+            workbench.style.setProperty('--review-issue-width', nextWidth + 'px');
+            localStorage.setItem('codeReviewIssueListWidth', String(nextWidth));
+        });
+        document.addEventListener('mouseup', function() {
+            if (!isCodeReviewResizing) return;
+            isCodeReviewResizing = false;
+            resizer.classList.remove('dragging');
+            document.body.style.cursor = '';
+        });
+    }
+
+    function toggleReviewDiffFocus(expanded) {
+        const workbench = document.querySelector('.code-review-workbench');
+        const expandBtn = document.getElementById('reviewFixExpandBtn');
+        const collapseBtn = document.getElementById('reviewFixCollapseBtn');
+        if (workbench) workbench.classList.toggle('diff-expanded', Boolean(expanded));
+        if (expandBtn) expandBtn.style.display = expanded ? 'none' : 'inline-flex';
+        if (collapseBtn) collapseBtn.style.display = expanded ? 'inline-flex' : 'none';
+    }
+
+    async function openCodeReviewNewReviewModal() {
+        if (!currentUser || !activeSessionId) return;
+        if (!codeReviewNewReviewModal) {
+            codeReviewNewReviewModal = new bootstrap.Modal(document.getElementById('codeReviewNewReviewModal'));
+        }
+        const statusEl = document.getElementById('codeReviewStartStatus');
+        if (statusEl) {
+            statusEl.textContent = '';
+            statusEl.style.color = 'var(--warm-500)';
+        }
+        applyCodeReviewIntensity();
+        toggleCodeReviewScopeFields();
+        codeReviewNewReviewModal.show();
+        await loadReviewWorkspaceFiles();
+    }
+
+    function applyCodeReviewIntensity() {
+        const intensity = (document.getElementById('codeReviewIntensity') || {}).value || 'STANDARD';
+        const maxIssuesEl = document.getElementById('codeReviewMaxIssues');
+        if (!maxIssuesEl) return;
+        if (intensity === 'FAST') maxIssuesEl.value = '3';
+        else if (intensity === 'DEEP') maxIssuesEl.value = '10';
+        else maxIssuesEl.value = '5';
     }
 
     function toggleCodeReviewScopeFields() {
@@ -3024,6 +3671,9 @@
                 statusEl.textContent = '审查完成：' + (result.summary || result.runId || '');
                 statusEl.style.color = '#4ade80';
             }
+            if (codeReviewNewReviewModal) {
+                codeReviewNewReviewModal.hide();
+            }
             await loadReviewRuns();
             if (result.runId) {
                 await loadReviewIssues(result.runId);
@@ -3043,15 +3693,18 @@
         return diff.split('\n').map(function(line) {
             const escaped = escapeHtml(line);
             if (line.startsWith('+') && !line.startsWith('+++')) {
-                return '<span style="color:#4ade80;">' + escaped + '</span>';
+                return '<span class="review-diff-line add">' + escaped + '</span>';
             }
             if (line.startsWith('-') && !line.startsWith('---')) {
-                return '<span style="color:#f87171;">' + escaped + '</span>';
+                return '<span class="review-diff-line del">' + escaped + '</span>';
             }
-            if (line.startsWith('@@') || line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++')) {
-                return '<span style="color:#a3a3a3;">' + escaped + '</span>';
+            if (line.startsWith('@@')) {
+                return '<span class="review-diff-line hunk">' + escaped + '</span>';
             }
-            return '<span style="color:#e5e7eb;">' + escaped + '</span>';
+            if (line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++')) {
+                return '<span class="review-diff-line meta">' + escaped + '</span>';
+            }
+            return '<span class="review-diff-line">' + escaped + '</span>';
         }).join('\n');
     }
 
@@ -3119,21 +3772,30 @@
         const runList = document.getElementById('reviewRunList');
         const issueList = document.getElementById('reviewIssueList');
         const meta = document.getElementById('codeReviewMeta');
-        if (!runList || !activeSessionId) return;
-        runList.innerHTML = '<span style="color:var(--warm-500);">Loading review runs...</span>';
-        if (issueList) issueList.innerHTML = '<span style="color:var(--warm-500);">选择左侧一次审查查看问题卡片。</span>';
-        if (meta) meta.textContent = activeSessionId;
+        const runMeta = document.getElementById('reviewRunMeta');
+        if (!activeSessionId) return;
+        if (runList) runList.innerHTML = '<span style="color:var(--warm-500);">Loading review runs...</span>';
+        if (issueList) issueList.innerHTML = '<span style="color:var(--warm-500);">选择左侧一次审查查看问题列表。</span>';
+        if (meta) meta.textContent = 'Session ' + activeSessionId;
         try {
             const response = await authFetch('/api/chat/agent/review/runs?sessionId=' + encodeURIComponent(activeSessionId) + '&limit=20');
             const result = await response.json();
             if (!result.success) throw new Error(result.error || 'Load review runs failed.');
             const runs = result.runs || [];
+            if (runMeta) runMeta.textContent = runs.length + ' runs';
             renderReviewRuns(runs);
             if (runs.length > 0) {
-                await loadReviewIssues(runs[0].runId);
+                const preferredRunId = activeReviewRunId && runs.some(run => run.runId === activeReviewRunId) ? activeReviewRunId : runs[0].runId;
+                await loadReviewIssues(preferredRunId);
+            } else {
+                activeReviewRunId = '';
+                currentReviewIssues = [];
+                reviewIssueCache = {};
+                activeReviewIssueId = '';
+                renderReviewIssueEmptyState('当前会话还没有代码审查记录。点击 New Review 发起一次审查。');
             }
         } catch (e) {
-            runList.innerHTML = '<span style="color:#dc503c;">' + escapeHtml(e && e.message ? e.message : 'Unable to load review runs.') + '</span>';
+            if (runList) runList.innerHTML = '<span style="color:#dc503c;">' + escapeHtml(e && e.message ? e.message : 'Unable to load review runs.') + '</span>';
         }
     }
 
@@ -3160,7 +3822,13 @@
 
     async function loadReviewIssues(runId) {
         if (!runId) return;
+        closeCodeReviewHistory();
+        const switchingRun = activeReviewRunId !== runId;
         activeReviewRunId = runId;
+        if (switchingRun) {
+            activeReviewIssueId = '';
+            activeReviewFixDraft = null;
+        }
         document.querySelectorAll('.review-run-card').forEach(function(card) {
             card.classList.toggle('active', card.getAttribute('data-run-id') === runId);
         });
@@ -3168,6 +3836,8 @@
         const issueMeta = document.getElementById('reviewIssueMeta');
         if (issueList) issueList.innerHTML = '<span style="color:var(--warm-500);">Loading issues...</span>';
         if (issueMeta) issueMeta.textContent = runId;
+        renderReviewIssueEmptyState('正在加载当前 Review Run 的问题列表...');
+        syncConversationActiveReviewRun(runId);
         try {
             const statusFilter = document.getElementById('reviewIssueStatusFilter');
             const selectedStatus = statusFilter && statusFilter.value ? statusFilter.value : 'ALL';
@@ -3178,10 +3848,33 @@
             const response = await authFetch(url);
             const result = await response.json();
             if (!result.success) throw new Error(result.error || 'Load issues failed.');
-            renderReviewIssues(result.issues || []);
+            currentReviewIssues = result.issues || [];
+            renderReviewIssuesFromCache();
+            renderReviewRunContextFromActiveCard();
         } catch (e) {
             if (issueList) issueList.innerHTML = '<span style="color:#dc503c;">' + escapeHtml(e && e.message ? e.message : 'Unable to load issues.') + '</span>';
+            renderReviewIssueEmptyState(e && e.message ? e.message : 'Unable to load issues.');
         }
+    }
+
+    async function syncConversationActiveReviewRun(runId) {
+        if (!runId || !activeSessionId) return;
+        try {
+            await authFetch('/api/chat/agent/conversation/context/active-run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: activeSessionId,
+                    runId: runId
+                })
+            });
+        } catch (e) {
+            console.warn('Sync active review run failed', e);
+        }
+    }
+
+    function renderReviewIssuesFromCache() {
+        renderReviewIssues(currentReviewIssues || []);
     }
 
     function renderReviewIssues(issues) {
@@ -3189,34 +3882,212 @@
         const issueMeta = document.getElementById('reviewIssueMeta');
         if (!issueList) return;
         reviewPatchCache = {};
-        if (issueMeta) issueMeta.textContent = (issues || []).length + ' issues';
-        if (!issues || issues.length === 0) {
-            issueList.innerHTML = '<span style="color:var(--warm-500);">这次审查没有发现需要展示的问题。</span>';
+        reviewIssueCache = {};
+        const severityFilter = (document.getElementById('reviewIssueSeverityFilter') || {}).value || 'ALL';
+        let filtered = (issues || []).slice();
+        if (severityFilter && severityFilter !== 'ALL') {
+            filtered = filtered.filter(issue => String(issue.severity || '').toUpperCase() === severityFilter);
+        }
+        filtered = filtered.filter(isPendingReviewIssue);
+        filtered.sort(compareReviewIssues);
+        const processedCount = (issues || []).filter(issue => !isPendingReviewIssue(issue)).length;
+        if (issueMeta) issueMeta.textContent = filtered.length + ' pending · ' + processedCount + ' processed';
+        if (!filtered || filtered.length === 0) {
+            issueList.innerHTML = '<span style="color:var(--warm-500);">当前筛选条件下没有问题。</span>';
+            renderReviewIssueEmptyState('请选择其他筛选条件或切换 Review Run。');
             return;
         }
-        issueList.innerHTML = issues.map(function(issue, index) {
+        issueList.innerHTML = filtered.map(function(issue, index) {
             const severity = escapeHtml(issue.severity || 'INFO');
             const patchKey = 'review_patch_' + index;
+            const issueId = Number(issue.id || 0);
+            if (issueId) {
+                reviewIssueCache[String(issueId)] = issue;
+            }
             if (issue.suggestedPatch) {
                 reviewPatchCache[patchKey] = issue.suggestedPatch;
             }
-            const previewButton = issue.filePath
-                ? '<button class="agent-doc-btn" onclick="createReviewApplyPreview(' + Number(issue.id || 0) + ', \'' + encodeURIComponent(issue.filePath || '') + '\', \'' + patchKey + '\')">修复</button>'
-                : '';
-            const status = escapeHtml(issue.status || 'OPEN');
+            const active = String(issueId) === String(activeReviewIssueId) ? ' active' : '';
+            const status = escapeHtml(mapReviewIssueStatus(issue.status || 'OPEN'));
+            const location = formatReviewIssueLocation(issue);
+            const summary = issue.description || issue.recommendation || issue.impact || '';
+            return '<div class="review-issue-card' + active + '" data-issue-id="' + issueId + '" onclick="selectReviewIssue(' + issueId + ')">' +
+                '<div class="d-flex justify-content-between align-items-start gap-2 mb-2">' +
+                    '<div class="review-card-title">' + escapeHtml(issue.title || 'Review issue') + '</div>' +
+                    '<span class="review-severity ' + severity + '">' + severity + '</span>' +
+                '</div>' +
+                '<div class="review-card-meta">' + escapeHtml(issue.category || 'GENERAL') + '</div>' +
+                '<div class="review-card-meta">' + escapeHtml(location) + '</div>' +
+                '<div class="review-issue-tags"><span class="review-status-pill">' + status + '</span></div>' +
+                '<div class="review-summary-line">' + escapeHtml(summary) + '</div>' +
+            '</div>';
+        }).join('');
+        if (!activeReviewIssueId || !reviewIssueCache[String(activeReviewIssueId)]) {
+            const firstIssue = filtered.find(issue => Number(issue.id || 0));
+            if (firstIssue) selectReviewIssue(Number(firstIssue.id || 0), true);
+        } else {
+            selectReviewIssue(activeReviewIssueId, true);
+        }
+    }
+
+    function compareReviewIssues(a, b) {
+        const severityRank = { BLOCKER: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 };
+        const statusRank = { OPEN: 0, ACCEPTED: 1, IGNORED: 2, FIXED: 3 };
+        const sa = severityRank[String(a.severity || 'INFO').toUpperCase()] ?? 9;
+        const sb = severityRank[String(b.severity || 'INFO').toUpperCase()] ?? 9;
+        if (sa !== sb) return sa - sb;
+        const sta = statusRank[String(a.status || 'OPEN').toUpperCase()] ?? 9;
+        const stb = statusRank[String(b.status || 'OPEN').toUpperCase()] ?? 9;
+        if (sta !== stb) return sta - stb;
+        return String(a.filePath || '').localeCompare(String(b.filePath || '')) || Number(a.startLine || 0) - Number(b.startLine || 0);
+    }
+
+    function isPendingReviewIssue(issue) {
+        const status = String(issue && issue.status ? issue.status : 'OPEN').toUpperCase();
+        return status !== 'IGNORED' && status !== 'FIXED';
+    }
+
+    function mapReviewIssueStatus(status) {
+        const normalized = String(status || 'OPEN').toUpperCase();
+        if (normalized === 'IGNORED') return 'DISMISSED';
+        if (normalized === 'ACCEPTED') return 'OPEN';
+        return normalized;
+    }
+
+    function formatReviewIssueLocation(issue) {
+        const path = issue && issue.filePath ? issue.filePath : '';
+        const start = Number(issue && issue.startLine ? issue.startLine : 0);
+        const end = Number(issue && issue.endLine ? issue.endLine : 0);
+        if (!path) return '';
+        if (start && end && end !== start) return path + ':' + start + '-' + end;
+        if (start) return path + ':' + start;
+        return path;
+    }
+
+    function selectReviewIssue(issueId, silent) {
+        if (!issueId) return;
+        const issue = reviewIssueCache[String(issueId)] || (currentReviewIssues || []).find(item => String(item.id) === String(issueId));
+        if (!issue) return;
+        activeReviewIssueId = String(issueId);
+        document.querySelectorAll('.review-issue-card').forEach(function(card) {
+            card.classList.toggle('active', card.getAttribute('data-issue-id') === String(issueId));
+        });
+        activeReviewFixDraft = null;
+        const fixPanel = document.getElementById('reviewFixDraftPanel');
+        if (fixPanel) fixPanel.style.display = 'none';
+        toggleReviewDiffFocus(false);
+        renderReviewIssueDetail(issue);
+        if (!silent) {
+            const detail = document.getElementById('reviewIssueDetailPanel');
+            if (detail) detail.scrollTop = 0;
+        }
+    }
+
+    function renderReviewIssueEmptyState(message) {
+        const detailPanel = document.getElementById('reviewIssueDetailPanel');
+        const fixPanel = document.getElementById('reviewFixDraftPanel');
+        if (fixPanel) fixPanel.style.display = 'none';
+        toggleReviewDiffFocus(false);
+        if (detailPanel) {
+            detailPanel.style.display = 'block';
+            detailPanel.innerHTML = '<div class="review-empty-state">' + escapeHtml(message || '请选择一个问题查看详情。') + '</div>';
+        }
+    }
+
+    function renderReviewIssueDetail(issue) {
+        const detailPanel = document.getElementById('reviewIssueDetailPanel');
+        if (!detailPanel) return;
+        detailPanel.style.display = 'block';
+        const issueId = Number(issue.id || 0);
+        const severity = escapeHtml(issue.severity || 'INFO');
+        const status = escapeHtml(mapReviewIssueStatus(issue.status || 'OPEN'));
+        const location = formatReviewIssueLocation(issue);
+        const encodedPath = encodeURIComponent(issue.filePath || '');
+        const patchKey = 'review_detail_patch_' + issueId;
+        reviewPatchCache[patchKey] = issue.suggestedPatch || '';
+        const fixButton = issue.filePath
+            ? '<button class="agent-doc-btn" onclick="createReviewApplyPreview(' + issueId + ', \'' + encodedPath + '\', \'' + patchKey + '\')">生成修复建议</button>'
+            : '';
+        detailPanel.innerHTML =
+            '<div class="d-flex justify-content-between align-items-start gap-2 mb-2">' +
+                '<div class="review-card-title">' + escapeHtml(issue.title || 'Review issue') + '</div>' +
+                '<span class="review-severity ' + severity + '">' + severity + '</span>' +
+            '</div>' +
+            '<div class="review-card-meta mb-3">' + escapeHtml(issue.category || '') + ' · ' + escapeHtml(location) + ' · ' + status + '</div>' +
+            '<div class="agent-doc-actions mb-3">' +
+                fixButton +
+                '<button class="agent-doc-btn" onclick="updateReviewIssueStatus(' + issueId + ', \'IGNORED\')">忽略</button>' +
+                '<button class="agent-doc-btn" onclick="updateReviewIssueStatus(' + issueId + ', \'FIXED\')">标记已处理</button>' +
+            '</div>' +
+            '<div class="review-detail-section">' +
+                '<div class="review-detail-label">Description</div>' +
+                '<div class="review-detail-text">' + escapeHtml(issue.description || '') + '</div>' +
+            '</div>' +
+            '<div class="review-detail-section">' +
+                '<div class="review-detail-label">Evidence</div>' +
+                '<div class="review-evidence">' + escapeHtml(issue.evidence || '') + '</div>' +
+            '</div>' +
+            '<div class="review-detail-section">' +
+                '<div class="review-detail-label">Impact</div>' +
+                '<div class="review-detail-text">' + escapeHtml(issue.impact || '') + '</div>' +
+            '</div>' +
+            '<div class="review-detail-section">' +
+                '<div class="review-detail-label">Recommendation</div>' +
+                '<div class="review-detail-text">' + escapeHtml(issue.recommendation || '') + '</div>' +
+            '</div>';
+    }
+
+    function renderReviewRunContextFromActiveCard() {
+        const context = document.getElementById('codeReviewRunContext');
+        if (!context) return;
+        const activeCard = document.querySelector('.review-run-card.active');
+        context.textContent = activeCard ? activeCard.textContent.replace(/\s+/g, ' ').trim().substring(0, 120) : '未选择 Review Run';
+    }
+
+    function renderProcessedIssueHistory() {
+        const listEl = document.getElementById('reviewProcessedIssueList');
+        const metaEl = document.getElementById('reviewProcessedIssueMeta');
+        if (!listEl) return;
+        const processed = (currentReviewIssues || []).filter(issue => !isPendingReviewIssue(issue)).sort(compareReviewIssues);
+        if (metaEl) metaEl.textContent = processed.length + ' processed issues';
+        if (processed.length === 0) {
+            listEl.innerHTML = '<div class="review-empty-state">当前 Review Run 还没有已处理或已忽略的问题。</div>';
+            return;
+        }
+        listEl.innerHTML = processed.map(function(issue) {
+            const issueId = Number(issue.id || 0);
+            const severity = escapeHtml(issue.severity || 'INFO');
+            const status = escapeHtml(mapReviewIssueStatus(issue.status || 'OPEN'));
+            const location = formatReviewIssueLocation(issue);
+            const summary = issue.description || issue.recommendation || issue.impact || '';
             return '<div class="review-issue-card">' +
                 '<div class="d-flex justify-content-between align-items-start gap-2 mb-2">' +
                     '<div class="review-card-title">' + escapeHtml(issue.title || 'Review issue') + '</div>' +
                     '<span class="review-severity ' + severity + '">' + severity + '</span>' +
                 '</div>' +
-                '<div class="review-card-meta mb-2">' + escapeHtml(issue.category || '') + ' · ' + escapeHtml(issue.filePath || '') + ':' + escapeHtml(String(issue.startLine || 0)) + ' · ' + status + '</div>' +
-                '<div class="mb-2" style="color:var(--warm-700);font-size:0.86rem;">' + escapeHtml(issue.description || '') + '</div>' +
-                '<div class="review-evidence mb-2">' + escapeHtml(issue.evidence || '') + '</div>' +
-                '<div class="mb-2" style="color:var(--warm-600);font-size:0.82rem;"><b>影响：</b>' + escapeHtml(issue.impact || '') + '</div>' +
-                '<div class="mb-3" style="color:var(--warm-700);font-size:0.82rem;"><b>建议：</b>' + escapeHtml(issue.recommendation || '') + '</div>' +
-                '<div class="agent-doc-actions">' + previewButton + '</div>' +
+                '<div class="review-card-meta">' + escapeHtml(issue.category || 'GENERAL') + '</div>' +
+                '<div class="review-card-meta">' + escapeHtml(location) + '</div>' +
+                '<div class="review-issue-tags"><span class="review-status-pill">' + status + '</span></div>' +
+                '<div class="review-summary-line mb-2">' + escapeHtml(summary) + '</div>' +
+                '<div class="agent-doc-actions">' +
+                    '<button class="agent-doc-btn" onclick="rollbackReviewIssueToOpen(' + issueId + ')">回退为待处理</button>' +
+                '</div>' +
             '</div>';
         }).join('');
+    }
+
+    async function rollbackReviewIssueToOpen(issueId) {
+        if (!issueId) return;
+        try {
+            await setReviewIssueStatus(issueId, 'OPEN');
+            closeCodeReviewHistory();
+            if (activeReviewRunId) await loadReviewIssues(activeReviewRunId);
+        } catch (e) {
+            const listEl = document.getElementById('reviewProcessedIssueList');
+            if (listEl) {
+                listEl.insertAdjacentHTML('afterbegin', '<div class="small mb-2" style="color:#dc503c;">' + escapeHtml(e && e.message ? e.message : 'Rollback failed.') + '</div>');
+            }
+        }
     }
 
     async function reloadActiveReviewIssues() {
@@ -3239,19 +4110,27 @@
     async function updateReviewIssueStatus(issueId, status) {
         if (!issueId || !status) return;
         try {
-            const response = await authFetch('/api/chat/agent/review/issues/' + encodeURIComponent(issueId) + '/status', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: status })
-            });
-            const result = await response.json();
-            if (!result.success) throw new Error(result.error || 'Update issue status failed.');
+            await setReviewIssueStatus(issueId, status);
             if (activeReviewRunId) {
                 await loadReviewIssues(activeReviewRunId);
             }
         } catch (e) {
             alert(e && e.message ? e.message : 'Update issue status failed.');
         }
+    }
+
+    async function setReviewIssueStatus(issueId, status) {
+        const response = await authFetch('/api/chat/agent/review/issues/' + encodeURIComponent(issueId) + '/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: status })
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'Update issue status failed.');
+        (currentReviewIssues || []).forEach(function(issue) {
+            if (String(issue.id) === String(issueId)) issue.status = status;
+        });
+        return result;
     }
 
     async function createReviewPatchSuggestion(issueId, encodedPath) {
@@ -3279,6 +4158,19 @@
         if (!issueId || !encodedPath || !activeSessionId) return;
         const relativePath = decodeURIComponent(encodedPath);
         const suggestedPatch = reviewPatchCache[patchKey] || '';
+        const issue = reviewIssueCache[String(issueId)] || {};
+        activeReviewFixDraft = {
+            issueId: issueId,
+            relativePath: relativePath,
+            suggestedPatch: suggestedPatch,
+            issue: issue,
+            state: 'fixing',
+            applicable: false
+        };
+        renderReviewFixDraftPanel({
+            state: 'fixing',
+            progress: 'Agent 正在读取问题上下文，并生成修复草案和 Diff 预览...'
+        });
         try {
             const previewResponse = await authFetch('/api/chat/agent/review/patch/preview', {
                 method: 'POST',
@@ -3293,35 +4185,234 @@
             const preview = await readJsonResponse(previewResponse, 'Create patch preview failed');
             const warnings = (preview.warnings || []).join('\n');
             const diff = preview.diffPreview || '';
-            if (!preview.applicable) {
-                alert('Agent 暂时无法生成可应用修复。\n' + warnings + '\n\n' + diff);
-                return;
+            const applicable = Boolean(preview.applicable && preview.replacementContent && diff);
+            activeReviewFixDraft = {
+                issueId: issueId,
+                relativePath: relativePath,
+                suggestedPatch: suggestedPatch,
+                issue: issue,
+                state: 'review',
+                applicable: applicable,
+                replacementContent: preview.replacementContent || '',
+                expectedVersion: preview.expectedVersion,
+                warnings: warnings,
+                diffPreview: diff,
+                error: applicable ? '' : 'Agent 未生成可应用修改。请检查 warnings 或重试修复。'
+            };
+            renderReviewFixDraftPanel({
+                state: 'review',
+                progress: applicable ? 'Agent 已生成修复草案。请审核 Diff 后选择接受或放弃。' : 'Agent 返回了修复结果，但当前结果不可直接应用。',
+                error: activeReviewFixDraft.error
+            });
+        } catch (e) {
+            if (!activeReviewFixDraft) {
+                activeReviewFixDraft = { issueId: issueId, relativePath: relativePath, suggestedPatch: suggestedPatch, issue: issue };
             }
-            const confirmText = 'Agent 已生成修复草案。确认后只会创建 Pending Action，不会立即修改源码。\n\n' +
-                '文件：' + relativePath + '\n' +
-                'Issue：' + issueId + '\n\n' +
-                (warnings ? '警告：\n' + warnings + '\n\n' : '') +
-                'Diff 预览：\n' + diff.substring(0, 3000) +
-                (diff.length > 3000 ? '\n... diff preview truncated ...' : '') +
-                '\n\n是否创建 apply-request？';
-            if (!confirm(confirmText)) return;
+            activeReviewFixDraft.state = 'failed';
+            activeReviewFixDraft.error = e && e.message ? e.message : 'Create patch preview failed.';
+            renderReviewFixDraftPanel({
+                state: 'failed',
+                progress: 'Agent 修复草案生成失败。',
+                error: activeReviewFixDraft.error
+            });
+        }
+    }
 
+    function renderReviewFixStepper(state) {
+        const steps = [
+            { key: 'generate', label: '生成草案' },
+            { key: 'review', label: '审查 Diff' },
+            { key: 'apply', label: '应用修改' },
+            { key: 'done', label: '完成' }
+        ];
+        const activeIndexByState = {
+            fixing: 0,
+            review: 1,
+            applying: 2,
+            applied: 3,
+            rejected: 1,
+            failed: 0
+        };
+        const activeIndex = activeIndexByState[state] ?? 0;
+        return steps.map(function(step, index) {
+            let cls = 'review-fix-step';
+            if (state === 'applied' || index < activeIndex) cls += ' done';
+            else if (index === activeIndex) cls += ' active';
+            return '<span class="' + cls + '">' + escapeHtml(step.label) + '</span>';
+        }).join('');
+    }
+
+    function renderReviewFixDraftPanel(options) {
+        const draft = activeReviewFixDraft || {};
+        const state = (options && options.state) || draft.state || 'idle';
+        const panel = document.getElementById('reviewFixDraftPanel');
+        const detailPanel = document.getElementById('reviewIssueDetailPanel');
+        const statusEl = document.getElementById('reviewFixDraftStatus');
+        const titleEl = document.getElementById('reviewFixDraftTitle');
+        const metaEl = document.getElementById('reviewFixDraftMeta');
+        const stepperEl = document.getElementById('reviewFixStepper');
+        const progressEl = document.getElementById('reviewFixDraftProgress');
+        const warningsEl = document.getElementById('reviewFixDraftWarnings');
+        const errorEl = document.getElementById('reviewFixDraftError');
+        const diffStatsEl = document.getElementById('reviewFixDiffStats');
+        const diffEl = document.getElementById('reviewFixDraftDiff');
+        const acceptBtn = document.getElementById('reviewFixAcceptBtn');
+        const rejectBtn = document.getElementById('reviewFixRejectBtn');
+        const retryBtn = document.getElementById('reviewFixRetryBtn');
+        if (!panel) return;
+        if (detailPanel) detailPanel.style.display = 'none';
+        panel.style.display = 'flex';
+        const stateText = {
+            idle: 'idle',
+            fixing: 'Agent 修复中',
+            review: '等待审核',
+            applying: '正在应用',
+            applied: '已应用',
+            rejected: '已放弃',
+            failed: '失败'
+        }[state] || state;
+        if (statusEl) {
+            statusEl.className = 'review-fix-status ' + state;
+            statusEl.textContent = stateText;
+        }
+        const issue = draft.issue || {};
+        if (titleEl) titleEl.textContent = issue.title || ('Issue #' + (draft.issueId || ''));
+        if (metaEl) {
+            const location = draft.relativePath ? draft.relativePath + (issue.startLine ? ':' + issue.startLine : '') : '';
+            metaEl.textContent = [issue.severity || '', issue.category || '', location].filter(Boolean).join(' · ');
+        }
+        if (stepperEl) stepperEl.innerHTML = renderReviewFixStepper(state);
+        if (progressEl) progressEl.textContent = (options && options.progress) || '';
+        if (warningsEl) warningsEl.textContent = draft.warnings ? ('Warnings:\n' + draft.warnings) : '';
+        if (errorEl) errorEl.textContent = (options && options.error) || draft.error || '';
+        if (diffEl) {
+            const diff = draft.diffPreview || '';
+            diffEl.innerHTML = diff ? renderDiffPreview(diff) : '<span class="review-diff-line meta">暂无 Diff。Agent 生成完成后会在这里展示 Git diff 预览。</span>';
+        }
+        if (diffStatsEl) diffStatsEl.textContent = renderDiffStatsText(draft.diffPreview || '', draft.relativePath || '');
+        if (acceptBtn) {
+            acceptBtn.disabled = !(state === 'review' && draft.applicable);
+            acceptBtn.style.opacity = acceptBtn.disabled ? '0.55' : '1';
+        }
+        if (rejectBtn) {
+            rejectBtn.disabled = state === 'applying' || state === 'applied' || state === 'rejected';
+            rejectBtn.style.opacity = rejectBtn.disabled ? '0.55' : '1';
+        }
+        if (retryBtn) {
+            retryBtn.style.display = (state === 'failed' || (state === 'review' && !draft.applicable)) ? 'inline-flex' : 'none';
+        }
+    }
+
+    function renderDiffStatsText(diff, path) {
+        if (!diff) return path ? path : '暂无 Diff';
+        let additions = 0;
+        let deletions = 0;
+        diff.split('\n').forEach(function(line) {
+            if (line.startsWith('+') && !line.startsWith('+++')) additions++;
+            if (line.startsWith('-') && !line.startsWith('---')) deletions++;
+        });
+        return (path ? path + ' · ' : '') + '+' + additions + ' / -' + deletions;
+    }
+
+    async function acceptReviewFixDraft() {
+        const draft = activeReviewFixDraft;
+        if (!draft || !draft.applicable || !draft.replacementContent || !activeSessionId) return;
+        draft.state = 'applying';
+        renderReviewFixDraftPanel({
+            state: 'applying',
+            progress: '正在创建受控 apply-request，并立即执行确认应用...'
+        });
+        try {
             const applyResponse = await authFetch('/api/chat/agent/review/patch/apply-request', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     sessionId: activeSessionId,
-                    relativePath: relativePath,
-                    replacementContent: preview.replacementContent,
-                    expectedVersion: preview.expectedVersion,
-                    reason: 'code review issue #' + issueId
+                    relativePath: draft.relativePath,
+                    replacementContent: draft.replacementContent,
+                    expectedVersion: draft.expectedVersion,
+                    reason: 'code review issue #' + draft.issueId
                 })
             });
             const applyResult = await readJsonResponse(applyResponse, 'Create apply request failed');
-            alert('已创建待确认操作：#' + applyResult.actionId + '\n请在确认流中执行后才会修改源码。');
-            await loadReviewPendingActions();
+            const actionId = applyResult.actionId || applyResult.id;
+            if (!actionId) throw new Error('Create apply request failed: missing actionId.');
+            const confirmResponse = await authFetch('/api/chat/agent/actions/' + encodeURIComponent(actionId) + '/confirm', {
+                method: 'POST'
+            });
+            const confirmResult = await readJsonResponse(confirmResponse, 'Confirm action failed');
+            draft.state = 'applied';
+            draft.actionId = actionId;
+            draft.resultSummary = confirmResult.resultSummary || '';
+            renderReviewFixDraftPanel({
+                state: 'applied',
+                progress: '修改已应用到当前会话 workspace 文件。' + (draft.resultSummary ? ' ' + draft.resultSummary : '')
+            });
+            await markReviewIssueFixedSilently(draft.issueId);
+            (currentReviewIssues || []).forEach(function(issue) {
+                if (String(issue.id) === String(draft.issueId)) issue.status = 'FIXED';
+            });
+            removeIssueCardFromPendingList(draft.issueId);
         } catch (e) {
-            alert(e && e.message ? e.message : 'Create patch preview failed.');
+            draft.state = 'failed';
+            draft.error = e && e.message ? e.message : 'Apply fix failed.';
+            renderReviewFixDraftPanel({
+                state: 'failed',
+                progress: '应用修改失败，Diff 已保留，可重试或放弃。',
+                error: draft.error
+            });
+        }
+    }
+
+    function rejectReviewFixDraft() {
+        if (!activeReviewFixDraft) return;
+        const issue = activeReviewFixDraft.issue || reviewIssueCache[String(activeReviewFixDraft.issueId)];
+        activeReviewFixDraft.state = 'rejected';
+        activeReviewFixDraft.applicable = false;
+        renderReviewFixDraftPanel({
+            state: 'rejected',
+            progress: '已放弃当前修复草案。未创建 apply-request，也未修改 workspace 文件。'
+        });
+        const panel = document.getElementById('reviewFixDraftPanel');
+        if (panel) panel.style.display = 'none';
+        if (issue) renderReviewIssueDetail(issue);
+    }
+
+    async function retryReviewFixDraft() {
+        const draft = activeReviewFixDraft;
+        if (!draft || !draft.issueId || !draft.relativePath) return;
+        const patchKey = '__retry_patch_' + draft.issueId;
+        reviewPatchCache[patchKey] = draft.suggestedPatch || '';
+        await createReviewApplyPreview(draft.issueId, encodeURIComponent(draft.relativePath), patchKey);
+    }
+
+    async function markReviewIssueFixedSilently(issueId) {
+        if (!issueId) return;
+        try {
+            const response = await authFetch('/api/chat/agent/review/issues/' + encodeURIComponent(issueId) + '/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'FIXED' })
+            });
+            const result = await response.json();
+            if (!result.success) {
+                console.warn('Mark issue fixed failed:', result.error || result.message || result);
+            }
+        } catch (e) {
+            console.warn('Mark issue fixed failed:', e);
+        }
+    }
+
+    function removeIssueCardFromPendingList(issueId) {
+        const card = document.querySelector('.review-issue-card[data-issue-id="' + String(issueId) + '"]');
+        if (card) card.remove();
+        const issueMeta = document.getElementById('reviewIssueMeta');
+        const pendingCount = (currentReviewIssues || []).filter(isPendingReviewIssue).length;
+        const processedCount = (currentReviewIssues || []).filter(issue => !isPendingReviewIssue(issue)).length;
+        if (issueMeta) issueMeta.textContent = pendingCount + ' pending · ' + processedCount + ' processed';
+        const listEl = document.getElementById('reviewIssueList');
+        if (listEl && pendingCount === 0) {
+            listEl.innerHTML = '<span style="color:var(--warm-500);">当前 Review Run 没有待处理问题。</span>';
         }
     }
 
@@ -3832,6 +4923,156 @@
         loadKnowledgeDocs(1);
         document.getElementById('knowledgeSearchResult').innerHTML = '';
         document.getElementById('knowledgeReindexStatus').textContent = '';
+    }
+
+    function openMemoryModal() {
+        if (!memoryModal) memoryModal = new bootstrap.Modal(document.getElementById('memoryModal'));
+        memoryModal.show();
+        loadMemories();
+        clearMemoryPreview();
+    }
+
+    async function loadMemories() {
+        const listEl = document.getElementById('memoryList');
+        const type = document.getElementById('memoryTypeFilter').value;
+        const status = document.getElementById('memoryStatusFilter').value;
+        const keyword = document.getElementById('memoryKeyword').value.trim();
+        listEl.innerHTML = '<span style="color:var(--warm-500);">Loading memories...</span>';
+        try {
+            const params = new URLSearchParams();
+            if (type) params.set('memoryType', type);
+            if (status) params.set('status', status);
+            if (keyword) params.set('keyword', keyword);
+            const response = await authFetch('/api/chat/memory?' + params.toString());
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Load memories failed');
+            currentMemoryList = result.memories || [];
+            renderMemoryList(currentMemoryList);
+            if (selectedMemory) {
+                const matched = currentMemoryList.find(memory => String(memory.id) === String(selectedMemory.id));
+                matched ? selectMemory(matched) : clearMemoryPreview();
+            }
+        } catch (e) {
+            listEl.innerHTML = '<span style="color:#dc503c;">' + escapeHtml(e.message || 'Load memories failed') + '</span>';
+        }
+    }
+
+    function renderMemoryList(memories) {
+        const listEl = document.getElementById('memoryList');
+        if (!memories.length) {
+            listEl.innerHTML = '<div class="review-empty-state">暂无长期记忆。</div>';
+            return;
+        }
+        listEl.innerHTML = memories.map(memory => {
+            const encoded = encodeURIComponent(JSON.stringify(memory));
+            const activeClass = selectedMemory && String(selectedMemory.id) === String(memory.id) ? ' active' : '';
+            return '<div class="review-issue-card memory-card' + activeClass + '" onclick="selectMemoryFromCard(\'' + encoded + '\')">' +
+                '<div class="d-flex justify-content-between align-items-start gap-2">' +
+                    '<div class="review-card-title">' + escapeHtml(memory.name || 'Memory') + '</div>' +
+                    '<span class="review-severity INFO">' + escapeHtml(memory.status || '') + '</span>' +
+                '</div>' +
+                '<div class="review-card-meta">' + escapeHtml(memory.scopeType || '') + ':' + escapeHtml(memory.scopeKey || '') + ' · ' + escapeHtml(memory.memoryType || '') + '</div>' +
+                '<div class="review-summary-line">' + escapeHtml(memory.description || '') + '</div>' +
+            '</div>';
+        }).join('');
+    }
+
+    function selectMemoryFromCard(encoded) {
+        const memory = JSON.parse(decodeURIComponent(encoded));
+        selectMemory(memory);
+        renderMemoryList(currentMemoryList);
+    }
+
+    function selectMemory(memory) {
+        selectedMemory = memory;
+        document.getElementById('memoryPreviewTitle').textContent = memory.name || 'Memory';
+        document.getElementById('memoryPreviewMeta').textContent = [
+            memory.scopeType && memory.scopeKey ? memory.scopeType + ':' + memory.scopeKey : '',
+            memory.memoryType || '',
+            memory.updatedTime || memory.createdTime || ''
+        ].filter(Boolean).join(' · ');
+        const statusEl = document.getElementById('memoryPreviewStatus');
+        statusEl.style.display = '';
+        statusEl.textContent = memory.status || '';
+        document.getElementById('memoryPreviewActions').style.display = '';
+        document.getElementById('memoryPreviewBody').innerHTML =
+            memoryField('Description', memory.description || '') +
+            memoryField('Content', memory.content || '') +
+            memoryField('Load Hint', memory.loadHint || '') +
+            memoryField('Source', memory.sourceType || '');
+    }
+
+    function memoryField(label, value) {
+        return '<div class="memory-field">' +
+            '<div class="memory-field-label">' + escapeHtml(label) + '</div>' +
+            '<div class="memory-field-value">' + escapeHtml(value || '-') + '</div>' +
+        '</div>';
+    }
+
+    function clearMemoryPreview() {
+        selectedMemory = null;
+        document.getElementById('memoryPreviewTitle').textContent = '选择一条 memory';
+        document.getElementById('memoryPreviewMeta').textContent = '点击左侧索引查看详细内容。';
+        document.getElementById('memoryPreviewStatus').style.display = 'none';
+        document.getElementById('memoryPreviewBody').textContent = '暂无选中项。';
+        document.getElementById('memoryPreviewActions').style.display = 'none';
+    }
+
+    async function archiveSelectedMemory() {
+        if (!selectedMemory || !selectedMemory.id) return;
+        if (!confirm('确认归档这条 memory？归档后不会进入 prompt。')) return;
+        await authFetch('/api/chat/memory/' + encodeURIComponent(selectedMemory.id) + '/archive', { method: 'POST' });
+        clearMemoryPreview();
+        loadMemories();
+    }
+
+    async function deleteSelectedMemory() {
+        if (!selectedMemory || !selectedMemory.id) return;
+        if (!confirm('确认删除这条 memory？此操作会写审计事件。')) return;
+        await authFetch('/api/chat/memory/' + encodeURIComponent(selectedMemory.id), { method: 'DELETE' });
+        clearMemoryPreview();
+        loadMemories();
+    }
+
+    async function previewMemoryImport() {
+        const output = document.getElementById('memoryImportOutput');
+        const content = document.getElementById('memoryImportInput').value.trim();
+        try {
+            const response = await authFetch('/api/chat/memory/import-preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content, scopeType: 'PROJECT', scopeKey: 'springaI-chatbot' })
+            });
+            const result = await response.json();
+            memoryImportDrafts = result.drafts || [];
+            output.textContent = memoryImportDrafts.length
+                ? JSON.stringify(memoryImportDrafts, null, 2)
+                : '未从 AGENTS.md 中识别出可导入的长期记忆。';
+        } catch (e) {
+            output.textContent = e.message || 'Import preview failed.';
+        }
+    }
+
+    async function applyMemoryImportDrafts() {
+        const output = document.getElementById('memoryImportOutput');
+        if (!memoryImportDrafts.length) {
+            output.textContent = '没有可应用的导入草案，请先点击预览。';
+            return;
+        }
+        if (!confirm('确认把 AGENTS.md 导入草案写入 ACTIVE 长期记忆？')) return;
+        try {
+            const response = await authFetch('/api/chat/memory/import-apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ drafts: memoryImportDrafts })
+            });
+            const result = await response.json();
+            output.textContent = '已导入 ' + ((result.memories || []).length) + ' 条 memory。';
+            memoryImportDrafts = [];
+            loadMemories();
+        } catch (e) {
+            output.textContent = e.message || 'Import apply failed.';
+        }
     }
 
     // 打开文件管理页面（新窗口）

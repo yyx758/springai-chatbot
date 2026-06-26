@@ -1,0 +1,18 @@
+package com.example.chatbot.context;
+
+public enum ContextSegmentType {
+    SYSTEM_FIXED,
+    TOOL_SCHEMA,
+    USER_MEMORY,
+    MEMORY_INDEX,
+    MEMORY_DETAIL,
+    SESSION_SUMMARY,
+    RECENT_HISTORY,
+    RAG_CONTEXT,
+    WEB_CONTEXT,
+    TOOL_RESULT,
+    WORKSPACE_FILE,
+    CODE_REVIEW_DIFF,
+    CURRENT_USER_INPUT,
+    COMPACTED_SUMMARY
+}

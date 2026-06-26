@@ -141,6 +141,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/chatbot?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      SPRING_FLYWAY_OUT_OF_ORDER: ${SPRING_FLYWAY_OUT_OF_ORDER:-true}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
@@ -171,6 +172,7 @@ services:
       APP_WEB_TOOLS_MAX_CONTENT_CHARS: ${APP_WEB_TOOLS_MAX_CONTENT_CHARS:-100000}
       APP_FIRECRAWL_BASE_URL: ${APP_FIRECRAWL_BASE_URL:-https://api.firecrawl.dev}
       APP_FIRECRAWL_API_KEY: ${APP_FIRECRAWL_API_KEY:-}
+      APP_COOKIE_SECURE: ${APP_COOKIE_SECURE:-true}
       SMTP_HOST: ${SMTP_HOST:-smtp.qq.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}

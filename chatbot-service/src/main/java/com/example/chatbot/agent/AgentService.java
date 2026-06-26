@@ -6,10 +6,14 @@ import com.example.chatbot.agent.tool.FileReadTools;
 import com.example.chatbot.agent.tool.GitReviewTools;
 import com.example.chatbot.agent.tool.KnowledgeReadTools;
 import com.example.chatbot.agent.tool.KnowledgeWriteTools;
+import com.example.chatbot.agent.tool.MemoryTools;
 import com.example.chatbot.agent.tool.ReviewWorkspaceTools;
 import com.example.chatbot.agent.tool.TimeTools;
 import com.example.chatbot.agent.tool.WebTools;
 import com.example.chatbot.agent.tool.WorkspaceTools;
+import com.example.chatbot.agent.skill.SkillDefinition;
+import com.example.chatbot.agent.skill.SkillMatchResult;
+import com.example.chatbot.agent.skill.SkillRouter;
 import com.example.chatbot.dto.ChatRequest;
 import com.example.chatbot.dto.RagReference;
 import com.example.chatbot.entity.KnowledgeDocument;
@@ -17,8 +21,10 @@ import com.example.chatbot.service.RagService;
 import com.example.chatbot.mapper.KnowledgeDocumentMapper;
 import com.example.chatbot.service.ChatContextService;
 import com.example.chatbot.service.ChatbotService;
+import com.example.chatbot.memory.MemorySuggestionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.context.ApplicationContext;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -58,6 +64,10 @@ public class AgentService {
     private final WorkspaceTools workspaceTools;
     private final ReviewWorkspaceTools reviewWorkspaceTools;
     private final WebTools webTools;
+    private final MemoryTools memoryTools;
+    private final MemorySuggestionService memorySuggestionService;
+    private final SkillRouter skillRouter;
+    private final ApplicationContext applicationContext;
 
     @Value("${app.agent.enabled:true}")
     private boolean agentEnabled;
@@ -80,7 +90,11 @@ public class AgentService {
             TimeTools timeTools,
             WorkspaceTools workspaceTools,
             ReviewWorkspaceTools reviewWorkspaceTools,
-            WebTools webTools
+            WebTools webTools,
+            MemoryTools memoryTools,
+            MemorySuggestionService memorySuggestionService,
+            SkillRouter skillRouter,
+            ApplicationContext applicationContext
     ) {
         this.openAiChatModel = getIfAvailable(openAiChatModelProvider, "OpenAI/DeepSeek");
         this.ollamaChatModel = getIfAvailable(ollamaChatModelProvider, "Ollama");
@@ -97,6 +111,10 @@ public class AgentService {
         this.workspaceTools = workspaceTools;
         this.reviewWorkspaceTools = reviewWorkspaceTools;
         this.webTools = webTools;
+        this.memoryTools = memoryTools;
+        this.memorySuggestionService = memorySuggestionService;
+        this.skillRouter = skillRouter;
+        this.applicationContext = applicationContext;
     }
 
     public void streamAgent(ChatRequest request, SseEmitter emitter, String userId) {
@@ -116,11 +134,18 @@ public class AgentService {
             return;
         }
 
-        List<Message> messages = buildMessages(request, userId);
+        SkillMatchResult skillMatch = skillRouter.route(request.getMessage());
+        SkillDefinition activeSkill = skillMatch.getSkill();
+        if (activeSkill != null) {
+            log.info("Skill routed: {} for input: {}", activeSkill.getId(), truncate(request.getMessage(), 60));
+        }
+
+        List<Message> messages = buildMessages(request, userId, activeSkill);
         Map<String, Object> toolContext = new LinkedHashMap<>();
         toolContext.put(AgentToolContextKeys.USER_ID, userId);
         toolContext.put(AgentToolContextKeys.SESSION_ID, request.getSessionId());
         toolContext.put(AgentToolContextKeys.EMITTER, emitter);
+        toolContext.put(AgentToolContextKeys.SKILL_ID, activeSkill != null ? activeSkill.getId() : null);
 
         Long userIdValue = Long.valueOf(userId);
         Long baselineKnowledgeDocumentId = latestKnowledgeDocumentId(userIdValue);
@@ -132,10 +157,13 @@ public class AgentService {
             enrichWithMandatoryWebFetch(messages, request.getMessage(), new ToolContext(toolContext));
             enrichWithAutoRag(messages, request.getMessage(), Long.valueOf(userId));
 
+            Object[] tools = resolveTools(activeSkill);
+            log.debug("Registered {} tool classes (skill={})", tools.length, activeSkill != null ? activeSkill.getId() : "none");
+
             ChatClient.create(model)
                     .prompt()
                     .messages(messages)
-                    .tools(knowledgeReadTools, knowledgeWriteTools, fileReadTools, gitReviewTools, chatHistoryTools, timeTools, workspaceTools, reviewWorkspaceTools, webTools)
+                    .tools(tools)
                     .toolContext(toolContext)
                     .stream()
                     .content()
@@ -176,11 +204,15 @@ public class AgentService {
         }
     }
 
-    private List<Message> buildMessages(ChatRequest request, String userId) {
+    private List<Message> buildMessages(ChatRequest request, String userId, SkillDefinition skill) {
+        String systemPrompt = buildSystemPrompt();
+        if (skill != null && skill.getSystemPromptFragment() != null) {
+            systemPrompt += "\n\n" + skill.getSystemPromptFragment();
+        }
         return chatContextService.buildConversationMessages(
                 request.getSessionId(),
                 request.getMessage(),
-                buildSystemPrompt()
+                systemPrompt
         );
     }
 
@@ -199,6 +231,11 @@ public class AgentService {
                 When the user asks to create, save, store, or put a document into the knowledge base, you MUST call createKnowledgeDocument.
                 When the user asks to create, write, save, or edit a normal file, you MUST use workspace tools such as createWorkspaceFile or updateWorkspaceFile.
                 Workspace files are the only files you can create or edit. Never claim you wrote a local/server file unless a workspace tool succeeded.
+                LONG-TERM MEMORY TOOLS:
+                - When the user explicitly asks you to remember, save as memory, or keep a stable preference/project rule for future turns, call requestSaveLongTermMemory.
+                - requestSaveLongTermMemory creates a pending confirmation action. Do not claim the memory was saved until the user confirms and the action succeeds.
+                - Do not use workspace file tools to save memory. Workspace files are not long-term memory and are not loaded as memory index/detail.
+                - For questions about saved preferences or project rules, use listLongTermMemoryIndex or readLongTermMemory instead of guessing.
                 When the user uploads or imports a code project, first listWorkspaceFiles, then read relevant files before proposing or applying code changes.
                 For code edits, prefer targeted updates to the smallest necessary files and explain which workspace files changed.
                 Local folders are only available after the user explicitly opens one in the browser workspace UI. You can operate on the synced workspace files, but the browser must write them back to the local folder.
@@ -214,7 +251,9 @@ public class AgentService {
                 If a tool returns no useful data, say that clearly and continue with a conservative answer.
                 Do not ask for or expose internal tokens, passwords, API keys, or secrets.
                 Reply in concise, natural Chinese unless the user asks for another language.
-                """;
+
+                %s
+                """.formatted(memorySuggestionService.buildAgentInstruction());
     }
 
     private void enrichWithMandatoryWebFetch(List<Message> messages, String userMessage, ToolContext toolContext) {
@@ -229,7 +268,7 @@ public class AgentService {
             if (content.length() > WEB_CONTEXT_MAX_CHARS) {
                 content = content.substring(0, WEB_CONTEXT_MAX_CHARS) + "\n\n[content truncated]";
             }
-            messages.add(new SystemMessage("""
+            addBeforeCurrentUser(messages, new SystemMessage("""
                     fetchWebPage has already been called for the current user request.
                     Use this real fetched page content as the web source. Do not claim web access beyond this tool result.
 
@@ -239,7 +278,7 @@ public class AgentService {
                     %s
                     """.formatted(url, title, content)));
         } catch (Exception e) {
-            messages.add(new SystemMessage("""
+            addBeforeCurrentUser(messages, new SystemMessage("""
                     fetchWebPage was required for the current user request but failed.
                     Tell the user the web fetch failed and include this error, instead of inventing page content.
 
@@ -260,11 +299,16 @@ public class AgentService {
             }
             String knowledgePrompt = ragService.buildKnowledgePrompt(references);
             if (knowledgePrompt != null && !knowledgePrompt.isBlank()) {
-                messages.add(new SystemMessage(knowledgePrompt));
+                addBeforeCurrentUser(messages, new SystemMessage(knowledgePrompt));
             }
         } catch (Exception e) {
             log.warn("Auto RAG enrichment failed: {}", e.getMessage());
         }
+    }
+
+    private void addBeforeCurrentUser(List<Message> messages, Message message) {
+        int insertionIndex = Math.max(1, messages.size() - 1);
+        messages.add(insertionIndex, message);
     }
 
     private String extractFirstPublicUrl(String text) {
@@ -323,6 +367,28 @@ public class AgentService {
                         document.getId(), e.getMessage());
             }
         }
+    }
+
+    private Object[] resolveTools(SkillDefinition skill) {
+        if (skill == null || skill.getRequiredToolBeanNames().isEmpty()) {
+            return new Object[]{knowledgeReadTools, knowledgeWriteTools, fileReadTools, gitReviewTools,
+                    chatHistoryTools, timeTools, workspaceTools, reviewWorkspaceTools, webTools, memoryTools};
+        }
+        return skill.getRequiredToolBeanNames().stream()
+                .map(name -> {
+                    try {
+                        return applicationContext.getBean(name);
+                    } catch (Exception e) {
+                        log.warn("Skill tool bean '{}' not found, skipping", name);
+                        return null;
+                    }
+                })
+                .filter(java.util.Objects::nonNull)
+                .toArray();
+    }
+
+    private String truncate(String s, int maxLen) {
+        return s != null && s.length() > maxLen ? s.substring(0, maxLen) + "..." : s;
     }
 
     private ChatModel getChatModel(String preferredModel) {

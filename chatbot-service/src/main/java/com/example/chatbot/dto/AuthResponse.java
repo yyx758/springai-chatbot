@@ -14,4 +14,15 @@ public class AuthResponse {
     private String token;
     private String refreshToken;
     private Long expiresIn;
+
+    public AuthResponse withoutRefreshToken() {
+        return AuthResponse.builder()
+                .userId(this.userId)
+                .username(this.username)
+                .displayName(this.displayName)
+                .role(this.role)
+                .token(this.token)
+                .expiresIn(this.expiresIn)
+                .build();
+    }
 }

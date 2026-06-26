@@ -7,6 +7,8 @@ import com.example.chatbot.entity.AgentWorkspaceFile;
 import com.example.chatbot.entity.KnowledgeDocument;
 import com.example.chatbot.mapper.AgentPendingActionMapper;
 import com.example.chatbot.mapper.KnowledgeDocumentMapper;
+import com.example.chatbot.memory.LongTermMemoryRequest;
+import com.example.chatbot.memory.LongTermMemoryService;
 import com.example.chatbot.service.RagService;
 import com.example.chatbot.workspace.AgentWorkspaceService;
 import com.example.chatbot.workspace.WorkspaceFileUpdateRequest;
@@ -43,6 +45,9 @@ class AgentPendingActionServiceTest {
     @Mock
     private AgentWorkspaceService workspaceService;
 
+    @Mock
+    private LongTermMemoryService longTermMemoryService;
+
     private AgentPendingActionService service;
 
     @BeforeEach
@@ -52,9 +57,32 @@ class AgentPendingActionServiceTest {
                 knowledgeDocumentMapper,
                 ragService,
                 workspaceService,
+                longTermMemoryService,
                 new ObjectMapper()
         );
         ReflectionTestUtils.setField(service, "pendingActionExpireMinutes", 10);
+    }
+
+    @Test
+    @DisplayName("Save long-term memory creates pending action instead of writing immediately")
+    void requestSaveLongTermMemoryCreatesPendingAction() {
+        LongTermMemoryRequest request = new LongTermMemoryRequest();
+        request.setScopeType("PROJECT");
+        request.setScopeKey("springaI-chatbot");
+        request.setMemoryType("project");
+        request.setName("Gateway rule");
+        request.setDescription("Production traffic must use gateway.");
+        request.setContent("Production user entry must go through Gateway :9000.");
+        request.setLoadHint("Load for deployment tasks.");
+
+        AgentPendingAction action = service.requestSaveLongTermMemory(7L, "7_session", request, "user asked to remember");
+
+        assertEquals("PENDING", action.getStatus());
+        assertEquals(AgentPendingActionService.ACTION_SAVE_LONG_TERM_MEMORY, action.getActionType());
+        assertTrue(action.getArgumentsJson().contains("\"name\":\"Gateway rule\""));
+        assertTrue(action.getArgumentsJson().contains("\"content\":\"Production user entry must go through Gateway :9000.\""));
+        verify(longTermMemoryService, never()).create(anyLong(), any(LongTermMemoryRequest.class));
+        verify(pendingActionMapper).insert(any(AgentPendingAction.class));
     }
 
     @Test
@@ -179,6 +207,30 @@ class AgentPendingActionServiceTest {
     }
 
     @Test
+    @DisplayName("Action card for memory save hides full content")
+    void memorySaveActionCardHidesContent() {
+        AgentPendingAction action = AgentPendingAction.builder()
+                .id(103L)
+                .userId(7L)
+                .sessionId("7_session")
+                .actionType(AgentPendingActionService.ACTION_SAVE_LONG_TERM_MEMORY)
+                .toolName("requestSaveLongTermMemory")
+                .argumentsJson("{\"scopeType\":\"PROJECT\",\"scopeKey\":\"springaI-chatbot\",\"memoryType\":\"project\",\"name\":\"Gateway rule\",\"description\":\"Production traffic uses gateway\",\"content\":\"full sensitive-ish detail\",\"loadHint\":\"Load for deploy\",\"reason\":\"remember\"}")
+                .status("PENDING")
+                .expireTime(LocalDateTime.now().plusMinutes(5))
+                .createdTime(LocalDateTime.now())
+                .build();
+
+        Map<String, Object> card = service.toActionCard(action);
+        Map<?, ?> arguments = (Map<?, ?>) card.get("arguments");
+
+        assertEquals("Gateway rule", arguments.get("name"));
+        assertEquals("project", arguments.get("memoryType"));
+        assertEquals("Load for deploy", arguments.get("loadHint"));
+        assertFalse(arguments.containsKey("content"));
+    }
+
+    @Test
     @DisplayName("Confirm apply workspace patch updates workspace file")
     void confirmApplyWorkspacePatchUpdatesWorkspaceFile() {
         AgentPendingAction action = AgentPendingAction.builder()
@@ -203,6 +255,36 @@ class AgentPendingActionServiceTest {
         assertEquals("src/App.java", requestCaptor.getValue().getRelativePath());
         assertEquals("class App {}", requestCaptor.getValue().getContent());
         assertEquals(1, requestCaptor.getValue().getExpectedVersion());
+        verify(pendingActionMapper).updateById(any(AgentPendingAction.class));
+    }
+
+    @Test
+    @DisplayName("Confirm save long-term memory writes memory through service")
+    void confirmSaveLongTermMemoryWritesMemory() {
+        AgentPendingAction action = AgentPendingAction.builder()
+                .id(103L)
+                .userId(7L)
+                .sessionId("7_session")
+                .actionType(AgentPendingActionService.ACTION_SAVE_LONG_TERM_MEMORY)
+                .toolName("requestSaveLongTermMemory")
+                .argumentsJson("{\"scopeType\":\"PROJECT\",\"scopeKey\":\"springaI-chatbot\",\"memoryType\":\"project\",\"name\":\"Gateway rule\",\"description\":\"Production traffic uses gateway\",\"content\":\"Production user entry must go through Gateway :9000.\",\"loadHint\":\"Load for deploy\",\"sourceType\":\"AGENT_SUGGESTED\",\"status\":\"ACTIVE\",\"reason\":\"remember\"}")
+                .status("PENDING")
+                .expireTime(LocalDateTime.now().plusMinutes(5))
+                .build();
+        when(pendingActionMapper.selectOne(any(Wrapper.class))).thenReturn(action);
+        var saved = com.example.chatbot.entity.AgentLongTermMemory.builder().id(55L).userId(7L).name("Gateway rule").build();
+        when(longTermMemoryService.create(eq(7L), any(LongTermMemoryRequest.class))).thenReturn(saved);
+
+        AgentPendingAction confirmed = service.confirm(7L, 103L);
+
+        assertEquals("CONFIRMED", confirmed.getStatus());
+        ArgumentCaptor<LongTermMemoryRequest> requestCaptor = ArgumentCaptor.forClass(LongTermMemoryRequest.class);
+        verify(longTermMemoryService).create(eq(7L), requestCaptor.capture());
+        assertEquals("PROJECT", requestCaptor.getValue().getScopeType());
+        assertEquals("springaI-chatbot", requestCaptor.getValue().getScopeKey());
+        assertEquals("project", requestCaptor.getValue().getMemoryType());
+        assertEquals("Gateway rule", requestCaptor.getValue().getName());
+        assertEquals("Production user entry must go through Gateway :9000.", requestCaptor.getValue().getContent());
         verify(pendingActionMapper).updateById(any(AgentPendingAction.class));
     }
 

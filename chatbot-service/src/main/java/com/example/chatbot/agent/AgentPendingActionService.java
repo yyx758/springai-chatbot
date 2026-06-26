@@ -5,6 +5,8 @@ import com.example.chatbot.entity.AgentPendingAction;
 import com.example.chatbot.entity.KnowledgeDocument;
 import com.example.chatbot.mapper.AgentPendingActionMapper;
 import com.example.chatbot.mapper.KnowledgeDocumentMapper;
+import com.example.chatbot.memory.LongTermMemoryRequest;
+import com.example.chatbot.memory.LongTermMemoryService;
 import com.example.chatbot.service.RagService;
 import com.example.chatbot.workspace.AgentWorkspaceService;
 import com.example.chatbot.workspace.WorkspaceFileUpdateRequest;
@@ -25,11 +27,13 @@ public class AgentPendingActionService {
 
     public static final String ACTION_DELETE_KNOWLEDGE_DOCUMENT = "DELETE_KNOWLEDGE_DOCUMENT";
     public static final String ACTION_APPLY_WORKSPACE_PATCH = "APPLY_WORKSPACE_PATCH";
+    public static final String ACTION_SAVE_LONG_TERM_MEMORY = "SAVE_LONG_TERM_MEMORY";
 
     private final AgentPendingActionMapper pendingActionMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final RagService ragService;
     private final AgentWorkspaceService workspaceService;
+    private final LongTermMemoryService longTermMemoryService;
     private final ObjectMapper objectMapper;
 
     @Value("${app.agent.pending-action-expire-minutes:10}")
@@ -51,6 +55,46 @@ public class AgentPendingActionService {
                 .sessionId(sessionId)
                 .actionType(ACTION_DELETE_KNOWLEDGE_DOCUMENT)
                 .toolName("requestDeleteKnowledgeDocument")
+                .argumentsJson(toJson(arguments))
+                .status("PENDING")
+                .expireTime(LocalDateTime.now().plusMinutes(pendingActionExpireMinutes))
+                .createdTime(LocalDateTime.now())
+                .build();
+        pendingActionMapper.insert(action);
+        return action;
+    }
+
+    public AgentPendingAction requestSaveLongTermMemory(Long userId,
+                                                        String sessionId,
+                                                        LongTermMemoryRequest request,
+                                                        String reason) {
+        if (request == null) {
+            throw new IllegalArgumentException("memory request is required");
+        }
+        if (userId == null) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        if (sessionId == null || sessionId.isBlank() || !sessionId.startsWith(userId + "_")) {
+            throw new IllegalArgumentException("session does not belong to current user");
+        }
+
+        Map<String, Object> arguments = new LinkedHashMap<>();
+        arguments.put("scopeType", safe(request.getScopeType()));
+        arguments.put("scopeKey", safe(request.getScopeKey()));
+        arguments.put("memoryType", safe(request.getMemoryType()));
+        arguments.put("name", safe(request.getName()));
+        arguments.put("description", safe(request.getDescription()));
+        arguments.put("content", safe(request.getContent()));
+        arguments.put("loadHint", safe(request.getLoadHint()));
+        arguments.put("sourceType", safe(request.getSourceType()));
+        arguments.put("status", safe(request.getStatus()));
+        arguments.put("reason", safe(reason));
+
+        AgentPendingAction action = AgentPendingAction.builder()
+                .userId(userId)
+                .sessionId(sessionId)
+                .actionType(ACTION_SAVE_LONG_TERM_MEMORY)
+                .toolName("requestSaveLongTermMemory")
                 .argumentsJson(toJson(arguments))
                 .status("PENDING")
                 .expireTime(LocalDateTime.now().plusMinutes(pendingActionExpireMinutes))
@@ -122,6 +166,12 @@ public class AgentPendingActionService {
         copyIfPresent(arguments, safeArguments, "reason");
         copyIfPresent(arguments, safeArguments, "documentId");
         copyIfPresent(arguments, safeArguments, "title");
+        copyIfPresent(arguments, safeArguments, "scopeType");
+        copyIfPresent(arguments, safeArguments, "scopeKey");
+        copyIfPresent(arguments, safeArguments, "memoryType");
+        copyIfPresent(arguments, safeArguments, "name");
+        copyIfPresent(arguments, safeArguments, "description");
+        copyIfPresent(arguments, safeArguments, "loadHint");
         return Map.ofEntries(
                 Map.entry("id", action.getId() == null ? 0L : action.getId()),
                 Map.entry("sessionId", action.getSessionId() == null ? "" : action.getSessionId()),
@@ -178,6 +228,25 @@ public class AgentPendingActionService {
                 action.setStatus("CONFIRMED");
                 action.setConfirmedTime(LocalDateTime.now());
                 action.setResultSummary("workspace file updated: " + relativePath);
+                pendingActionMapper.updateById(action);
+                return action;
+            }
+            if (ACTION_SAVE_LONG_TERM_MEMORY.equals(action.getActionType())) {
+                Map<String, Object> arguments = parseArguments(action.getArgumentsJson());
+                LongTermMemoryRequest request = new LongTermMemoryRequest();
+                request.setScopeType(stringValue(arguments, "scopeType"));
+                request.setScopeKey(stringValue(arguments, "scopeKey"));
+                request.setMemoryType(stringValue(arguments, "memoryType"));
+                request.setName(stringValue(arguments, "name"));
+                request.setDescription(stringValue(arguments, "description"));
+                request.setContent(stringValue(arguments, "content"));
+                request.setLoadHint(stringValue(arguments, "loadHint"));
+                request.setSourceType(defaultText(stringValue(arguments, "sourceType"), "AGENT_SUGGESTED"));
+                request.setStatus(defaultText(stringValue(arguments, "status"), "ACTIVE"));
+                var memory = longTermMemoryService.create(userId, request);
+                action.setStatus("CONFIRMED");
+                action.setConfirmedTime(LocalDateTime.now());
+                action.setResultSummary("long-term memory saved: " + memory.getId());
                 pendingActionMapper.updateById(action);
                 return action;
             }
@@ -241,6 +310,19 @@ public class AgentPendingActionService {
         if (source.containsKey(key)) {
             target.put(key, source.get(key));
         }
+    }
+
+    private String stringValue(Map<String, Object> source, String key) {
+        Object value = source.get(key);
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private String defaultText(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value;
     }
 
     private int normalizeLimit(int limit) {

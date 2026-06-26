@@ -1604,7 +1604,6 @@
 
     function persistAuth(data) {
         if (data.token) localStorage.setItem('ai_studio_token', data.token);
-        if (data.refreshToken) localStorage.setItem('ai_studio_refresh_token', data.refreshToken);
         if (data.userId) {
             localStorage.setItem('ai_studio_user', JSON.stringify({
                 userId: data.userId,
@@ -1821,18 +1820,14 @@
 
     function clearAuthState() {
         localStorage.removeItem('ai_studio_token');
-        localStorage.removeItem('ai_studio_refresh_token');
         localStorage.removeItem('ai_studio_user');
     }
 
     async function refreshLoginToken() {
-        var refreshToken = localStorage.getItem('ai_studio_refresh_token');
-        if (!refreshToken) return false;
         try {
             var resp = await fetch('/api/auth/refresh', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refreshToken: refreshToken })
+                credentials: 'include'
             });
             if (!resp.ok) return false;
             var data = await resp.json();
