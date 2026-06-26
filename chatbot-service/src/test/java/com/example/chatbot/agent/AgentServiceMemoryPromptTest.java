@@ -1,5 +1,6 @@
 package com.example.chatbot.agent;
 
+import com.example.chatbot.agent.skill.SkillRouter;
 import com.example.chatbot.agent.tool.ChatHistoryTools;
 import com.example.chatbot.agent.tool.FileReadTools;
 import com.example.chatbot.agent.tool.GitReviewTools;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -51,7 +53,9 @@ class AgentServiceMemoryPromptTest {
                 mock(ReviewWorkspaceTools.class),
                 mock(WebTools.class),
                 mock(MemoryTools.class),
-                new MemorySuggestionService()
+                new MemorySuggestionService(),
+                mock(SkillRouter.class),
+                mock(ApplicationContext.class)
         );
 
         String prompt = ReflectionTestUtils.invokeMethod(service, "buildSystemPrompt");
