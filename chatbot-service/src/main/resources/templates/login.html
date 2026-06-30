@@ -1053,7 +1053,7 @@
         }
 
         /* ═══════════════════════════════════════════════
-           FOOTER — Subtle bottom brand
+           FOOTER — ICP备案号
            ═══════════════════════════════════════════════ */
         .page-footer {
             position: fixed;
@@ -1064,9 +1064,18 @@
             text-align: center;
             font-size: 0.72rem;
             color: var(--warm-400);
-            letter-spacing: 0.8px;
+            letter-spacing: 0.3px;
             user-select: none;
             font-weight: 400;
+            white-space: nowrap;
+        }
+        .page-footer a {
+            color: var(--warm-400);
+            text-decoration: none;
+            transition: color var(--transition);
+        }
+        .page-footer a:hover {
+            color: var(--warm-600);
         }
 
         /* ═══════════════════════════════════════════════
@@ -1094,7 +1103,7 @@
             .ambient-layer { display: none; }
             .bg-stage-glow { opacity: 0.5; }
             .auth-backplate { display: none; }
-            .page-footer { display: none; }
+            .page-footer { font-size: 0.65rem; bottom: 0.75rem; }
         }
         @media (min-width: 769px) and (max-width: 1024px) {
             .deco-chat-panel { display: none; }
@@ -1434,7 +1443,11 @@
 </div>
 
 <!-- Footer -->
-<div class="page-footer">AI Studio &mdash; Intelligent Assistant Platform</div>
+<div class="page-footer">
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">赣ICP备2026013160号</a>
+    &nbsp;|&nbsp;
+    <a href="https://www.beian.gov.cn/" target="_blank" rel="noopener">赣ICP备2026013160号-1</a>
+</div>
 
 <!-- Toast -->
 <div class="toast-msg" id="toast" role="status" aria-live="polite"></div>

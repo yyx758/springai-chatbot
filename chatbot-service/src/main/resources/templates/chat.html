@@ -1810,6 +1810,40 @@
                 transition-duration: 0.01ms !important;
             }
         }
+
+        /* ═══════════════════════════════════════════════
+           BEIAN FOOTER
+           ═══════════════════════════════════════════════ */
+        .beian-footer {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            text-align: center;
+            font-size: 0.68rem;
+            color: var(--warm-400);
+            letter-spacing: 0.2px;
+            padding: 0.25rem 1rem;
+            white-space: nowrap;
+            pointer-events: auto;
+        }
+        .beian-footer a {
+            color: var(--warm-400);
+            text-decoration: none;
+            transition: color var(--transition);
+        }
+        .beian-footer a:hover {
+            color: var(--warm-600);
+        }
+        @media (max-width: 768px) {
+            .beian-footer {
+                font-size: 0.6rem;
+                bottom: 0;
+                padding: 0.15rem 0.5rem;
+                background: rgba(250,248,243,0.7);
+            }
+        }
     </style>
 </head>
 <body>
@@ -5325,5 +5359,12 @@
         }
     });
 </script>
+
+<div class="beian-footer">
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">赣ICP备2026013160号</a>
+    &nbsp;|&nbsp;
+    <a href="https://www.beian.gov.cn/" target="_blank" rel="noopener">赣ICP备2026013160号-1</a>
+</div>
+
 </body>
 </html>

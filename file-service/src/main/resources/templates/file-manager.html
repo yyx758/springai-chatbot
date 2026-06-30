@@ -801,6 +801,32 @@
         }
 
         /* ═══════════════════════════════════════════════
+           BEIAN FOOTER
+           ═══════════════════════════════════════════════ */
+        .beian-footer {
+            text-align: center;
+            font-size: 0.72rem;
+            color: var(--warm-400);
+            letter-spacing: 0.2px;
+            padding: 1.5rem 1rem 1rem;
+            white-space: nowrap;
+        }
+        .beian-footer a {
+            color: var(--warm-400);
+            text-decoration: none;
+            transition: color var(--transition);
+        }
+        .beian-footer a:hover {
+            color: var(--warm-600);
+        }
+        @media (max-width: 768px) {
+            .beian-footer {
+                font-size: 0.65rem;
+                padding: 1rem 0.5rem;
+            }
+        }
+
+        /* ═══════════════════════════════════════════════
            STAGGER ANIMATION
            ═══════════════════════════════════════════════ */
 
@@ -1309,5 +1335,12 @@
     // Init
     loadFiles();
 </script>
+
+<div class="beian-footer">
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">赣ICP备2026013160号</a>
+    &nbsp;|&nbsp;
+    <a href="https://www.beian.gov.cn/" target="_blank" rel="noopener">赣ICP备2026013160号-1</a>
+</div>
+
 </body>
 </html>
